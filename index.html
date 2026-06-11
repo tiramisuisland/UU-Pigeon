@@ -27,6 +27,7 @@
         }
 
         .hud {
+            display: none;
             position: fixed;
             top: 16px;
             left: 16px;
@@ -375,11 +376,14 @@
         let readManVideoTexture = null;
         let buttonModelPopupWindow = null;
         let videoBackgroundPopupsScheduled = false;
+        let anthemPopupOpened = false;
+        let knockedDownBirdCount = 0;
         const videoBackgroundFiles = [
             "./video1.mp4",
             "./video2.mp4",
             "./video3.mp4"
         ];
+        const anthemVideoFile = "./唱國歌.mp4";
         const readManPlacement = {
             displaySize: 0.70,
             rightMargin: 0.08,
@@ -1000,6 +1004,20 @@
                 videoPlaylist: shuffledVideos,
                 label: "投票影片",
                 windowName: "button_model_popup"
+            });
+        }
+
+        function openAnthemPopupIfNeeded() {
+            if (anthemPopupOpened || knockedDownBirdCount < 10) {
+                return;
+            }
+
+            anthemPopupOpened = true;
+            openButtonModelPopup({
+                videoSrc: anthemVideoFile,
+                label: "唱國歌",
+                forceNew: true,
+                windowName: "anthem_video_popup"
             });
         }
 
@@ -1734,6 +1752,7 @@
             hitBird.isCrashed = true;
             hitBird.crashFallSpeed = 0;
             hitBird.reviveAt = -1;
+            knockedDownBirdCount += 1;
             createDroppedSign(hitBird, "幹麻打我");
             playBirdCoo(hitBird);
             stopBirdWingAudio(hitBird);
@@ -1744,6 +1763,7 @@
                 hitBird.mixer.stopAllAction();
             }
             hud.innerHTML = "命中一隻鴿子<br>牠丟下「幹麻打我」後墜落";
+            openAnthemPopupIfNeeded();
         });
 
         audioButton.addEventListener("click", () => {
