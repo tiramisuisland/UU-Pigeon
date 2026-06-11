@@ -371,6 +371,8 @@
         let readManActions = [];
         let readManCycleEndAt = -1;
         let readManResumeAt = -1;
+        let readManVideo = null;
+        let readManVideoTexture = null;
         let buttonModelPopupWindow = null;
         let videoBackgroundPopupsScheduled = false;
         const videoBackgroundFiles = [
@@ -397,6 +399,10 @@
             rotationZ: THREE.MathUtils.degToRad(20),
             mobileScale: 0.78
         };
+        const readManVideoSources = [
+            { src: "./大偶90.mp4", type: "video/mp4" },
+            { src: "./大偶90.mov", type: "video/quicktime" }
+        ];
         const readManCounterPlacement = {
             // === AGREE / DISAGREE 數字位置微調 ===
             // x: 左右位置，負數往左、正數往右
@@ -625,6 +631,94 @@
                     material.needsUpdate = true;
                 });
             });
+        }
+
+        function setupReadManVideo() {
+            if (readManVideoTexture) {
+                return;
+            }
+
+            readManVideo = document.createElement("video");
+            readManVideo.loop = true;
+            readManVideo.muted = false;
+            readManVideo.playsInline = true;
+            readManVideo.preload = "auto";
+
+            readManVideoSources.forEach(({ src, type }) => {
+                const source = document.createElement("source");
+                source.src = src;
+                source.type = type;
+                readManVideo.appendChild(source);
+            });
+
+            readManVideoTexture = new THREE.VideoTexture(readManVideo);
+            readManVideoTexture.colorSpace = THREE.SRGBColorSpace;
+            readManVideoTexture.repeat.y = -1;
+            readManVideoTexture.offset.y = 1;
+        }
+
+        function applyReadManVideoTexture() {
+            if (!readManModel || !readManVideoTexture) {
+                return;
+            }
+
+            let applied = false;
+            readManModel.traverse((child) => {
+                if (!child.isMesh) {
+                    return;
+                }
+
+                if (child.name === "BoxA") {
+                    child.material = new THREE.MeshBasicMaterial({
+                        map: readManVideoTexture,
+                        side: THREE.DoubleSide,
+                        toneMapped: false
+                    });
+                    applied = true;
+                }
+            });
+
+            if (applied) {
+                return;
+            }
+
+            const fallbackMesh = readManModel.getObjectByProperty("type", "Mesh");
+            if (fallbackMesh) {
+                fallbackMesh.material = new THREE.MeshBasicMaterial({
+                    map: readManVideoTexture,
+                    side: THREE.DoubleSide,
+                    toneMapped: false
+                });
+            }
+        }
+
+        function playReadManVideo() {
+            if (!readManVideo) {
+                return;
+            }
+
+            readManVideo.play().catch((error) => {
+                console.warn("read man 影片播放被瀏覽器暫停，等待使用者互動", error);
+            });
+        }
+
+        function replayReadManAnimation(elapsed = clock.elapsedTime) {
+            if (!readManMixer || readManActions.length === 0) {
+                return;
+            }
+
+            startReadManAnimationCycle(elapsed);
+        }
+
+        function hitTestReadMan(event) {
+            if (!readManAnchor || !readManModel) {
+                return false;
+            }
+
+            clickPointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            clickPointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
+            raycaster.setFromCamera(clickPointer, overlayCamera);
+            return raycaster.intersectObject(readManModel, true).length > 0;
         }
 
         function getPointText(value) {
@@ -1283,8 +1377,9 @@
         });
 
         loader.load(
-            "./read_man1.glb",
+            "./read_man3.glb",
             (gltf) => {
+                setupReadManVideo();
                 readManModel = gltf.scene;
                 readManAnchor = new THREE.Group();
 
@@ -1313,6 +1408,7 @@
                     startReadManAnimationCycle();
                 }
                 applyReadManEnvironment();
+                applyReadManVideoTexture();
                 updateReadManPlacement();
             },
             undefined,
@@ -1586,6 +1682,12 @@
         });
 
         window.addEventListener("click", (event) => {
+            if (hitTestReadMan(event)) {
+                playReadManVideo();
+                replayReadManAnimation(clock.elapsedTime);
+                return;
+            }
+
             const clickableBirdRoots = birds
                 .filter((bird) => bird.isActive && !bird.isCrashed)
                 .map((bird) => bird.root);
@@ -1646,6 +1748,7 @@
 
         audioButton.addEventListener("click", () => {
             unlockAudio();
+            playReadManVideo();
             openVideoPlaylistPopup();
         });
     </script>
