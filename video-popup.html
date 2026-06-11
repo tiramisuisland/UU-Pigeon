@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>按鈕</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .background-video {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 1;
+            filter: saturate(1.18) contrast(1.08) brightness(1.03);
+            z-index: 0;
+            background: #000000;
+            transition: opacity 0.45s ease, filter 0.45s ease;
+        }
+
+        body.is-model-focused .background-video {
+            opacity: 0.08;
+            filter: saturate(0.25) contrast(0.8) brightness(1.4);
+        }
+
+        canvas {
+            position: relative;
+            z-index: 1;
+            display: block;
+            opacity: 0;
+            transition: opacity 0.45s ease;
+        }
+
+        canvas.is-visible {
+            opacity: 1;
+        }
+
+        .vote-status {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            z-index: 2;
+            min-width: 180px;
+            max-width: calc(100vw - 36px);
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.68);
+            color: #ffffff;
+            font: 700 14px Arial, sans-serif;
+            text-align: center;
+            transform: translateX(-50%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .vote-status.is-visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <video class="background-video" autoplay loop playsinline></video>
+    <div class="vote-status" aria-live="polite"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from "three";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+        const params = new URLSearchParams(window.location.search);
+        const backgroundVideo = document.querySelector(".background-video");
+        const voteStatus = document.querySelector(".vote-status");
+        const backgroundVideoSrc = params.get("video");
+        const videoPlaylist = (params.get("playlist") || backgroundVideoSrc || "")
+            .split("|")
+            .filter(Boolean);
+        const videoSwitchSeconds = Number(params.get("interval")) || 20;
+        const popupTitle = params.get("label");
+        let activeVideoIndex = 0;
+        let videoSwitchTimer = 0;
+        let hasVoted = false;
+
+        if (popupTitle) {
+            document.title = popupTitle;
+        }
+
+        function playBackgroundVideo() {
+            backgroundVideo.muted = false;
+            backgroundVideo.volume = 1;
+            backgroundVideo.play().catch(() => {});
+        }
+
+        function scheduleNextBackgroundVideo() {
+            window.clearTimeout(videoSwitchTimer);
+            if (hasVoted || videoPlaylist.length <= 1) {
+                return;
+            }
+
+            videoSwitchTimer = window.setTimeout(() => {
+                playBackgroundVideoAt(activeVideoIndex + 1);
+            }, videoSwitchSeconds * 1000);
+        }
+
+        function playBackgroundVideoAt(index) {
+            if (hasVoted || videoPlaylist.length === 0) {
+                return;
+            }
+
+            activeVideoIndex = ((index % videoPlaylist.length) + videoPlaylist.length) %
+                videoPlaylist.length;
+            backgroundVideo.src = videoPlaylist[activeVideoIndex];
+            backgroundVideo.muted = false;
+            backgroundVideo.volume = 1;
+            try {
+                backgroundVideo.currentTime = 0;
+            } catch (error) {
+                // Some browsers do not allow seeking before metadata is ready.
+            }
+            playBackgroundVideo();
+            scheduleNextBackgroundVideo();
+        }
+
+        function stopBackgroundVideos() {
+            hasVoted = true;
+            window.clearTimeout(videoSwitchTimer);
+            backgroundVideo.pause();
+            backgroundVideo.removeAttribute("src");
+            backgroundVideo.load();
+        }
+
+        if (videoPlaylist.length > 0) {
+            window.addEventListener("focus", () => {
+                if (!hasVoted) {
+                    playBackgroundVideo();
+                }
+            });
+            window.addEventListener("pointerdown", () => {
+                if (!hasVoted) {
+                    playBackgroundVideo();
+                }
+            });
+            document.addEventListener("visibilitychange", () => {
+                if (hasVoted) {
+                    return;
+                }
+
+                if (document.hidden) {
+                    backgroundVideo.pause();
+                } else {
+                    playBackgroundVideo();
+                }
+            });
+            backgroundVideo.addEventListener("loadedmetadata", () => {
+                const videoWidth = backgroundVideo.videoWidth || 16;
+                const videoHeight = backgroundVideo.videoHeight || 9;
+                const aspect = videoWidth / videoHeight;
+                const maxWidth = Math.min(window.screen.availWidth * 0.72, 960);
+                const maxHeight = Math.min(window.screen.availHeight * 0.72, 720);
+                let targetWidth = maxWidth;
+                let targetHeight = targetWidth / aspect;
+
+                if (targetHeight > maxHeight) {
+                    targetHeight = maxHeight;
+                    targetWidth = targetHeight * aspect;
+                }
+
+                const widthDelta = Math.round(targetWidth - window.innerWidth);
+                const heightDelta = Math.round(targetHeight - window.innerHeight);
+
+                if (Math.abs(widthDelta) > 2 || Math.abs(heightDelta) > 2) {
+                    window.resizeBy(widthDelta, heightDelta);
+                }
+            });
+            playBackgroundVideoAt(0);
+        } else {
+            backgroundVideo.remove();
+        }
+
+        const scene = new THREE.Scene();
+        scene.background = videoPlaylist.length > 0 ? null : new THREE.Color(0xffffff);
+
+        const camera = new THREE.PerspectiveCamera(
+            45,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            100
+        );
+        camera.position.set(0, 0, 5);
+
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: videoPlaylist.length > 0
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        if (videoPlaylist.length > 0) {
+            renderer.setClearColor(0x000000, 0);
+        }
+        document.body.appendChild(renderer.domElement);
+
+        function showModel() {
+            document.body.classList.add("is-model-focused");
+            renderer.domElement.classList.add("is-visible");
+        }
+
+        function hideModel() {
+            document.body.classList.remove("is-model-focused");
+            renderer.domElement.classList.remove("is-visible");
+        }
+
+        document.body.addEventListener("pointerenter", showModel);
+        document.body.addEventListener("pointermove", showModel);
+        document.body.addEventListener("pointerleave", hideModel);
+        renderer.domElement.addEventListener("pointerenter", showModel);
+        renderer.domElement.addEventListener("pointermove", showModel);
+        renderer.domElement.addEventListener("pointerleave", hideModel);
+        window.addEventListener("focus", showModel);
+        window.addEventListener("blur", hideModel);
+
+        const ambientLight = new THREE.HemisphereLight(0xffffff, 0x6a7080, 2.2);
+        scene.add(ambientLight);
+
+        const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
+        keyLight.position.set(3, 4, 5);
+        scene.add(keyLight);
+
+        const loader = new GLTFLoader();
+        const clock = new THREE.Clock();
+        const modelAnchor = new THREE.Group();
+        const holeButtons = new THREE.Group();
+        const buttonRaycaster = new THREE.Raycaster();
+        const buttonPointer = new THREE.Vector2();
+        let buttonModel = null;
+        let buttonModelMixer = null;
+        let buttonModelActions = [];
+        let buttonShapeKeyTargets = [];
+        let buttonShapeKeyTweens = [];
+        let modelBaseY = 0;
+        let hoveredButton = null;
+        let voteStatusTimer = 0;
+        const voteEndpoints = {
+            agree: "https://macn8n.tiramisu-island.com/webhook/plus_agree",
+            disagree: "https://macn8n.tiramisu-island.com/webhook/plus_disagree"
+        };
+        const voteShapeKeyNames = {
+            agree: ["鍵 1", "key 1", "key1"],
+            disagree: ["鍵 2", "key 2", "key2"]
+        };
+        const modelRotation = {
+            x: THREE.MathUtils.degToRad(90),
+            y: THREE.MathUtils.degToRad(0),
+            z: THREE.MathUtils.degToRad(0)
+        };
+        const buttonPlacement = {
+            radius: 0.16,      // 球形按鈕半徑
+            widthSegments: 48, // 球形水平平滑度
+            heightSegments: 24,// 球形垂直平滑度
+            labelWidth: 0.34,  // 文字寬度
+            labelHeight: 0.12, // 文字高度
+            labelLift: 0.035,  // 文字離球面的高度
+            left: { x: -0.50, y: 0.08, z: 0.5 },
+            right: { x: 0.48, y: 0.08, z: 0.5 }
+        };
+
+        scene.add(modelAnchor);
+
+        function createLabelTexture(text, color) {
+            const canvas = document.createElement("canvas");
+            canvas.width = 512;
+            canvas.height = 192;
+            const context = canvas.getContext("2d");
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = color;
+            context.font = "700 72px Arial, sans-serif";
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            return texture;
+        }
+
+        function createHoleButton({ label, color, position }) {
+            const group = new THREE.Group();
+            group.position.set(position.x, position.y, position.z);
+            group.userData.voteType = label;
+            group.userData.endpoint = voteEndpoints[label];
+            group.userData.pressedUntil = 0;
+
+            const button = new THREE.Mesh(
+                new THREE.SphereGeometry(
+                    buttonPlacement.radius,
+                    buttonPlacement.widthSegments,
+                    buttonPlacement.heightSegments
+                ),
+                new THREE.MeshStandardMaterial({
+                    color,
+                    transparent: true,
+                    opacity: 0,
+                    roughness: 0.18,
+                    metalness: 0.02,
+                    depthWrite: false
+                })
+            );
+            group.add(button);
+
+            const labelMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(buttonPlacement.labelWidth, buttonPlacement.labelHeight),
+                new THREE.MeshBasicMaterial({
+                    map: createLabelTexture(label, "#111111"),
+                    transparent: true,
+                    side: THREE.DoubleSide
+                })
+            );
+            labelMesh.position.z = buttonPlacement.radius + buttonPlacement.labelLift;
+            group.add(labelMesh);
+
+            return group;
+        }
+
+        function updatePointerFromEvent(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            buttonPointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            buttonPointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+        }
+
+        function getButtonFromObject(object) {
+            let node = object;
+            while (node) {
+                if (node.userData.voteType) {
+                    return node;
+                }
+                node = node.parent;
+            }
+            return null;
+        }
+
+        function getButtonFromPointer(event) {
+            updatePointerFromEvent(event);
+            buttonRaycaster.setFromCamera(buttonPointer, camera);
+            const hits = buttonRaycaster.intersectObjects(holeButtons.children, true);
+            if (hits.length > 0) {
+                return getButtonFromObject(hits[0].object);
+            }
+
+            if (!buttonModel) {
+                return null;
+            }
+
+            const modelHits = buttonRaycaster.intersectObject(buttonModel, true);
+            if (modelHits.length === 0) {
+                return null;
+            }
+
+            const localHitPoint = modelAnchor.worldToLocal(modelHits[0].point.clone());
+            const voteType = localHitPoint.x < 0 ? "agree" : "disagree";
+            return holeButtons.children.find((button) => button.userData.voteType === voteType) || null;
+        }
+
+        function playButtonModelAnimation(voteType) {
+            const shapeKeyDuration = playButtonShapeKeys(voteType);
+
+            if (!buttonModelMixer || buttonModelActions.length === 0) {
+                return shapeKeyDuration;
+            }
+
+            if (buttonShapeKeyTweens.length > 0) {
+                buttonModelMixer.stopAllAction();
+                return shapeKeyDuration;
+            }
+
+            const normalizedVoteType = String(voteType || "").toLowerCase();
+            const matchedActions = buttonModelActions.filter((action) =>
+                action.getClip().name.toLowerCase().includes(normalizedVoteType)
+            );
+            const actionsToPlay = matchedActions.length > 0 ? matchedActions : buttonModelActions;
+            const longestDuration = Math.max(
+                ...actionsToPlay.map((action) => action.getClip().duration),
+                0
+            );
+
+            actionsToPlay.forEach((action) => {
+                action.reset();
+                action.enabled = true;
+                action.paused = false;
+                action.play();
+            });
+
+            return Math.max(900, longestDuration * 1000 + 250);
+        }
+
+        function playButtonShapeKeys(voteType) {
+            if (buttonShapeKeyTargets.length === 0) {
+                return 900;
+            }
+
+            const normalizedVoteType = String(voteType || "").toLowerCase();
+            const mappedShapeKeyNames = voteShapeKeyNames[normalizedVoteType] || [];
+            const normalizedShapeKeyNames = mappedShapeKeyNames.map((name) => name.toLowerCase());
+            const matchedTargets = buttonShapeKeyTargets.filter((target) => {
+                const normalizedTargetName = target.name.toLowerCase();
+                return normalizedShapeKeyNames.some((name) =>
+                    normalizedTargetName === name || normalizedTargetName.includes(name)
+                ) || normalizedTargetName.includes(normalizedVoteType);
+            });
+            const targetsToPlay = matchedTargets.length > 0
+                ? matchedTargets
+                : buttonShapeKeyTargets;
+            const startedAt = clock.elapsedTime;
+            const pressDuration = 0.32;
+            const holdDuration = 0.14;
+            const releaseDuration = 0.42;
+
+            buttonShapeKeyTweens = targetsToPlay.map((target) => ({
+                ...target,
+                startedAt,
+                pressDuration,
+                holdDuration,
+                releaseDuration,
+                startValue: target.mesh.morphTargetInfluences[target.index] || 0
+            }));
+
+            return Math.max(900, (pressDuration + holdDuration + releaseDuration) * 1000 + 250);
+        }
+
+        function updateButtonShapeKeys(elapsed) {
+            if (buttonShapeKeyTweens.length === 0) {
+                return;
+            }
+
+            buttonShapeKeyTweens = buttonShapeKeyTweens.filter((tween) => {
+                const localTime = elapsed - tween.startedAt;
+                const releaseStart = tween.pressDuration + tween.holdDuration;
+                const totalDuration = releaseStart + tween.releaseDuration;
+                let value = 0;
+
+                if (localTime < tween.pressDuration) {
+                    value = THREE.MathUtils.smoothstep(localTime / tween.pressDuration, 0, 1);
+                    value = THREE.MathUtils.lerp(tween.startValue, 1, value);
+                } else if (localTime < releaseStart) {
+                    value = 1;
+                } else if (localTime < totalDuration) {
+                    value = 1 - THREE.MathUtils.smoothstep(
+                        (localTime - releaseStart) / tween.releaseDuration,
+                        0,
+                        1
+                    );
+                } else {
+                    tween.mesh.morphTargetInfluences[tween.index] = 0;
+                    return false;
+                }
+
+                tween.mesh.morphTargetInfluences[tween.index] = value;
+                return true;
+            });
+        }
+
+        function showVoteStatus(message) {
+            window.clearTimeout(voteStatusTimer);
+            voteStatus.textContent = message;
+            voteStatus.classList.add("is-visible");
+            voteStatusTimer = window.setTimeout(() => {
+                voteStatus.classList.remove("is-visible");
+            }, 2200);
+        }
+
+        function submitVote(button) {
+            const endpoint = button?.userData.endpoint;
+            if (!endpoint || hasVoted) {
+                return;
+            }
+
+            button.userData.pressedUntil = clock.elapsedTime + 0.18;
+            const closeDelay = playButtonModelAnimation(button.userData.voteType);
+            showVoteStatus(`送出 ${button.userData.voteType}...`);
+            stopBackgroundVideos();
+
+            fetch(`${endpoint}?t=${Date.now()}`, {
+                method: "GET",
+                mode: "no-cors",
+                cache: "no-store",
+                keepalive: true
+            }).then(() => {
+                showVoteStatus(`${button.userData.voteType} 請求已送出`);
+                window.setTimeout(() => window.close(), closeDelay);
+            }).catch((error) => {
+                console.error(`${button.userData.voteType} webhook failed`, error);
+                showVoteStatus(`${button.userData.voteType} 送出失敗`);
+                window.setTimeout(() => window.close(), closeDelay);
+            });
+        }
+
+        function addHoleButtons() {
+            holeButtons.clear();
+            holeButtons.add(
+                createHoleButton({
+                    label: "agree",
+                    color: 0x22c55e,
+                    position: buttonPlacement.left
+                })
+            );
+            holeButtons.add(
+                createHoleButton({
+                    label: "disagree",
+                    color: 0xef4444,
+                    position: buttonPlacement.right
+                })
+            );
+            modelAnchor.add(holeButtons);
+        }
+
+        loader.load(
+            "./buttonC_EN.glb",
+            (gltf) => {
+                buttonModel = gltf.scene;
+
+                buttonModel.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material.side = THREE.DoubleSide;
+                    }
+                    if (child.isMesh && child.morphTargetInfluences && child.morphTargetDictionary) {
+                        Object.entries(child.morphTargetDictionary).forEach(([name, index]) => {
+                            buttonShapeKeyTargets.push({
+                                mesh: child,
+                                name,
+                                index
+                            });
+                        });
+                    }
+                });
+
+                modelAnchor.rotation.set(
+                    modelRotation.x,
+                    modelRotation.y,
+                    modelRotation.z
+                );
+
+                const box = new THREE.Box3().setFromObject(buttonModel);
+                const size = new THREE.Vector3();
+                const center = new THREE.Vector3();
+                box.getSize(size);
+                box.getCenter(center);
+
+                const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+                const modelScale = 1.65 / maxAxis;
+                buttonModel.scale.setScalar(modelScale);
+                buttonModel.position.copy(center).multiplyScalar(-modelScale);
+                modelAnchor.add(buttonModel);
+                addHoleButtons();
+                if (gltf.animations.length > 0) {
+                    buttonModelMixer = new THREE.AnimationMixer(buttonModel);
+                    buttonModelActions = gltf.animations.map((clip) => {
+                        const action = buttonModelMixer.clipAction(clip);
+                        action.setLoop(THREE.LoopOnce, 1);
+                        action.clampWhenFinished = true;
+                        return action;
+                    });
+                }
+
+                modelAnchor.updateMatrixWorld(true);
+                const fittedBox = new THREE.Box3().setFromObject(modelAnchor);
+                const fittedSphere = new THREE.Sphere();
+                fittedBox.getBoundingSphere(fittedSphere);
+                const radius = fittedSphere.radius || 1;
+                const fitHeightDistance =
+                    radius / Math.sin(THREE.MathUtils.degToRad(camera.fov) / 2);
+                const distance = fitHeightDistance * 1.45;
+
+                camera.position.set(0, 0, distance);
+                camera.near = Math.max(0.01, distance / 100);
+                camera.far = distance * 100;
+                camera.lookAt(0, 0, 0);
+                camera.updateProjectionMatrix();
+
+                modelBaseY = modelAnchor.position.y;
+            },
+            undefined,
+            (error) => {
+                console.error(error);
+            }
+        );
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const elapsed = clock.elapsedTime;
+            if (buttonModel) {
+                modelAnchor.rotation.set(
+                    modelRotation.x,
+                    modelRotation.y,
+                    modelRotation.z
+                );
+                modelAnchor.position.y = modelBaseY + Math.sin(elapsed * 1.6) * 0.05;
+            }
+
+            holeButtons.children.forEach((button) => {
+                const targetScale = elapsed < button.userData.pressedUntil ? 0.86 : 1;
+                button.scale.setScalar(THREE.MathUtils.lerp(button.scale.x, targetScale, 0.28));
+            });
+
+            if (buttonModelMixer) {
+                buttonModelMixer.update(delta);
+            }
+            updateButtonShapeKeys(elapsed);
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener("resize", () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        });
+
+        window.addEventListener("pointermove", (event) => {
+            hoveredButton = getButtonFromPointer(event);
+            document.body.style.cursor = hoveredButton ? "pointer" : "";
+        });
+
+        window.addEventListener("pointerleave", () => {
+            hoveredButton = null;
+            document.body.style.cursor = "";
+        });
+
+        window.addEventListener("pointerdown", (event) => {
+            const button = getButtonFromPointer(event);
+            if (!button) {
+                return;
+            }
+
+            submitVote(button);
+        });
+    </script>
+</body>
+</html>

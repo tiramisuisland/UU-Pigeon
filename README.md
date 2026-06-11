@@ -1,2 +1,2 @@
-# UU-Pigeon
-UU鴿子的網頁
+# UU-
+UU的鴿子網頁
