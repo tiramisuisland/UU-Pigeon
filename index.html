@@ -372,6 +372,9 @@
         let readManActions = [];
         let readManCycleEndAt = -1;
         let readManResumeAt = -1;
+        let readManPointerNear = false;
+        let pointerClientX = Number.NaN;
+        let pointerClientY = Number.NaN;
         let readManVideo = null;
         let readManVideoTexture = null;
         let buttonModelPopupWindow = null;
@@ -397,6 +400,8 @@
             floatSpeed: 1.45,
             animationSpeed: 0.5,
             animationPauseSeconds: 2,
+            pointerRadius: 190,
+            mobilePointerRadius: 145,
             mirrorX: false,
             rotationX: THREE.MathUtils.degToRad(20),
             rotationY: THREE.MathUtils.degToRad(-110),
@@ -712,6 +717,62 @@
             }
 
             startReadManAnimationCycle(elapsed);
+        }
+
+        const readManPointerScreenPosition = new THREE.Vector3();
+
+        function isPointerNearReadMan(elapsed = clock.elapsedTime) {
+            if (
+                !readManAnchor ||
+                Number.isNaN(pointerClientX) ||
+                Number.isNaN(pointerClientY) ||
+                elapsed - lastPointerMoveAt > 4
+            ) {
+                return false;
+            }
+
+            readManAnchor.getWorldPosition(readManPointerScreenPosition);
+            readManPointerScreenPosition.project(overlayCamera);
+
+            const readManX = (readManPointerScreenPosition.x * 0.5 + 0.5) * window.innerWidth;
+            const readManY = (-readManPointerScreenPosition.y * 0.5 + 0.5) * window.innerHeight;
+            const radius = window.innerWidth < 720
+                ? readManPlacement.mobilePointerRadius
+                : readManPlacement.pointerRadius;
+            const distance = Math.hypot(pointerClientX - readManX, pointerClientY - readManY);
+
+            return distance <= radius;
+        }
+
+        function stopReadManAnimation() {
+            if (!readManMixer || readManActions.length === 0) {
+                return;
+            }
+
+            readManCycleEndAt = -1;
+            readManResumeAt = -1;
+            readManActions.forEach((action) => {
+                action.stop();
+                action.reset();
+            });
+            readManMixer.setTime(0);
+        }
+
+        function updateReadManPointerAnimation(elapsed = clock.elapsedTime) {
+            const isNear = isPointerNearReadMan(elapsed);
+
+            if (!isNear) {
+                if (readManPointerNear) {
+                    stopReadManAnimation();
+                }
+                readManPointerNear = false;
+                return;
+            }
+
+            if (!readManPointerNear || readManCycleEndAt < 0 || elapsed >= readManCycleEndAt) {
+                startReadManAnimationCycle(elapsed);
+            }
+            readManPointerNear = true;
         }
 
         function hitTestReadMan(event) {
@@ -1395,7 +1456,7 @@
         });
 
         loader.load(
-            "./read_man3.glb",
+            "./UU.glb",
             (gltf) => {
                 setupReadManVideo();
                 readManModel = gltf.scene;
@@ -1423,7 +1484,6 @@
                         action.clampWhenFinished = true;
                         return action;
                     });
-                    startReadManAnimationCycle();
                 }
                 applyReadManEnvironment();
                 applyReadManVideoTexture();
@@ -1503,16 +1563,9 @@
                 spawnWave(elapsed);
             }
 
-            if (readManMixer && readManResumeAt > 0) {
-                if (elapsed >= readManResumeAt) {
-                    startReadManAnimationCycle(elapsed);
-                }
-            } else if (readManMixer) {
+            updateReadManPointerAnimation(elapsed);
+            if (readManMixer && readManPointerNear) {
                 readManMixer.update(delta);
-                if (elapsed >= readManCycleEndAt) {
-                    readManCycleEndAt = -1;
-                    readManResumeAt = elapsed + readManPlacement.animationPauseSeconds;
-                }
             }
 
             droppedSigns.forEach((sign) => {
@@ -1694,12 +1747,16 @@
         });
 
         window.addEventListener("pointermove", (event) => {
+            pointerClientX = event.clientX;
+            pointerClientY = event.clientY;
             pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
             pointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
             lastPointerMoveAt = clock.elapsedTime;
         });
 
         window.addEventListener("click", (event) => {
+            pointerClientX = event.clientX;
+            pointerClientY = event.clientY;
             if (hitTestReadMan(event)) {
                 playReadManVideo();
                 replayReadManAnimation(clock.elapsedTime);
