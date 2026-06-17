@@ -388,7 +388,7 @@ class PressVolumeControl extends HTMLElement {
           left: calc(132px * var(--ui-scale));
           right: 0;
           top: 50%;
-          height: calc(22px * var(--ui-scale));
+          height: calc(22px * var(--ui-scale) * 1.4);
           transform: translateY(-50%);
         }
 
@@ -397,7 +397,7 @@ class PressVolumeControl extends HTMLElement {
           left: 0;
           right: 0;
           top: 50%;
-          height: calc(5px * var(--ui-scale));
+          height: calc(5px * var(--ui-scale) * 1.4);
           border-radius: 999px;
           background: var(--pvc-track, #e8e6e8);
           transform: translateY(-50%);
@@ -409,7 +409,7 @@ class PressVolumeControl extends HTMLElement {
           left: 0;
           top: 50%;
           width: var(--volume);
-          height: calc(5px * var(--ui-scale));
+          height: calc(5px * var(--ui-scale) * 1.4);
           border-radius: 999px;
           background: var(--pvc-color, #000);
           transform: translateY(-50%);
@@ -420,8 +420,8 @@ class PressVolumeControl extends HTMLElement {
           position: absolute;
           left: var(--volume);
           top: 50%;
-          width: calc(24px * var(--ui-scale));
-          height: calc(24px * var(--ui-scale));
+          width: calc(24px * var(--ui-scale) * 1.4);
+          height: calc(24px * var(--ui-scale) * 1.4);
           border-radius: 50%;
           background: var(--pvc-color, #000);
           transform: translate(-50%, -50%);
@@ -431,8 +431,8 @@ class PressVolumeControl extends HTMLElement {
 
         .projectile {
           position: absolute;
-          width: calc(24px * var(--ui-scale));
-          height: calc(24px * var(--ui-scale));
+          width: calc(24px * var(--ui-scale) * 1.4);
+          height: calc(24px * var(--ui-scale) * 1.4);
           left: 0;
           top: 0;
           border-radius: 50%;
@@ -459,6 +459,14 @@ class PressVolumeControl extends HTMLElement {
           white-space: nowrap;
         }
 
+        .marker::before {
+          font-size: calc(7px * var(--ui-scale) * 1.4);
+        }
+
+        .projectile::before {
+          font-size: calc(7px * var(--ui-scale) * 1.4);
+        }
+
         .marker::after,
         .projectile::after {
           content: "";
@@ -470,6 +478,18 @@ class PressVolumeControl extends HTMLElement {
           border-bottom: calc(3px * var(--ui-scale)) solid #fff;
           border-radius: 0 0 14px 14px;
           transform: translateX(-50%) rotate(-4deg);
+        }
+
+        .marker::after {
+          width: calc(13px * var(--ui-scale) * 1.4);
+          height: calc(8px * var(--ui-scale) * 1.4);
+          border-bottom-width: calc(3px * var(--ui-scale) * 1.4);
+        }
+
+        .projectile::after {
+          width: calc(13px * var(--ui-scale) * 1.4);
+          height: calc(8px * var(--ui-scale) * 1.4);
+          border-bottom-width: calc(3px * var(--ui-scale) * 1.4);
         }
 
         @media (max-width: 640px) {
