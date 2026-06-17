@@ -66,147 +66,78 @@
             top: 16px;
             right: 16px;
             z-index: 12;
-            display: grid;
-            grid-template-columns: auto 38px;
-            gap: 10px;
+            display: flex;
+            gap: 8px;
             align-items: center;
-            padding: 10px 10px 10px 12px;
-            border: 2px solid rgba(69, 36, 22, 0.55);
-            border-radius: 8px;
-            background:
-                linear-gradient(180deg, rgba(255, 246, 218, 0.92), rgba(232, 188, 116, 0.92));
-            box-shadow:
-                0 12px 24px rgba(58, 31, 19, 0.2),
-                inset 0 1px 0 rgba(255, 255, 255, 0.65);
-            user-select: none;
-        }
-
-        .slot-machine {
-            display: grid;
-            gap: 5px;
-        }
-
-        .slot-label {
-            color: #3d2418;
-            font-size: 11px;
-            font-weight: 800;
-            line-height: 1;
-            text-align: center;
-        }
-
-        .slot-reels {
-            display: grid;
-            grid-template-columns: repeat(3, 24px);
-            gap: 4px;
-            padding: 5px;
+            width: 188px;
+            padding: 4px 2px;
             border-radius: 6px;
-            background: #24140f;
-            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.42);
-        }
-
-        .slot-reel {
-            height: 34px;
-            display: grid;
-            place-items: center;
-            overflow: hidden;
-            border-radius: 4px;
-            background:
-                linear-gradient(180deg, #fff8dc 0%, #ffc94d 45%, #fff4bf 100%);
-            color: #2b160f;
-            font-family: "Arial Black", Impact, sans-serif;
-            font-size: 22px;
-            line-height: 1;
-            box-shadow: inset 0 0 0 1px rgba(85, 48, 16, 0.35);
-        }
-
-        .slot-reel.is-spinning span {
-            animation: slotSpin 260ms ease-out;
-        }
-
-        @keyframes slotSpin {
-            0% {
-                transform: translateY(-140%);
-                filter: blur(2px);
-            }
-
-            100% {
-                transform: translateY(0);
-                filter: blur(0);
-            }
-        }
-
-        .slot-lever {
-            position: relative;
-            width: 38px;
-            height: 96px;
+            background: transparent;
+            box-shadow: none;
+            user-select: none;
             touch-action: none;
         }
 
-        .lever-track {
-            position: absolute;
-            left: 50%;
-            top: 9px;
-            width: 10px;
-            height: 78px;
-            border-radius: 999px;
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.48), transparent 24%),
-                linear-gradient(90deg, #4c2415, #d49451, #4c2415);
-            box-shadow:
-                inset 0 2px 4px rgba(0, 0, 0, 0.38),
-                0 1px 0 rgba(255, 255, 255, 0.45);
-            transform: translateX(-50%);
+        .volume-speaker {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 auto;
+            color: #c9c9cf;
         }
 
-        .lever-handle {
+        .volume-speaker svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .volume-slider {
+            position: relative;
+            flex: 1;
+            height: 24px;
+            touch-action: none;
+        }
+
+        .volume-track {
             position: absolute;
-            left: 50%;
+            left: 0;
+            right: 0;
             top: 50%;
-            width: 34px;
-            height: 34px;
+            height: 4px;
+            border-radius: 999px;
+            background: #d9d9dd;
+            transform: translateY(-50%);
+        }
+
+        .volume-fill {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            border-radius: 999px;
+            background: #6f32a8;
+            transform: translateY(-50%);
+            transform-origin: left center;
+        }
+
+        .volume-knob {
+            position: absolute;
+            left: 100%;
+            top: 50%;
+            width: 11px;
+            height: 11px;
             border: 0;
             border-radius: 999px;
-            background: radial-gradient(circle at 35% 30%, #ff8a8a, #c9152f 70%);
-            box-shadow:
-                0 5px 0 #6f1321,
-                0 9px 12px rgba(55, 18, 20, 0.26);
+            background: #6f32a8;
+            box-shadow: 0 2px 8px rgba(111, 50, 168, 0.36);
             transform: translate(-50%, -50%);
-            transition: top 160ms cubic-bezier(0.2, 0.8, 0.25, 1.2), transform 80ms ease;
+            transition: transform 90ms ease;
             touch-action: none;
         }
 
-        .lever-handle::after {
-            content: "";
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.72);
-            transform: translate(-50%, -50%);
-        }
-
-        .lever-handle.is-dragging {
-            transition: none;
-            transform: translate(-50%, -50%) scale(1.08);
-        }
-
-        .lever-mark {
-            position: absolute;
-            left: 50%;
-            color: #3d2418;
-            font: 900 10px/1 Arial, sans-serif;
-            transform: translateX(-50%);
-            pointer-events: none;
-        }
-
-        .lever-mark.is-up {
-            top: -2px;
-        }
-
-        .lever-mark.is-down {
-            bottom: -2px;
+        .volume-slider.is-dragging .volume-knob {
+            transform: translate(-50%, -50%) scale(1.35);
         }
 
         .alive-marquee {
@@ -391,19 +322,17 @@
         <div class="readman-counter" id="disagreeCounter" aria-label="disagree 數字"></div>
     </div>
     <div class="volume-slot" aria-label="全域音量控制">
-        <div class="slot-machine" aria-live="polite">
-            <div class="slot-label">VOL</div>
-            <div class="slot-reels" aria-label="目前音量">
-                <div class="slot-reel"><span id="volumeHundreds">1</span></div>
-                <div class="slot-reel"><span id="volumeTens">0</span></div>
-                <div class="slot-reel"><span id="volumeOnes">0</span></div>
-            </div>
+        <div class="volume-speaker" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img">
+                <path fill="currentColor" d="M8 24h12l16-14v44L20 40H8z"></path>
+                <path fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" d="M43 22c4 5 4 15 0 20"></path>
+                <path fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" d="M50 14c8 10 8 26 0 36"></path>
+            </svg>
         </div>
-        <div class="slot-lever" aria-label="音量拉霸搖桿">
-            <div class="lever-mark is-up" aria-hidden="true">+10</div>
-            <div class="lever-track" aria-hidden="true"></div>
-            <button class="lever-handle" id="volumeLever" type="button" aria-label="往上拉音量加 10，往下拉音量減 10"></button>
-            <div class="lever-mark is-down" aria-hidden="true">-10</div>
+        <div class="volume-slider" id="volumeSlider" role="slider" aria-label="全域音量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" tabindex="0">
+            <div class="volume-track" aria-hidden="true"></div>
+            <div class="volume-fill" id="volumeFill" aria-hidden="true"></div>
+            <button class="volume-knob" id="volumeKnob" type="button" aria-label="拖曳調整音量"></button>
         </div>
     </div>
     <div class="alive-marquee" aria-live="polite">
@@ -433,13 +362,9 @@
         const disagreeCounterElement = document.querySelector("#disagreeCounter");
         const gameCursor = document.querySelector(".game-cursor");
         const volumeSlot = document.querySelector(".volume-slot");
-        const volumeReels = Array.from(document.querySelectorAll(".slot-reel"));
-        const volumeDigits = [
-            document.querySelector("#volumeHundreds"),
-            document.querySelector("#volumeTens"),
-            document.querySelector("#volumeOnes")
-        ];
-        const volumeLever = document.querySelector("#volumeLever");
+        const volumeSlider = document.querySelector("#volumeSlider");
+        const volumeFill = document.querySelector("#volumeFill");
+        const volumeKnob = document.querySelector("#volumeKnob");
         const aliveMarqueeText = document.querySelector("#aliveMarqueeText");
 
         const scene = new THREE.Scene();
@@ -643,14 +568,7 @@
             kills: "讀取中",
             pageviews: "讀取中"
         };
-        let isVolumeLeverDragging = false;
-        let volumeLeverStartY = 0;
-        let volumeLeverOffset = 0;
-        let volumeLeverRepeatTimer = 0;
-        let volumeLeverRepeatDirection = 0;
-        const volumeLeverMaxOffset = 28;
-        const volumeLeverTriggerOffset = 18;
-        const volumeLeverRepeatMs = 500;
+        let isVolumeSliderDragging = false;
         const videoBackgroundFiles = [
             "./video1.mp4",
             "./video2.mp4",
@@ -1295,15 +1213,11 @@
         }
 
         function renderVolumeSlot() {
-            const digits = String(globalVolume).padStart(3, "0").slice(-3);
-            volumeDigits.forEach((digitElement, index) => {
-                digitElement.textContent = digits[index];
-            });
-            volumeReels.forEach((reel) => {
-                reel.classList.remove("is-spinning");
-                void reel.offsetWidth;
-                reel.classList.add("is-spinning");
-            });
+            const volumePercent = globalVolume / 100;
+            volumeFill.style.transform = `translateY(-50%) scaleX(${volumePercent})`;
+            volumeKnob.style.left = `${volumePercent * 100}%`;
+            volumeSlider.setAttribute("aria-valuenow", String(globalVolume));
+            volumeSlider.setAttribute("aria-valuetext", `${globalVolume}%`);
             volumeSlot.setAttribute("aria-label", `全域音量 ${globalVolume}`);
         }
 
@@ -1343,98 +1257,59 @@
         }
 
         function setGlobalVolume(nextVolume) {
-            globalVolume = THREE.MathUtils.clamp(Math.round(nextVolume / 10) * 10, 0, 100);
+            globalVolume = THREE.MathUtils.clamp(Math.round(nextVolume), 0, 100);
             renderVolumeSlot();
             applyGlobalVolume();
         }
 
-        function adjustGlobalVolume(delta) {
-            setGlobalVolume(globalVolume + delta);
-        }
-
-        function getVolumeLeverDirection() {
-            if (volumeLeverOffset <= -volumeLeverTriggerOffset) {
-                return 1;
-            }
-            if (volumeLeverOffset >= volumeLeverTriggerOffset) {
-                return -1;
-            }
-            return 0;
-        }
-
-        function stopVolumeLeverRepeat() {
-            window.clearInterval(volumeLeverRepeatTimer);
-            volumeLeverRepeatTimer = 0;
-            volumeLeverRepeatDirection = 0;
-        }
-
-        function startVolumeLeverRepeat(direction) {
-            if (direction === 0) {
-                stopVolumeLeverRepeat();
-                return;
-            }
-
-            if (volumeLeverRepeatTimer && volumeLeverRepeatDirection === direction) {
-                return;
-            }
-
-            stopVolumeLeverRepeat();
-            volumeLeverRepeatDirection = direction;
-            adjustGlobalVolume(direction * 10);
-            volumeLeverRepeatTimer = window.setInterval(() => {
-                adjustGlobalVolume(volumeLeverRepeatDirection * 10);
-            }, volumeLeverRepeatMs);
-        }
-
-        function updateVolumeLeverRepeat() {
-            startVolumeLeverRepeat(getVolumeLeverDirection());
-        }
-
-        function setVolumeLeverOffset(offset) {
-            volumeLeverOffset = THREE.MathUtils.clamp(
-                offset,
-                -volumeLeverMaxOffset,
-                volumeLeverMaxOffset
+        function setVolumeFromSliderEvent(event) {
+            const sliderBounds = volumeSlider.getBoundingClientRect();
+            const ratio = THREE.MathUtils.clamp(
+                (event.clientX - sliderBounds.left) / sliderBounds.width,
+                0,
+                1
             );
-            volumeLever.style.top = `calc(50% + ${volumeLeverOffset}px)`;
+            setGlobalVolume(ratio * 100);
         }
 
-        function resetVolumeLever() {
-            isVolumeLeverDragging = false;
-            stopVolumeLeverRepeat();
-            volumeLever.classList.remove("is-dragging");
-            setVolumeLeverOffset(0);
-        }
-
-        function startVolumeLeverDrag(event) {
+        function startVolumeSliderDrag(event) {
             event.preventDefault();
             event.stopPropagation();
-            isVolumeLeverDragging = true;
-            volumeLeverStartY = event.clientY - volumeLeverOffset;
-            volumeLever.classList.add("is-dragging");
-            volumeLever.setPointerCapture(event.pointerId);
-            updateVolumeLeverRepeat();
+            isVolumeSliderDragging = true;
+            volumeSlider.classList.add("is-dragging");
+            volumeSlider.setPointerCapture(event.pointerId);
+            setVolumeFromSliderEvent(event);
         }
 
-        function dragVolumeLever(event) {
-            if (!isVolumeLeverDragging) {
+        function dragVolumeSlider(event) {
+            if (!isVolumeSliderDragging) {
                 return;
             }
 
             event.preventDefault();
             event.stopPropagation();
-            setVolumeLeverOffset(event.clientY - volumeLeverStartY);
-            updateVolumeLeverRepeat();
+            setVolumeFromSliderEvent(event);
         }
 
-        function releaseVolumeLever(event) {
-            if (!isVolumeLeverDragging) {
+        function stopVolumeSliderDrag(event) {
+            if (!isVolumeSliderDragging) {
                 return;
             }
 
-            event.preventDefault();
-            event.stopPropagation();
-            resetVolumeLever();
+            event?.preventDefault();
+            event?.stopPropagation();
+            isVolumeSliderDragging = false;
+            volumeSlider.classList.remove("is-dragging");
+        }
+
+        function handleVolumeSliderKeydown(event) {
+            if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+                event.preventDefault();
+                setGlobalVolume(globalVolume + 5);
+            } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+                event.preventDefault();
+                setGlobalVolume(globalVolume - 5);
+            }
         }
 
         function shuffleList(items) {
@@ -1967,10 +1842,11 @@
             event.stopPropagation();
         });
 
-        volumeLever.addEventListener("pointerdown", startVolumeLeverDrag);
-        volumeLever.addEventListener("pointermove", dragVolumeLever);
-        volumeLever.addEventListener("pointerup", releaseVolumeLever);
-        volumeLever.addEventListener("pointercancel", resetVolumeLever);
+        volumeSlider.addEventListener("pointerdown", startVolumeSliderDrag);
+        volumeSlider.addEventListener("pointermove", dragVolumeSlider);
+        volumeSlider.addEventListener("pointerup", stopVolumeSliderDrag);
+        volumeSlider.addEventListener("pointercancel", stopVolumeSliderDrag);
+        volumeSlider.addEventListener("keydown", handleVolumeSliderKeydown);
 
         poopModelPaths.forEach((path) => {
             loader.load(
