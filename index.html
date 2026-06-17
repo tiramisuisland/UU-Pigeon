@@ -66,78 +66,19 @@
             top: 16px;
             right: 16px;
             z-index: 12;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            width: 188px;
-            padding: 4px 2px;
-            border-radius: 6px;
-            background: transparent;
-            box-shadow: none;
+            width: min(280px, calc(100vw - 32px));
             user-select: none;
             touch-action: none;
         }
 
-        .volume-speaker {
-            width: 28px;
-            height: 28px;
-            flex: 0 0 auto;
-            color: #c9c9cf;
-        }
-
-        .volume-speaker svg {
+        press-volume-control {
             width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        .volume-slider {
-            position: relative;
-            flex: 1;
-            height: 24px;
-            touch-action: none;
-        }
-
-        .volume-track {
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 50%;
-            height: 4px;
-            border-radius: 999px;
-            background: #d9d9dd;
-            transform: translateY(-50%);
-        }
-
-        .volume-fill {
-            position: absolute;
-            top: 50%;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            border-radius: 999px;
-            background: #6f32a8;
-            transform: translateY(-50%);
-            transform-origin: left center;
-        }
-
-        .volume-knob {
-            position: absolute;
-            left: 100%;
-            top: 50%;
-            width: 11px;
-            height: 11px;
-            border: 0;
-            border-radius: 999px;
-            background: #6f32a8;
-            box-shadow: 0 2px 8px rgba(111, 50, 168, 0.36);
-            transform: translate(-50%, -50%);
-            transition: transform 90ms ease;
-            touch-action: none;
-        }
-
-        .volume-slider.is-dragging .volume-knob {
-            transform: translate(-50%, -50%) scale(1.35);
+            --pvc-ui-scale: 0.5;
+            --pvc-background: transparent;
+            --pvc-border: transparent;
+            --pvc-color: #000;
+            --pvc-empty: rgba(0, 0, 0, 0.22);
+            --pvc-track: rgba(36, 17, 14, 0.18);
         }
 
         .alive-marquee {
@@ -148,10 +89,10 @@
             width: 100%;
             height: 34px;
             overflow: hidden;
-            border-top: 2px solid rgba(255, 224, 136, 0.62);
-            background: rgba(31, 18, 12, 0.76);
-            color: #ffe89d;
-            font: 900 15px/34px "Noto Sans TC", sans-serif;
+            border: 0;
+            background: transparent;
+            color: #3a3a3a;
+            font: 500 15px/34px Futura, "Futura PT", Arial, sans-serif;
             letter-spacing: 0;
             white-space: nowrap;
             pointer-events: none;
@@ -161,8 +102,7 @@
             display: inline-block;
             min-width: 100%;
             padding-left: 100%;
-            animation: marqueeMove 13s linear infinite;
-            text-shadow: 0 0 8px rgba(255, 198, 70, 0.85);
+            animation: marqueeMove 26s linear infinite;
         }
 
         @keyframes marqueeMove {
@@ -300,8 +240,7 @@
             .volume-slot {
                 top: 10px;
                 right: 10px;
-                transform: scale(0.86);
-                transform-origin: top right;
+                width: min(210px, calc(100vw - 20px));
             }
 
             .readman-digit {
@@ -321,22 +260,11 @@
         <div class="readman-counter" id="agreeCounter" aria-label="agree 數字"></div>
         <div class="readman-counter" id="disagreeCounter" aria-label="disagree 數字"></div>
     </div>
-    <div class="volume-slot" aria-label="全域音量控制">
-        <div class="volume-speaker" aria-hidden="true">
-            <svg viewBox="0 0 64 64" role="img">
-                <path fill="currentColor" d="M8 24h12l16-14v44L20 40H8z"></path>
-                <path fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" d="M43 22c4 5 4 15 0 20"></path>
-                <path fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" d="M50 14c8 10 8 26 0 36"></path>
-            </svg>
-        </div>
-        <div class="volume-slider" id="volumeSlider" role="slider" aria-label="全域音量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" tabindex="0">
-            <div class="volume-track" aria-hidden="true"></div>
-            <div class="volume-fill" id="volumeFill" aria-hidden="true"></div>
-            <button class="volume-knob" id="volumeKnob" type="button" aria-label="拖曳調整音量"></button>
-        </div>
+    <div class="volume-slot">
+        <press-volume-control id="globalVolumeControl" value="100"></press-volume-control>
     </div>
     <div class="alive-marquee" aria-live="polite">
-        <div class="marquee-track" id="aliveMarqueeText">目前存活數量：0　　全球擊殺數量：讀取中　　目前瀏覽網頁人數：讀取中</div>
+        <div class="marquee-track" id="aliveMarqueeText">Alive: 0 / Global kills: Loading / Visitors: Loading</div>
     </div>
     <img class="game-cursor" src="./X.png" alt="" aria-hidden="true">
 
@@ -349,6 +277,7 @@
         }
     </script>
 
+    <script src="./press-volume-control.js"></script>
     <script type="module">
         import * as THREE from "three";
         import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -362,9 +291,7 @@
         const disagreeCounterElement = document.querySelector("#disagreeCounter");
         const gameCursor = document.querySelector(".game-cursor");
         const volumeSlot = document.querySelector(".volume-slot");
-        const volumeSlider = document.querySelector("#volumeSlider");
-        const volumeFill = document.querySelector("#volumeFill");
-        const volumeKnob = document.querySelector("#volumeKnob");
+        const globalVolumeControl = document.querySelector("#globalVolumeControl");
         const aliveMarqueeText = document.querySelector("#aliveMarqueeText");
 
         const scene = new THREE.Scene();
@@ -565,10 +492,9 @@
         let lastAliveBirdCount = -1;
         const marqueeStats = {
             alive: "0",
-            kills: "讀取中",
-            pageviews: "讀取中"
+            kills: "Loading",
+            pageviews: "Loading"
         };
-        let isVolumeSliderDragging = false;
         const videoBackgroundFiles = [
             "./video1.mp4",
             "./video2.mp4",
@@ -1137,9 +1063,9 @@
 
         function renderMarqueeStats() {
             const marqueeText =
-                `目前存活數量：${marqueeStats.alive}　　全球擊殺數量：${marqueeStats.kills}　　目前瀏覽網頁人數：${marqueeStats.pageviews}`;
+                `Alive: ${marqueeStats.alive} / Global kills: ${marqueeStats.kills} / Visitors: ${marqueeStats.pageviews}`;
             aliveMarqueeText.textContent =
-                `${marqueeText}　　${marqueeText}　　${marqueeText}`;
+                `${marqueeText}     ${marqueeText}     ${marqueeText}`;
         }
 
         function setMarqueeStat(name, value) {
@@ -1189,7 +1115,7 @@
                 setMarqueeStat("kills", getMetricText(responseText) || "0");
             } catch (error) {
                 console.error("全球擊殺數讀取失敗", error);
-                setMarqueeStat("kills", "讀取失敗");
+                setMarqueeStat("kills", "Failed");
             }
         }
 
@@ -1208,17 +1134,16 @@
                 setMarqueeStat("pageviews", getMetricText(responseText) || "0");
             } catch (error) {
                 console.error("瀏覽記錄讀取失敗", error);
-                setMarqueeStat("pageviews", "讀取失敗");
+                setMarqueeStat("pageviews", "Failed");
             }
         }
 
         function renderVolumeSlot() {
-            const volumePercent = globalVolume / 100;
-            volumeFill.style.transform = `translateY(-50%) scaleX(${volumePercent})`;
-            volumeKnob.style.left = `${volumePercent * 100}%`;
-            volumeSlider.setAttribute("aria-valuenow", String(globalVolume));
-            volumeSlider.setAttribute("aria-valuetext", `${globalVolume}%`);
-            volumeSlot.setAttribute("aria-label", `全域音量 ${globalVolume}`);
+            const volumeText = String(globalVolume);
+            if (globalVolumeControl.getAttribute("value") !== volumeText) {
+                globalVolumeControl.setAttribute("value", volumeText);
+            }
+            volumeSlot.setAttribute("aria-label", `全域音量 ${globalVolume}%`);
         }
 
         function applyVolumeToBird(bird) {
@@ -1260,56 +1185,6 @@
             globalVolume = THREE.MathUtils.clamp(Math.round(nextVolume), 0, 100);
             renderVolumeSlot();
             applyGlobalVolume();
-        }
-
-        function setVolumeFromSliderEvent(event) {
-            const sliderBounds = volumeSlider.getBoundingClientRect();
-            const ratio = THREE.MathUtils.clamp(
-                (event.clientX - sliderBounds.left) / sliderBounds.width,
-                0,
-                1
-            );
-            setGlobalVolume(ratio * 100);
-        }
-
-        function startVolumeSliderDrag(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            isVolumeSliderDragging = true;
-            volumeSlider.classList.add("is-dragging");
-            volumeSlider.setPointerCapture(event.pointerId);
-            setVolumeFromSliderEvent(event);
-        }
-
-        function dragVolumeSlider(event) {
-            if (!isVolumeSliderDragging) {
-                return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-            setVolumeFromSliderEvent(event);
-        }
-
-        function stopVolumeSliderDrag(event) {
-            if (!isVolumeSliderDragging) {
-                return;
-            }
-
-            event?.preventDefault();
-            event?.stopPropagation();
-            isVolumeSliderDragging = false;
-            volumeSlider.classList.remove("is-dragging");
-        }
-
-        function handleVolumeSliderKeydown(event) {
-            if (event.key === "ArrowRight" || event.key === "ArrowUp") {
-                event.preventDefault();
-                setGlobalVolume(globalVolume + 5);
-            } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
-                event.preventDefault();
-                setGlobalVolume(globalVolume - 5);
-            }
         }
 
         function shuffleList(items) {
@@ -1842,11 +1717,10 @@
             event.stopPropagation();
         });
 
-        volumeSlider.addEventListener("pointerdown", startVolumeSliderDrag);
-        volumeSlider.addEventListener("pointermove", dragVolumeSlider);
-        volumeSlider.addEventListener("pointerup", stopVolumeSliderDrag);
-        volumeSlider.addEventListener("pointercancel", stopVolumeSliderDrag);
-        volumeSlider.addEventListener("keydown", handleVolumeSliderKeydown);
+        globalVolumeControl.addEventListener("volumechange", (event) => {
+            event.stopPropagation();
+            setGlobalVolume(event.detail.value);
+        });
 
         poopModelPaths.forEach((path) => {
             loader.load(
