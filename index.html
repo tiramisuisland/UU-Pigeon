@@ -13,6 +13,14 @@
             box-sizing: border-box;
         }
 
+        html,
+        body,
+        *,
+        *::before,
+        *::after {
+            cursor: none !important;
+        }
+
         body {
             margin: 0;
             overflow: hidden;
@@ -24,6 +32,33 @@
 
         canvas {
             display: block;
+        }
+
+        .game-cursor {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 9999;
+            width: 56px;
+            height: 56px;
+            object-fit: contain;
+            pointer-events: none;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(1);
+            transform-origin: center;
+            transition: opacity 120ms ease, transform 80ms ease;
+            filter:
+                drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+                drop-shadow(0 0 8px rgba(255, 64, 64, 0.55));
+            user-select: none;
+        }
+
+        .game-cursor.is-visible {
+            opacity: 1;
+        }
+
+        .game-cursor.is-firing {
+            transform: translate(-50%, -50%) scale(0.82);
         }
 
         .hud {
@@ -65,7 +100,6 @@
             color: #0f2d3f;
             background: linear-gradient(180deg, #fffdf6 0%, #ffe7a8 100%);
             box-shadow: 0 18px 40px rgba(16, 44, 62, 0.22);
-            cursor: pointer;
         }
 
         .readman-counters {
@@ -166,6 +200,7 @@
         <div class="readman-counter" id="agreeCounter" aria-label="agree 數字"></div>
         <div class="readman-counter" id="disagreeCounter" aria-label="disagree 數字"></div>
     </div>
+    <img class="game-cursor" src="./X.png" alt="" aria-hidden="true">
 
     <script type="importmap">
         {
@@ -187,6 +222,7 @@
         const audioButton = document.querySelector(".audio-button");
         const agreeCounterElement = document.querySelector("#agreeCounter");
         const disagreeCounterElement = document.querySelector("#disagreeCounter");
+        const gameCursor = document.querySelector(".game-cursor");
 
         const scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xd99870, 34, 128);
@@ -1749,14 +1785,32 @@
         window.addEventListener("pointermove", (event) => {
             pointerClientX = event.clientX;
             pointerClientY = event.clientY;
+            gameCursor.style.left = `${event.clientX}px`;
+            gameCursor.style.top = `${event.clientY}px`;
+            gameCursor.classList.add("is-visible");
             pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
             pointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
             lastPointerMoveAt = clock.elapsedTime;
         });
 
+        window.addEventListener("pointerdown", () => {
+            gameCursor.classList.add("is-firing");
+        });
+
+        window.addEventListener("pointerup", () => {
+            gameCursor.classList.remove("is-firing");
+        });
+
+        window.addEventListener("pointerleave", () => {
+            gameCursor.classList.remove("is-visible", "is-firing");
+        });
+
         window.addEventListener("click", (event) => {
             pointerClientX = event.clientX;
             pointerClientY = event.clientY;
+            gameCursor.style.left = `${event.clientX}px`;
+            gameCursor.style.top = `${event.clientY}px`;
+            gameCursor.classList.add("is-visible");
             if (hitTestReadMan(event)) {
                 playReadManVideo();
                 replayReadManAnimation(clock.elapsedTime);
