@@ -102,6 +102,8 @@
             .filter(Boolean);
         const videoSwitchSeconds = Number(params.get("interval")) || 20;
         const popupTitle = params.get("label");
+        const initialVolume = params.has("volume") ? Number(params.get("volume")) : 1;
+        let globalVolume = Math.max(0, Math.min(1, Number.isFinite(initialVolume) ? initialVolume : 1));
         let activeVideoIndex = 0;
         let videoSwitchTimer = 0;
         let hasVoted = false;
@@ -112,7 +114,7 @@
 
         function playBackgroundVideo() {
             backgroundVideo.muted = false;
-            backgroundVideo.volume = 1;
+            backgroundVideo.volume = globalVolume;
             backgroundVideo.play().catch(() => {});
         }
 
@@ -136,7 +138,7 @@
                 videoPlaylist.length;
             backgroundVideo.src = videoPlaylist[activeVideoIndex];
             backgroundVideo.muted = false;
-            backgroundVideo.volume = 1;
+            backgroundVideo.volume = globalVolume;
             try {
                 backgroundVideo.currentTime = 0;
             } catch (error) {
@@ -153,6 +155,21 @@
             backgroundVideo.removeAttribute("src");
             backgroundVideo.load();
         }
+
+        function setGlobalVolume(volume) {
+            globalVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+            backgroundVideo.volume = globalVolume;
+        }
+
+        window.addEventListener("message", (event) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+
+            if (event.data?.type === "set-global-volume") {
+                setGlobalVolume(event.data.volume);
+            }
+        });
 
         if (videoPlaylist.length > 0) {
             window.addEventListener("focus", () => {
