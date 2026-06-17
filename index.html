@@ -407,7 +407,7 @@
         </div>
     </div>
     <div class="alive-marquee" aria-live="polite">
-        <div class="marquee-track" id="aliveMarqueeText">鴿子目前存活數量：0</div>
+        <div class="marquee-track" id="aliveMarqueeText">目前存活數量：0　　全球擊殺數量：讀取中　　目前瀏覽網頁人數：讀取中</div>
     </div>
     <img class="game-cursor" src="./X.png" alt="" aria-hidden="true">
 
@@ -638,6 +638,11 @@
         let knockedDownBirdCount = 0;
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
+        const marqueeStats = {
+            alive: "0",
+            kills: "讀取中",
+            pageviews: "讀取中"
+        };
         let isVolumeLeverDragging = false;
         let volumeLeverStartY = 0;
         let volumeLeverOffset = 0;
@@ -691,6 +696,10 @@
             agree: "https://macn8n.tiramisu-island.com/webhook/get_agree",
             disagree: "https://macn8n.tiramisu-island.com/webhook/get_disagree"
         };
+        const killPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/kill_pigeon";
+        const getKillPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_kill_pigeon";
+        const pageviewEndpoint = "https://macn8n.tiramisu-island.com/webhook/pageviews";
+        const getPageviewsEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_pageviews";
         const digitPath = "./數字/";
         const digitSprites = new Map();
         const pointCounters = {
@@ -1136,6 +1145,26 @@
             }
         }
 
+        function triggerWebhook(endpoint, label) {
+            const url = new URL(endpoint);
+            url.searchParams.set("_", String(Date.now()));
+
+            fetch(url.href, {
+                method: "GET",
+                mode: "no-cors",
+                cache: "no-store",
+                keepalive: true
+            }).catch((error) => {
+                console.error(`${label} webhook fetch 執行失敗，改用圖片請求`, error);
+                const fallbackImage = new Image();
+                fallbackImage.src = url.href;
+            });
+        }
+
+        function recordPigeonKill() {
+            triggerWebhook(killPigeonEndpoint, "擊殺數");
+        }
+
         function updateAllPointCounters() {
             fetchPointCounter("agree");
             fetchPointCounter("disagree");
@@ -1188,19 +1217,81 @@
             return globalVolume / 100;
         }
 
+        function renderMarqueeStats() {
+            const marqueeText =
+                `目前存活數量：${marqueeStats.alive}　　全球擊殺數量：${marqueeStats.kills}　　目前瀏覽網頁人數：${marqueeStats.pageviews}`;
+            aliveMarqueeText.textContent =
+                `${marqueeText}　　${marqueeText}　　${marqueeText}`;
+        }
+
+        function setMarqueeStat(name, value) {
+            marqueeStats[name] = String(value ?? "0");
+            renderMarqueeStats();
+        }
+
         function getAliveBirdCount() {
             return birds.filter((bird) => bird.isActive && !bird.isGrounded && !bird.isCrashed).length;
         }
 
-        function updateAliveMarquee() {
+        function updateAliveMarqueeStat() {
             const aliveCount = getAliveBirdCount();
             if (aliveCount === lastAliveBirdCount) {
                 return;
             }
 
             lastAliveBirdCount = aliveCount;
-            aliveMarqueeText.textContent =
-                `鴿子目前存活數量：${aliveCount}　　鴿子目前存活數量：${aliveCount}　　鴿子目前存活數量：${aliveCount}`;
+            setMarqueeStat("alive", aliveCount);
+        }
+
+        function getMetricText(responseText) {
+            const trimmedText = responseText.trim();
+            try {
+                const data = JSON.parse(trimmedText);
+                return data.content ?? data.count ?? data.total ?? data.pageviews ?? data.views ?? trimmedText;
+            } catch (error) {
+                return trimmedText;
+            }
+        }
+
+        function incrementGlobalKillMarqueeStat() {
+            const currentKills = Number.parseInt(String(marqueeStats.kills).match(/\d+/)?.[0] ?? "", 10);
+            if (Number.isFinite(currentKills)) {
+                setMarqueeStat("kills", currentKills + 1);
+            }
+        }
+
+        async function fetchGlobalKillCountOnce() {
+            try {
+                const response = await fetch(getKillPigeonEndpoint, { cache: "no-store" });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const responseText = await response.text();
+                setMarqueeStat("kills", getMetricText(responseText) || "0");
+            } catch (error) {
+                console.error("全球擊殺數讀取失敗", error);
+                setMarqueeStat("kills", "讀取失敗");
+            }
+        }
+
+        function recordPageviewOnce() {
+            triggerWebhook(pageviewEndpoint, "瀏覽次數");
+        }
+
+        async function fetchPageviewsOnce() {
+            try {
+                const response = await fetch(getPageviewsEndpoint, { cache: "no-store" });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const responseText = await response.text();
+                setMarqueeStat("pageviews", getMetricText(responseText) || "0");
+            } catch (error) {
+                console.error("瀏覽記錄讀取失敗", error);
+                setMarqueeStat("pageviews", "讀取失敗");
+            }
         }
 
         function renderVolumeSlot() {
@@ -1863,7 +1954,10 @@
         startPointCounters();
         renderVolumeSlot();
         applyGlobalVolume();
-        updateAliveMarquee();
+        renderMarqueeStats();
+        fetchGlobalKillCountOnce();
+        recordPageviewOnce();
+        window.setTimeout(fetchPageviewsOnce, 700);
 
         volumeSlot.addEventListener("pointerdown", (event) => {
             event.stopPropagation();
@@ -2154,7 +2248,7 @@
                 }
             });
 
-            updateAliveMarquee();
+            updateAliveMarqueeStat();
 
             cloudGroup.children.forEach((cloud, index) => {
                 cloud.position.x += 0.01 + index * 0.002;
@@ -2279,6 +2373,8 @@
             hitBird.crashFallSpeed = 0;
             hitBird.reviveAt = -1;
             knockedDownBirdCount += 1;
+            recordPigeonKill();
+            incrementGlobalKillMarqueeStat();
             createDroppedSign(hitBird, "幹麻打我");
             playBirdCoo(hitBird);
             stopBirdWingAudio(hitBird);
