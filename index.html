@@ -98,6 +98,130 @@
             pointer-events: none;
         }
 
+        .chat-toggle {
+            position: fixed;
+            left: 16px;
+            top: 16px;
+            z-index: 14;
+            border: 0;
+            border-radius: 999px;
+            padding: 10px 16px;
+            color: #16324a;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 12px 30px rgba(16, 44, 62, 0.16);
+            font: 700 14px/1 "Noto Sans TC", sans-serif;
+        }
+
+        .chat-panel {
+            position: fixed;
+            left: 16px;
+            top: 66px;
+            z-index: 13;
+            width: min(360px, calc(100vw - 32px));
+            max-height: min(560px, calc(100vh - 116px));
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.46);
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 24px 60px rgba(16, 44, 62, 0.22);
+            color: #16324a;
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+
+        .chat-panel.is-open {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid rgba(22, 50, 74, 0.1);
+        }
+
+        .chat-title {
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        .chat-status {
+            font-size: 12px;
+            color: rgba(22, 50, 74, 0.62);
+        }
+
+        .chat-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 14px 14px 18px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .chat-message {
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            gap: 10px;
+            align-items: start;
+        }
+
+        .chat-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(22, 50, 74, 0.16);
+            box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.28);
+        }
+
+        .chat-bubble {
+            min-width: 0;
+            border-radius: 16px 16px 16px 6px;
+            padding: 10px 12px 8px;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: 0 8px 22px rgba(16, 44, 62, 0.1);
+        }
+
+        .chat-name {
+            margin-bottom: 5px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f2d3f;
+        }
+
+        .chat-text {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font-size: 14px;
+            line-height: 1.45;
+            color: #1d3e56;
+        }
+
+        .chat-time {
+            margin-top: 7px;
+            font-size: 11px;
+            line-height: 1;
+            color: rgba(22, 50, 74, 0.56);
+        }
+
+        .chat-empty {
+            padding: 18px 6px;
+            text-align: center;
+            color: rgba(22, 50, 74, 0.58);
+            font-size: 13px;
+        }
+
         .marquee-track {
             display: inline-block;
             min-width: 100%;
@@ -243,6 +367,19 @@
                 width: min(210px, calc(100vw - 20px));
             }
 
+            .chat-toggle {
+                left: 10px;
+                top: 10px;
+                padding: 9px 13px;
+            }
+
+            .chat-panel {
+                left: 10px;
+                top: 56px;
+                width: min(330px, calc(100vw - 20px));
+                max-height: min(500px, calc(100vh - 100px));
+            }
+
             .readman-digit {
                 width: 16px;
                 height: 26px;
@@ -266,6 +403,16 @@
     <div class="alive-marquee" aria-live="polite">
         <div class="marquee-track" id="aliveMarqueeText">Alive: 0 / Global kills: Loading / Visitors: Loading</div>
     </div>
+    <button class="chat-toggle" id="chatToggle" type="button" aria-expanded="false" aria-controls="chatPanel">聊天訊息</button>
+    <aside class="chat-panel" id="chatPanel" aria-label="其他人的聊天訊息" aria-hidden="true">
+        <div class="chat-header">
+            <div class="chat-title">其他人的聊天</div>
+            <div class="chat-status" id="chatStatus">尚未載入</div>
+        </div>
+        <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
+            <div class="chat-empty">打開後會載入聊天內容</div>
+        </div>
+    </aside>
     <img class="game-cursor" src="./assets/images/X.png" alt="" aria-hidden="true">
 
     <script type="importmap">
@@ -293,6 +440,10 @@
         const volumeSlot = document.querySelector(".volume-slot");
         const globalVolumeControl = document.querySelector("#globalVolumeControl");
         const aliveMarqueeText = document.querySelector("#aliveMarqueeText");
+        const chatToggle = document.querySelector("#chatToggle");
+        const chatPanel = document.querySelector("#chatPanel");
+        const chatMessages = document.querySelector("#chatMessages");
+        const chatStatus = document.querySelector("#chatStatus");
 
         const scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xd99870, 34, 128);
@@ -579,6 +730,7 @@
         const getKillPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_kill_pigeon";
         const pageviewEndpoint = "https://macn8n.tiramisu-island.com/webhook/pageviews";
         const getPageviewsEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_pageviews";
+        const chatMessagesEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_u_chatting";
         const digitPath = "./assets/digits/";
         const digitSprites = new Map();
         const pointCounters = {
@@ -1193,6 +1345,113 @@
             } catch (error) {
                 console.error("瀏覽記錄讀取失敗", error);
                 setMarqueeStat("pageviews", "Failed");
+            }
+        }
+
+        let chatPanelOpen = false;
+        let chatRefreshTimer = 0;
+
+        function setChatStatus(message) {
+            chatStatus.textContent = message;
+        }
+
+        function renderChatEmpty(message) {
+            const emptyElement = document.createElement("div");
+            emptyElement.className = "chat-empty";
+            emptyElement.textContent = message;
+            chatMessages.replaceChildren(emptyElement);
+        }
+
+        function createChatMessageElement(chatItem) {
+            const messageElement = document.createElement("article");
+            messageElement.className = "chat-message";
+
+            const avatarElement = document.createElement("div");
+            avatarElement.className = "chat-avatar";
+            avatarElement.setAttribute("aria-hidden", "true");
+
+            const bubbleElement = document.createElement("div");
+            bubbleElement.className = "chat-bubble";
+
+            const nameElement = document.createElement("div");
+            nameElement.className = "chat-name";
+            nameElement.textContent = chatItem.sender_name || "匿名";
+
+            const textElement = document.createElement("div");
+            textElement.className = "chat-text";
+            textElement.textContent = chatItem.message || "";
+
+            const timeElement = document.createElement("div");
+            timeElement.className = "chat-time";
+            timeElement.textContent = chatItem.created_at || "";
+
+            bubbleElement.append(nameElement, textElement, timeElement);
+            messageElement.append(avatarElement, bubbleElement);
+            return messageElement;
+        }
+
+        function renderChatMessages(messages) {
+            if (!Array.isArray(messages) || messages.length === 0) {
+                renderChatEmpty("目前還沒有聊天訊息");
+                return;
+            }
+
+            const messageElements = messages.map(createChatMessageElement);
+            const shouldStickToBottom =
+                chatMessages.scrollTop + chatMessages.clientHeight >= chatMessages.scrollHeight - 40;
+            chatMessages.replaceChildren(...messageElements);
+            if (shouldStickToBottom) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        async function fetchChatMessages() {
+            if (!chatPanelOpen) {
+                return;
+            }
+
+            setChatStatus("載入中...");
+            try {
+                const response = await fetch(chatMessagesEndpoint, { cache: "no-store" });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const messages = await response.json();
+                renderChatMessages(messages);
+                setChatStatus("已更新");
+            } catch (error) {
+                console.error("聊天訊息讀取失敗", error);
+                setChatStatus("讀取失敗");
+                if (chatMessages.children.length === 0) {
+                    renderChatEmpty("聊天訊息讀取失敗");
+                }
+            }
+        }
+
+        function startChatRefresh() {
+            window.clearInterval(chatRefreshTimer);
+            fetchChatMessages();
+            chatRefreshTimer = window.setInterval(fetchChatMessages, 60000);
+        }
+
+        function stopChatRefresh() {
+            window.clearInterval(chatRefreshTimer);
+            chatRefreshTimer = 0;
+        }
+
+        function setChatPanelOpen(isOpen) {
+            chatPanelOpen = isOpen;
+            chatPanel.classList.toggle("is-open", isOpen);
+            chatPanel.setAttribute("aria-hidden", String(!isOpen));
+            chatToggle.setAttribute("aria-expanded", String(isOpen));
+            chatToggle.textContent = isOpen ? "關閉聊天" : "聊天訊息";
+
+            if (isOpen) {
+                startChatRefresh();
+            } else {
+                stopChatRefresh();
+                setChatStatus("已關閉");
             }
         }
 
@@ -1986,6 +2245,20 @@
 
         volumeSlot.addEventListener("click", (event) => {
             event.stopPropagation();
+        });
+
+        [chatToggle, chatPanel].forEach((element) => {
+            element.addEventListener("pointerdown", (event) => {
+                event.stopPropagation();
+            });
+
+            element.addEventListener("click", (event) => {
+                event.stopPropagation();
+            });
+        });
+
+        chatToggle.addEventListener("click", () => {
+            setChatPanelOpen(!chatPanelOpen);
         });
 
         globalVolumeControl.addEventListener("volumechange", (event) => {
