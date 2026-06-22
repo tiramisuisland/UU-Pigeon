@@ -266,7 +266,7 @@
     <div class="alive-marquee" aria-live="polite">
         <div class="marquee-track" id="aliveMarqueeText">Alive: 0 / Global kills: Loading / Visitors: Loading</div>
     </div>
-    <img class="game-cursor" src="./X.png" alt="" aria-hidden="true">
+    <img class="game-cursor" src="./assets/images/X.png" alt="" aria-hidden="true">
 
     <script type="importmap">
         {
@@ -277,7 +277,7 @@
         }
     </script>
 
-    <script src="./press-volume-control.js"></script>
+    <script src="./scripts/press-volume-control.js"></script>
     <script type="module">
         import * as THREE from "three";
         import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -372,7 +372,7 @@
         pmremGenerator.compileEquirectangularShader();
 
         new RGBELoader().load(
-            "./belfast_sunset_2k.hdr",
+            "./assets/environment/belfast_sunset_2k.hdr",
             (texture) => {
                 const environmentMap = pmremGenerator.fromEquirectangular(texture).texture;
                 hdrEnvironmentMap = environmentMap;
@@ -385,7 +385,7 @@
             undefined,
             (error) => {
                 console.error(error);
-                hud.innerHTML = "HDR 環境光載入失敗<br>請確認 <code>belfast_sunset_2k.hdr</code> 在同一資料夾";
+                hud.innerHTML = "HDR 環境光載入失敗<br>請確認 <code>assets/environment/belfast_sunset_2k.hdr</code> 存在";
             }
         );
 
@@ -530,11 +530,11 @@
             pageviews: "Loading"
         };
         const videoBackgroundFiles = [
-            "./video1.mp4",
-            "./video2.mp4",
-            "./video3.mp4"
+            "./assets/videos/video1.mp4",
+            "./assets/videos/video2.mp4",
+            "./assets/videos/video3.mp4"
         ];
-        const anthemVideoFile = "./唱國歌.mp4";
+        const anthemVideoFile = "./assets/videos/唱國歌.mp4";
         const readManPlacement = {
             displaySize: 0.70,
             rightMargin: 0.08,
@@ -557,8 +557,8 @@
             mobileScale: 0.78
         };
         const readManVideoSources = [
-            { src: "./大偶90.mp4", type: "video/mp4" },
-            { src: "./大偶90.mov", type: "video/quicktime" }
+            { src: "./assets/videos/大偶90.mp4", type: "video/mp4" },
+            { src: "./assets/videos/大偶90.mov", type: "video/quicktime" }
         ];
         const readManVideoVolumeScale = 0.5;
         const readManCounterPlacement = {
@@ -579,7 +579,7 @@
         const getKillPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_kill_pigeon";
         const pageviewEndpoint = "https://macn8n.tiramisu-island.com/webhook/pageviews";
         const getPageviewsEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_pageviews";
-        const digitPath = "./數字/";
+        const digitPath = "./assets/digits/";
         const digitSprites = new Map();
         const pointCounters = {
             agree: {
@@ -593,28 +593,28 @@
         };
         const poopModelTemplates = [];
         const poopModelPaths = [
-            "./鴿子拉屎的文字/文字.glb",
-            "./鴿子拉屎的文字/文字_001.glb",
-            "./鴿子拉屎的文字/文字_002.glb",
-            "./鴿子拉屎的文字/文字_003.glb",
-            "./鴿子拉屎的文字/文字_004.glb",
-            "./鴿子拉屎的文字/文字_005.glb",
-            "./鴿子拉屎的文字/文字_006.glb",
-            "./鴿子拉屎的文字/文字_007.glb",
-            "./鴿子拉屎的文字/文字_008.glb",
-            "./鴿子拉屎的文字/文字_009.glb",
-            "./鴿子拉屎的文字/文字_010.glb",
-            "./鴿子拉屎的文字/文字_011.glb",
-            "./鴿子拉屎的文字/文字_012.glb",
-            "./鴿子拉屎的文字/文字_013.glb",
-            "./鴿子拉屎的文字/文字_014.glb",
-            "./鴿子拉屎的文字/文字_015.glb",
-            "./鴿子拉屎的文字/文字_016.glb",
-            "./鴿子拉屎的文字/文字_017.glb",
-            "./鴿子拉屎的文字/文字_018.glb",
-            "./鴿子拉屎的文字/文字_019.glb",
-            "./鴿子拉屎的文字/文字_020.glb",
-            "./鴿子拉屎的文字/文字_021.glb"
+            "./assets/models/signs/文字.glb",
+            "./assets/models/signs/文字_001.glb",
+            "./assets/models/signs/文字_002.glb",
+            "./assets/models/signs/文字_003.glb",
+            "./assets/models/signs/文字_004.glb",
+            "./assets/models/signs/文字_005.glb",
+            "./assets/models/signs/文字_006.glb",
+            "./assets/models/signs/文字_007.glb",
+            "./assets/models/signs/文字_008.glb",
+            "./assets/models/signs/文字_009.glb",
+            "./assets/models/signs/文字_010.glb",
+            "./assets/models/signs/文字_011.glb",
+            "./assets/models/signs/文字_012.glb",
+            "./assets/models/signs/文字_013.glb",
+            "./assets/models/signs/文字_014.glb",
+            "./assets/models/signs/文字_015.glb",
+            "./assets/models/signs/文字_016.glb",
+            "./assets/models/signs/文字_017.glb",
+            "./assets/models/signs/文字_018.glb",
+            "./assets/models/signs/文字_019.glb",
+            "./assets/models/signs/文字_020.glb",
+            "./assets/models/signs/文字_021.glb"
         ];
         let wingAudioBuffer = null;
         let cooAudioBuffer = null;
@@ -1341,7 +1341,7 @@
                 "resizable=yes",
                 "scrollbars=no"
             ].join(",");
-            const popupUrl = new URL("./video-popup.html", window.location.href);
+            const popupUrl = new URL("./pages/video-popup.html", window.location.href);
             if (options.label) {
                 popupUrl.searchParams.set("label", options.label);
             }
@@ -1460,7 +1460,7 @@
                 "resizable=yes",
                 "scrollbars=no"
             ].join(",");
-            const popupUrl = new URL("./bird-camera-popup.html", window.location.href);
+            const popupUrl = new URL("./pages/bird-camera-popup.html", window.location.href);
 
             birdCameraPopupWindow = window.open(
                 popupUrl.href,
@@ -2020,7 +2020,7 @@
         });
 
         loader.load(
-            "./UU.glb",
+            "./assets/models/UU.glb",
             (gltf) => {
                 setupReadManVideo();
                 readManModel = gltf.scene;
@@ -2060,7 +2060,7 @@
         );
 
         audioLoader.load(
-            "./翅膀拍動的聲音2.mp3",
+            "./assets/audio/翅膀拍動的聲音2.mp3",
             (buffer) => {
                 wingAudioBuffer = buffer;
                 birds.forEach((bird) => setupBirdAudio(bird));
@@ -2072,7 +2072,7 @@
         );
 
         audioLoader.load(
-            "./鴿子的叫聲.mp3",
+            "./assets/audio/鴿子的叫聲.mp3",
             (buffer) => {
                 cooAudioBuffer = buffer;
                 birds.forEach((bird) => setupBirdAudio(bird));
@@ -2084,7 +2084,7 @@
         );
 
         loader.load(
-            "./action.glb",
+            "./assets/models/action.glb",
             (gltf) => {
                 birdTemplate = gltf.scene;
                 birdAnimationClips = gltf.animations;
@@ -2113,7 +2113,7 @@
             undefined,
             (error) => {
                 console.error(error);
-                hud.innerHTML = "模型載入失敗<br>請確認 <code>action.glb</code> 與網頁在同一資料夾";
+                hud.innerHTML = "模型載入失敗<br>請確認 <code>assets/models/action.glb</code> 存在";
             }
         );
 

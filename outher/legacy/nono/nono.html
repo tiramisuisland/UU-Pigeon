@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 飛鳥場景</title>
+    <link rel="stylesheet" href="./styles/base.css">
+    <link rel="stylesheet" href="./styles/hud.css">
+    <link rel="stylesheet" href="./styles/counters.css">
+</head>
+<body>
+    <div class="hud">載入模型中...<br>場景檔：<code>action.glb</code></div>
+    <div class="audio-gate">
+        <button class="audio-button" type="button">點一下開啟 3D 場景</button>
+    </div>
+    <div class="readman-counters" aria-label="agree disagree 即時數字">
+        <div class="readman-counter" id="agreeCounter" aria-label="agree 數字"></div>
+        <div class="readman-counter" id="disagreeCounter" aria-label="disagree 數字"></div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+.readman-counters { position: fixed; inset: 0; z-index: 6; display: contents; pointer-events: none; }
+.readman-counter {
+    position: fixed;
+    left: 0;
+    top: 0;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -50%);
+    transform-origin: center;
+    opacity: 0;
+    transition: opacity 240ms ease;
+}
+.readman-counter.is-visible { opacity: 1; }
+.readman-digit {
+    width: 22px;
+    height: 35px;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    filter: drop-shadow(0 0 2px rgba(255,246,212,.95)) drop-shadow(0 0 6px rgba(255,156,76,.8)) drop-shadow(0 0 12px rgba(255,93,76,.55));
+    animation: digitFlicker 2.4s infinite steps(1, end);
+}
+.readman-digit:nth-child(2n) { animation-delay: -.7s; }
+.readman-digit:nth-child(3n) { animation-delay: -1.3s; }
+@keyframes digitFlicker {
+    0%, 100% { opacity: 1; }
+    42% { opacity: .86; }
+    45%, 49% { opacity: 1; }
+    47% { opacity: .76; }
+    72% { opacity: .93; }
+}
+@media (max-width: 720px) {
+    .readman-digit { width: 16px; height: 26px; }
+}
