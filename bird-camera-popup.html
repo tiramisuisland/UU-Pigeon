@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鴿子攝影機</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #050505;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            image-rendering: pixelated;
+            background: #050505;
+        }
+    </style>
+</head>
+<body>
+    <canvas width="360" height="360" aria-label="鴿子身上的即時攝影機畫面"></canvas>
+
+    <script>
+        const canvas = document.querySelector("canvas");
+        const context = canvas.getContext("2d", { alpha: false });
+
+        window.addEventListener("message", (event) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+
+            if (event.data?.type !== "bird-camera-frame" || !event.data.imageData) {
+                return;
+            }
+
+            context.putImageData(event.data.imageData, 0, 0);
+        });
+    </script>
+</body>
+</html>
