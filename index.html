@@ -452,7 +452,7 @@
         <press-volume-control id="globalVolumeControl" value="100"></press-volume-control>
     </div>
     <div class="alive-marquee" aria-live="polite">
-        <div class="marquee-track" id="aliveMarqueeText">Alive: 0 / Global kills: Loading / Visitors: Loading</div>
+        <div class="marquee-track" id="aliveMarqueeText">Alive: 0 / Current kills: 0 / Global kills: Loading / Visitors: Loading</div>
     </div>
     <button class="chat-toggle" id="chatToggle" type="button" aria-expanded="false" aria-controls="chatPanel">聊天訊息</button>
     <aside class="chat-panel" id="chatPanel" aria-label="其他人的聊天訊息" aria-hidden="true">
@@ -722,7 +722,7 @@
         let buttonModelPopupWindow = null;
         let birdCameraPopupWindow = null;
         const popupWindows = new Set();
-        let videoBackgroundPopupsScheduled = false;
+        let videoPlaylistPopupOpened = false;
         let anthemPopupOpened = false;
         let birdCameraPopupOpened = false;
         let birdCameraTargetBird = null;
@@ -733,6 +733,7 @@
         let lastAliveBirdCount = -1;
         const marqueeStats = {
             alive: "0",
+            currentKills: "0",
             kills: "Loading",
             pageviews: "Loading"
         };
@@ -1333,7 +1334,7 @@
 
         function renderMarqueeStats() {
             const marqueeText =
-                `Alive: ${marqueeStats.alive} / Global kills: ${marqueeStats.kills} / Visitors: ${marqueeStats.pageviews}`;
+                `Alive: ${marqueeStats.alive} / Current kills: ${marqueeStats.currentKills} / Global kills: ${marqueeStats.kills} / Visitors: ${marqueeStats.pageviews}`;
             aliveMarqueeText.textContent =
                 `${marqueeText}     ${marqueeText}     ${marqueeText}`;
         }
@@ -1827,33 +1828,41 @@
         }
 
         function openVideoPlaylistPopup() {
-            if (videoBackgroundPopupsScheduled) {
+            if (videoPlaylistPopupOpened) {
                 return;
             }
 
-            videoBackgroundPopupsScheduled = true;
             const shuffledVideos = shuffleList(videoBackgroundFiles);
 
-            openButtonModelPopup({
+            const popupWindow = openButtonModelPopup({
                 videoSrc: shuffledVideos[0],
                 videoPlaylist: shuffledVideos,
                 label: "投票影片",
                 windowName: "button_model_popup"
             });
+            videoPlaylistPopupOpened = Boolean(popupWindow);
         }
 
-        function openAnthemPopupIfNeeded() {
-            if (anthemPopupOpened || knockedDownBirdCount < 10) {
+        function openVideoPlaylistAfterTenKillsIfNeeded() {
+            if (knockedDownBirdCount < 10) {
                 return;
             }
 
-            anthemPopupOpened = true;
-            openButtonModelPopup({
+            openVideoPlaylistPopup();
+        }
+
+        function openAnthemPopup() {
+            if (anthemPopupOpened) {
+                return;
+            }
+
+            const popupWindow = openButtonModelPopup({
                 videoSrc: anthemVideoFile,
                 label: "唱國歌",
                 forceNew: true,
                 windowName: "anthem_video_popup"
             });
+            anthemPopupOpened = Boolean(popupWindow);
         }
 
         function getFlyingBirds(excludedBird = null) {
@@ -2865,6 +2874,7 @@
             hitBird.crashFallSpeed = 0;
             hitBird.reviveAt = -1;
             knockedDownBirdCount += 1;
+            setMarqueeStat("currentKills", knockedDownBirdCount);
             recordPigeonKill();
             incrementGlobalKillMarqueeStat();
             createDroppedSign(hitBird, "幹麻打我");
@@ -2881,13 +2891,13 @@
             if (hitBird === birdCameraTargetBird) {
                 scheduleBirdCameraClose(clock.elapsedTime);
             }
-            openAnthemPopupIfNeeded();
+            openVideoPlaylistAfterTenKillsIfNeeded();
         });
 
         audioButton.addEventListener("click", () => {
             unlockAudio();
             playReadManVideo();
-            openVideoPlaylistPopup();
+            openAnthemPopup();
         });
     </script>
 </body>
