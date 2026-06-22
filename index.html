@@ -297,6 +297,35 @@
         const scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xd99870, 34, 128);
 
+        const skyCanvas = document.createElement("canvas");
+        skyCanvas.width = 1024;
+        skyCanvas.height = 1024;
+        const skyContext = skyCanvas.getContext("2d");
+        const skyGradient = skyContext.createLinearGradient(0, 0, 0, skyCanvas.height);
+        skyGradient.addColorStop(0, "#5fa8ff");
+        skyGradient.addColorStop(0.3, "#88c4ff");
+        skyGradient.addColorStop(0.68, "#c88da1");
+        skyGradient.addColorStop(1, "#d96f72");
+        skyContext.fillStyle = skyGradient;
+        skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+
+        const sunsetGlow = skyContext.createRadialGradient(
+            skyCanvas.width * 0.5,
+            skyCanvas.height * 0.78,
+            0,
+            skyCanvas.width * 0.5,
+            skyCanvas.height * 0.78,
+            skyCanvas.width * 0.24
+        );
+        sunsetGlow.addColorStop(0, "rgba(255, 170, 120, 0.22)");
+        sunsetGlow.addColorStop(1, "rgba(255, 170, 120, 0)");
+        skyContext.fillStyle = sunsetGlow;
+        skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+
+        const skyTexture = new THREE.CanvasTexture(skyCanvas);
+        skyTexture.colorSpace = THREE.SRGBColorSpace;
+        scene.background = skyTexture;
+
         const camera = new THREE.PerspectiveCamera(
             60,
             window.innerWidth / window.innerHeight,
@@ -484,9 +513,14 @@
         let readManVideo = null;
         let readManVideoTexture = null;
         let buttonModelPopupWindow = null;
+        let birdCameraPopupWindow = null;
         const popupWindows = new Set();
         let videoBackgroundPopupsScheduled = false;
         let anthemPopupOpened = false;
+        let birdCameraPopupOpened = false;
+        let birdCameraTargetBird = null;
+        let lastBirdCameraFrameAt = -1;
+        let birdCameraCloseAt = -1;
         let knockedDownBirdCount = 0;
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
@@ -526,6 +560,7 @@
             { src: "./大偶90.mp4", type: "video/mp4" },
             { src: "./大偶90.mov", type: "video/quicktime" }
         ];
+        const readManVideoVolumeScale = 0.5;
         const readManCounterPlacement = {
             // === AGREE / DISAGREE 數字位置微調 ===
             // x: 左右位置，負數往左、正數往右
@@ -590,6 +625,25 @@
         const pointer = new THREE.Vector2(0, 0);
         const raycaster = new THREE.Raycaster();
         const clickPointer = new THREE.Vector2();
+        const birdCameraResolution = 360;
+        const birdCamera = new THREE.PerspectiveCamera(72, 1, 0.1, 220);
+        const birdCameraRenderTarget = new THREE.WebGLRenderTarget(
+            birdCameraResolution,
+            birdCameraResolution
+        );
+        birdCameraRenderTarget.texture.colorSpace = THREE.SRGBColorSpace;
+        const birdCameraPixels = new Uint8Array(birdCameraResolution * birdCameraResolution * 4);
+        const birdCameraFrame = new Uint8ClampedArray(
+            birdCameraResolution * birdCameraResolution * 4
+        );
+        const birdCameraPosition = new THREE.Vector3();
+        const birdCameraLookAt = new THREE.Vector3();
+        const birdCameraForward = new THREE.Vector3();
+        const birdCameraFrameInterval = 1 / 12;
+        const birdCameraCloseDelay = 20;
+        const birdCameraExposure = 0.16;
+        const birdCameraClearColor = new THREE.Color(0x5fa8ff);
+        const previousRendererClearColor = new THREE.Color();
         const birds = [];
         const droppedSigns = [];
         const flightArea = {
@@ -770,7 +824,7 @@
             readManVideo.muted = false;
             readManVideo.playsInline = true;
             readManVideo.preload = "auto";
-            readManVideo.volume = getGlobalVolumeRatio();
+            readManVideo.volume = getReadManVideoVolume();
 
             readManVideoSources.forEach(({ src, type }) => {
                 const source = document.createElement("source");
@@ -1061,6 +1115,10 @@
             return globalVolume / 100;
         }
 
+        function getReadManVideoVolume() {
+            return getGlobalVolumeRatio() * readManVideoVolumeScale;
+        }
+
         function renderMarqueeStats() {
             const marqueeText =
                 `Alive: ${marqueeStats.alive} / Global kills: ${marqueeStats.kills} / Visitors: ${marqueeStats.pageviews}`;
@@ -1176,7 +1234,7 @@
             const volumeRatio = getGlobalVolumeRatio();
             birds.forEach(applyVolumeToBird);
             if (readManVideo) {
-                readManVideo.volume = volumeRatio;
+                readManVideo.volume = getReadManVideoVolume();
             }
             broadcastVolumeToPopups();
         }
@@ -1354,6 +1412,219 @@
                 forceNew: true,
                 windowName: "anthem_video_popup"
             });
+        }
+
+        function getFlyingBirds(excludedBird = null) {
+            return birds.filter((bird) => (
+                bird !== excludedBird &&
+                bird.isActive &&
+                !bird.isCrashed &&
+                !bird.isGrounded
+            ));
+        }
+
+        function pickBirdCameraTarget(excludedBird = null) {
+            const flyingBirds = getFlyingBirds(excludedBird);
+            if (flyingBirds.length === 0) {
+                return null;
+            }
+
+            return flyingBirds[Math.floor(Math.random() * flyingBirds.length)];
+        }
+
+        function openBirdCameraPopup() {
+            if (birdCameraPopupWindow && !birdCameraPopupWindow.closed) {
+                birdCameraPopupWindow.focus();
+                return birdCameraPopupWindow;
+            }
+
+            const popupSize = birdCameraResolution;
+            const popupLeft = Math.max(
+                0,
+                window.screenX + Math.round((window.outerWidth - popupSize) / 2)
+            );
+            const popupTop = Math.max(
+                0,
+                window.screenY + Math.round((window.outerHeight - popupSize) / 2)
+            );
+            const popupFeatures = [
+                "popup=yes",
+                `width=${popupSize}`,
+                `height=${popupSize}`,
+                `left=${popupLeft}`,
+                `top=${popupTop}`,
+                "menubar=no",
+                "toolbar=no",
+                "location=no",
+                "status=no",
+                "resizable=yes",
+                "scrollbars=no"
+            ].join(",");
+            const popupUrl = new URL("./bird-camera-popup.html", window.location.href);
+
+            birdCameraPopupWindow = window.open(
+                popupUrl.href,
+                "bird_camera_popup",
+                popupFeatures
+            );
+
+            if (!birdCameraPopupWindow) {
+                hud.innerHTML = "鴿子攝影機小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+                return null;
+            }
+
+            birdCameraPopupWindow.focus();
+            return birdCameraPopupWindow;
+        }
+
+        function openBirdCameraPopupIfNeeded(excludedBird = null) {
+            if (birdCameraPopupOpened || knockedDownBirdCount !== 5) {
+                return;
+            }
+
+            birdCameraPopupOpened = true;
+            birdCameraTargetBird = pickBirdCameraTarget(excludedBird);
+            birdCameraCloseAt = -1;
+            const popupWindow = openBirdCameraPopup();
+            if (popupWindow) {
+                hud.innerHTML = "第五隻鴿子被擊落<br>已開啟鴿子身上的即時攝影機";
+            }
+        }
+
+        function closeBirdCameraPopup() {
+            birdCameraPopupOpened = false;
+            birdCameraTargetBird = null;
+            birdCameraCloseAt = -1;
+
+            if (birdCameraPopupWindow && !birdCameraPopupWindow.closed) {
+                birdCameraPopupWindow.close();
+            }
+        }
+
+        function scheduleBirdCameraClose(elapsed) {
+            if (!birdCameraPopupOpened || birdCameraCloseAt > 0) {
+                return;
+            }
+
+            birdCameraCloseAt = elapsed + birdCameraCloseDelay;
+            hud.innerHTML = "鴿子攝影機的鴿子被擊落<br>畫面會在 20 秒後關閉";
+        }
+
+        function updateBirdCameraTarget() {
+            if (!birdCameraPopupOpened) {
+                return false;
+            }
+
+            if (!birdCameraTargetBird || !birdCameraTargetBird.isActive) {
+                birdCameraTargetBird = pickBirdCameraTarget();
+            }
+
+            return Boolean(birdCameraTargetBird);
+        }
+
+        function updateBirdCameraTransform() {
+            if (!birdCameraTargetBird) {
+                return;
+            }
+
+            birdCameraForward.copy(birdCameraTargetBird.velocity);
+            if (birdCameraForward.lengthSq() < 0.0001) {
+                birdCameraTargetBird.root.getWorldDirection(birdCameraForward);
+            }
+            birdCameraForward.normalize();
+
+            birdCameraTargetBird.root.getWorldPosition(birdCameraPosition);
+            birdCamera.position
+                .copy(birdCameraPosition)
+                .addScaledVector(birdCameraForward, 0.85);
+            birdCamera.position.y += 0.18;
+
+            birdCameraLookAt
+                .copy(birdCameraPosition)
+                .addScaledVector(birdCameraForward, 12);
+            birdCameraLookAt.y += 0.25;
+            birdCamera.lookAt(birdCameraLookAt);
+        }
+
+        function sendBirdCameraFrame(elapsed) {
+            if (
+                !birdCameraPopupOpened ||
+                elapsed - lastBirdCameraFrameAt < birdCameraFrameInterval
+            ) {
+                return;
+            }
+
+            if (birdCameraCloseAt > 0 && elapsed >= birdCameraCloseAt) {
+                closeBirdCameraPopup();
+                return;
+            }
+
+            if (
+                !birdCameraPopupWindow ||
+                birdCameraPopupWindow.closed
+            ) {
+                birdCameraPopupOpened = false;
+                birdCameraTargetBird = null;
+                birdCameraCloseAt = -1;
+                return;
+            }
+
+            if (!updateBirdCameraTarget()) {
+                return;
+            }
+
+            if (birdCameraTargetBird.isCrashed || birdCameraTargetBird.isGrounded) {
+                scheduleBirdCameraClose(elapsed);
+            }
+
+            lastBirdCameraFrameAt = elapsed;
+            updateBirdCameraTransform();
+
+            const previousExposure = renderer.toneMappingExposure;
+            const previousClearAlpha = renderer.getClearAlpha();
+            renderer.getClearColor(previousRendererClearColor);
+            renderer.setRenderTarget(birdCameraRenderTarget);
+            renderer.setViewport(0, 0, birdCameraResolution, birdCameraResolution);
+            renderer.setClearColor(birdCameraClearColor, 1);
+            renderer.toneMappingExposure = birdCameraExposure;
+            renderer.clear();
+            renderer.render(scene, birdCamera);
+            renderer.clearDepth();
+            renderer.render(overlayScene, overlayCamera);
+            renderer.readRenderTargetPixels(
+                birdCameraRenderTarget,
+                0,
+                0,
+                birdCameraResolution,
+                birdCameraResolution,
+                birdCameraPixels
+            );
+            renderer.setRenderTarget(null);
+            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            renderer.setClearColor(previousRendererClearColor, previousClearAlpha);
+            renderer.toneMappingExposure = previousExposure;
+
+            const rowLength = birdCameraResolution * 4;
+            for (let y = 0; y < birdCameraResolution; y += 1) {
+                const sourceStart = (birdCameraResolution - 1 - y) * rowLength;
+                const targetStart = y * rowLength;
+                birdCameraFrame.set(
+                    birdCameraPixels.subarray(sourceStart, sourceStart + rowLength),
+                    targetStart
+                );
+            }
+
+            birdCameraPopupWindow.postMessage(
+                {
+                    type: "bird-camera-frame",
+                    imageData: new ImageData(
+                        new Uint8ClampedArray(birdCameraFrame),
+                        birdCameraResolution,
+                        birdCameraResolution
+                    )
+                },
+                window.location.origin
+            );
         }
 
         function scheduleNextSpawn(elapsed) {
@@ -2026,6 +2297,7 @@
             renderer.render(scene, camera);
             renderer.clearDepth();
             renderer.render(overlayScene, overlayCamera);
+            sendBirdCameraFrame(elapsed);
         }
 
         animate();
@@ -2135,6 +2407,10 @@
                 hitBird.mixer.stopAllAction();
             }
             hud.innerHTML = "命中一隻鴿子<br>牠丟下「幹麻打我」後墜落";
+            openBirdCameraPopupIfNeeded(hitBird);
+            if (hitBird === birdCameraTargetBird) {
+                scheduleBirdCameraClose(clock.elapsedTime);
+            }
             openAnthemPopupIfNeeded();
         });
 
