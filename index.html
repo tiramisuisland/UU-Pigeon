@@ -553,7 +553,7 @@
     </button>
     <aside class="chat-panel" id="chatPanel" aria-label="其他人的聊天訊息" aria-hidden="true">
         <div class="chat-header">
-            <div class="chat-title">其他人的聊天</div>
+            <div class="chat-title" id="chatTitle">其他人的聊天</div>
             <div class="chat-status" id="chatStatus">尚未載入</div>
         </div>
         <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
@@ -594,6 +594,7 @@
         const chatToggle = document.querySelector("#chatToggle");
         const chatPanel = document.querySelector("#chatPanel");
         const chatMessages = document.querySelector("#chatMessages");
+        const chatTitle = document.querySelector("#chatTitle");
         const chatStatus = document.querySelector("#chatStatus");
         const chatActionMenu = document.querySelector("#chatActionMenu");
 
@@ -892,6 +893,7 @@
         const pageviewEndpoint = "https://macn8n.tiramisu-island.com/webhook/pageviews";
         const getPageviewsEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_pageviews";
         const chatMessagesEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_u_chatting";
+        const chatTitleEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_chatting_title";
         const chatReactionEndpoints = {
             like: "https://macn8n.tiramisu-island.com/webhook/chatting_like_count",
             dislike: "https://macn8n.tiramisu-island.com/webhook/chatting_dislike_count"
@@ -1723,10 +1725,36 @@
             }
         }
 
+        async function fetchChatTitle() {
+            if (!chatPanelOpen) {
+                return;
+            }
+
+            try {
+                const response = await fetch(chatTitleEndpoint, { cache: "no-store" });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                const nextTitle = String(data.content ?? "").trim();
+                if (nextTitle) {
+                    chatTitle.textContent = nextTitle;
+                }
+            } catch (error) {
+                console.error("聊天室標題讀取失敗", error);
+            }
+        }
+
+        function refreshChatContent() {
+            fetchChatMessages();
+            fetchChatTitle();
+        }
+
         function startChatRefresh() {
             window.clearInterval(chatRefreshTimer);
-            fetchChatMessages();
-            chatRefreshTimer = window.setInterval(fetchChatMessages, 60000);
+            refreshChatContent();
+            chatRefreshTimer = window.setInterval(refreshChatContent, 60000);
         }
 
         function stopChatRefresh() {

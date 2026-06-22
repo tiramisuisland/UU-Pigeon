@@ -73,6 +73,7 @@ outher/
 - Three.js `0.164.1` 與官方 addons，由 unpkg CDN 載入。
 - `get_agree`、`get_disagree`：讀取投票數字。
 - `get_u_chatting`：讀取聊天室訊息，顯示名稱、訊息內容、時間、讚數與倒讚數。
+- `get_chatting_title`：讀取聊天室上方的動態標題文字。
 - `chatting_like_count?msg_id=...`：長按訊息後送出喜歡。
 - `chatting_dislike_count?msg_id=...`：長按訊息後送出不喜歡。
 - `kill_pigeon`、`get_kill_pigeon`：記錄與讀取全站擊落數。
