@@ -817,6 +817,7 @@
         let readManVideo = null;
         let readManVideoTexture = null;
         let buttonModelPopupWindow = null;
+        let anthemPopupWindow = null;
         let birdCameraPopupWindow = null;
         const popupWindows = new Set();
         let videoPlaylistPopupOpened = false;
@@ -1999,14 +2000,14 @@
                 return;
             }
 
-            const popupWindow = openButtonModelPopup({
+            anthemPopupWindow = openButtonModelPopup({
                 videoSrc: anthemVideoFile,
                 label: "唱國歌",
                 forceNew: true,
                 popupPage: "./pages/anthem-popup.html",
                 windowName: "anthem_video_popup"
             });
-            anthemPopupOpened = Boolean(popupWindow);
+            anthemPopupOpened = Boolean(anthemPopupWindow);
         }
 
         function getFlyingBirds(excludedBird = null) {
@@ -2581,6 +2582,21 @@
 
         volumeSlot.addEventListener("click", (event) => {
             event.stopPropagation();
+        });
+
+        window.addEventListener("message", (event) => {
+            if (
+                event.origin !== window.location.origin ||
+                event.data?.type !== "close-anthem-popup" ||
+                event.source !== anthemPopupWindow
+            ) {
+                return;
+            }
+
+            anthemPopupWindow.close();
+            popupWindows.delete(anthemPopupWindow);
+            anthemPopupWindow = null;
+            anthemPopupOpened = false;
         });
 
         [chatToggle, chatPanel].forEach((element) => {

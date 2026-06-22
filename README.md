@@ -120,8 +120,8 @@ outher/
 
 - 播放主頁傳入的 `assets/videos/唱國歌.mp4`。
 - 依唱國歌影片的原始長寬比自動調整 popup 大小。
-- 顯示 `assets/images/shut_up.png`，取代投票模型與 agree／disagree 按鈕。
-- 點擊圖片後播放縮小效果並關閉目前 popup。
+- 滑鼠進入唱國歌 popup 時才顯示 `assets/images/shut_up.png`，取代投票模型與 agree／disagree 按鈕。
+- 點擊圖片後通知主頁關閉目前 popup，並保留子頁自行關閉作為備援。
 - 接收主頁傳來的全域音量設定。
 - 不送出投票，也不進行任何計數。
 
