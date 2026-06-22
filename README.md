@@ -29,6 +29,7 @@ outher/
 - 顯示右下角的 `UU.glb` 模型，並在模型上播放大偶影片。
 - 使用自訂音量控制元件，同步控制主頁與 popup 的音量。
 - 顯示可開關的聊天室面板，從 webhook 讀取其他人的聊天訊息。
+- 長按聊天室訊息可選擇喜歡或不喜歡，並用該訊息 `id` 送出反應。
 - 開啟投票影片、唱國歌與鴿子攝影機 popup。
 - 第 5 隻鴿子被擊落時開啟鴿子攝影機；第 10 隻時開啟唱國歌影片。
 
@@ -66,7 +67,9 @@ outher/
 
 - Three.js `0.164.1` 與官方 addons，由 unpkg CDN 載入。
 - `get_agree`、`get_disagree`：讀取投票數字。
-- `get_u_chatting`：讀取聊天室訊息，顯示名稱、訊息內容與時間。
+- `get_u_chatting`：讀取聊天室訊息，顯示名稱、訊息內容、時間、讚數與倒讚數。
+- `chatting_like_count?msg_id=...`：長按訊息後送出喜歡。
+- `chatting_dislike_count?msg_id=...`：長按訊息後送出不喜歡。
 - `kill_pigeon`、`get_kill_pigeon`：記錄與讀取全站擊落數。
 - `pageviews`、`get_pageviews`：記錄與讀取瀏覽量。
 

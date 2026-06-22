@@ -174,6 +174,7 @@
             grid-template-columns: 34px minmax(0, 1fr);
             gap: 10px;
             align-items: start;
+            touch-action: pan-y;
         }
 
         .chat-avatar {
@@ -209,10 +210,28 @@
         }
 
         .chat-time {
+            font-size: 11px;
+            line-height: 1;
+            color: rgba(22, 50, 74, 0.56);
+        }
+
+        .chat-meta {
+            display: flex;
+            gap: 10px;
+            align-items: center;
             margin-top: 7px;
             font-size: 11px;
             line-height: 1;
             color: rgba(22, 50, 74, 0.56);
+        }
+
+        .chat-like,
+        .chat-dislike {
+            display: inline-flex;
+            gap: 3px;
+            align-items: center;
+            color: rgba(22, 50, 74, 0.68);
+            font-weight: 700;
         }
 
         .chat-empty {
@@ -220,6 +239,38 @@
             text-align: center;
             color: rgba(22, 50, 74, 0.58);
             font-size: 13px;
+        }
+
+        .chat-action-menu {
+            position: absolute;
+            left: 58px;
+            top: 88px;
+            z-index: 2;
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 999px;
+            background: rgba(15, 45, 63, 0.92);
+            box-shadow: 0 14px 36px rgba(16, 44, 62, 0.32);
+            opacity: 0;
+            transform: translateY(6px) scale(0.96);
+            pointer-events: none;
+            transition: opacity 140ms ease, transform 140ms ease;
+        }
+
+        .chat-action-menu.is-open {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        .chat-action-button {
+            border: 0;
+            border-radius: 999px;
+            padding: 8px 12px;
+            color: #0f2d3f;
+            background: rgba(255, 255, 255, 0.92);
+            font: 800 13px/1 "Noto Sans TC", sans-serif;
         }
 
         .marquee-track {
@@ -412,6 +463,10 @@
         <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
             <div class="chat-empty">打開後會載入聊天內容</div>
         </div>
+        <div class="chat-action-menu" id="chatActionMenu" aria-hidden="true">
+            <button class="chat-action-button" type="button" data-chat-reaction="like">喜歡</button>
+            <button class="chat-action-button" type="button" data-chat-reaction="dislike">不喜歡</button>
+        </div>
     </aside>
     <img class="game-cursor" src="./assets/images/X.png" alt="" aria-hidden="true">
 
@@ -444,6 +499,7 @@
         const chatPanel = document.querySelector("#chatPanel");
         const chatMessages = document.querySelector("#chatMessages");
         const chatStatus = document.querySelector("#chatStatus");
+        const chatActionMenu = document.querySelector("#chatActionMenu");
 
         const scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xd99870, 34, 128);
@@ -731,6 +787,10 @@
         const pageviewEndpoint = "https://macn8n.tiramisu-island.com/webhook/pageviews";
         const getPageviewsEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_pageviews";
         const chatMessagesEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_u_chatting";
+        const chatReactionEndpoints = {
+            like: "https://macn8n.tiramisu-island.com/webhook/chatting_like_count",
+            dislike: "https://macn8n.tiramisu-island.com/webhook/chatting_dislike_count"
+        };
         const digitPath = "./assets/digits/";
         const digitSprites = new Map();
         const pointCounters = {
@@ -1350,6 +1410,10 @@
 
         let chatPanelOpen = false;
         let chatRefreshTimer = 0;
+        let chatLongPressTimer = 0;
+        let chatLongPressStartX = 0;
+        let chatLongPressStartY = 0;
+        let selectedChatMessageId = null;
 
         function setChatStatus(message) {
             chatStatus.textContent = message;
@@ -1362,9 +1426,111 @@
             chatMessages.replaceChildren(emptyElement);
         }
 
+        function clearChatLongPressTimer() {
+            window.clearTimeout(chatLongPressTimer);
+            chatLongPressTimer = 0;
+        }
+
+        function hideChatActionMenu() {
+            selectedChatMessageId = null;
+            chatActionMenu.classList.remove("is-open");
+            chatActionMenu.setAttribute("aria-hidden", "true");
+        }
+
+        function showChatActionMenu(messageId, messageElement) {
+            if (!messageId) {
+                return;
+            }
+
+            selectedChatMessageId = messageId;
+            const panelRect = chatPanel.getBoundingClientRect();
+            const messageRect = messageElement.getBoundingClientRect();
+            const menuTop = Math.max(
+                54,
+                Math.min(messageRect.top - panelRect.top + 8, panelRect.height - 54)
+            );
+            chatActionMenu.style.top = `${menuTop}px`;
+            chatActionMenu.classList.add("is-open");
+            chatActionMenu.setAttribute("aria-hidden", "false");
+        }
+
+        function startChatLongPress(event, chatItem, messageElement) {
+            if (!chatItem.id) {
+                return;
+            }
+
+            clearChatLongPressTimer();
+            chatLongPressStartX = event.clientX;
+            chatLongPressStartY = event.clientY;
+            chatLongPressTimer = window.setTimeout(() => {
+                showChatActionMenu(chatItem.id, messageElement);
+            }, 620);
+        }
+
+        function cancelChatLongPress(event) {
+            if (!chatLongPressTimer) {
+                return;
+            }
+
+            if (event?.type === "pointermove") {
+                const movedDistance = Math.hypot(
+                    event.clientX - chatLongPressStartX,
+                    event.clientY - chatLongPressStartY
+                );
+                if (movedDistance < 8) {
+                    return;
+                }
+            }
+
+            clearChatLongPressTimer();
+        }
+
+        function attachChatMessageActions(messageElement, chatItem) {
+            messageElement.addEventListener("pointerdown", (event) => {
+                startChatLongPress(event, chatItem, messageElement);
+            });
+            messageElement.addEventListener("pointermove", cancelChatLongPress);
+            messageElement.addEventListener("pointerup", clearChatLongPressTimer);
+            messageElement.addEventListener("pointerleave", clearChatLongPressTimer);
+            messageElement.addEventListener("pointercancel", clearChatLongPressTimer);
+            messageElement.addEventListener("contextmenu", (event) => {
+                event.preventDefault();
+                showChatActionMenu(chatItem.id, messageElement);
+            });
+        }
+
+        async function submitChatReaction(reactionType) {
+            const endpoint = chatReactionEndpoints[reactionType];
+            const messageId = selectedChatMessageId;
+            if (!endpoint || !messageId) {
+                return;
+            }
+
+            hideChatActionMenu();
+            setChatStatus(reactionType === "like" ? "送出喜歡..." : "送出不喜歡...");
+
+            const reactionUrl = new URL(endpoint);
+            reactionUrl.searchParams.set("msg_id", messageId);
+
+            try {
+                await fetch(reactionUrl.href, {
+                    method: "GET",
+                    mode: "no-cors",
+                    cache: "no-store",
+                    keepalive: true
+                });
+                setChatStatus("已送出");
+                window.setTimeout(fetchChatMessages, 650);
+            } catch (error) {
+                console.error("聊天反應送出失敗", error);
+                setChatStatus("送出失敗");
+            }
+        }
+
         function createChatMessageElement(chatItem) {
             const messageElement = document.createElement("article");
             messageElement.className = "chat-message";
+            messageElement.dataset.messageId = chatItem.id || "";
 
             const avatarElement = document.createElement("div");
             avatarElement.className = "chat-avatar";
@@ -1385,8 +1551,23 @@
             timeElement.className = "chat-time";
             timeElement.textContent = chatItem.created_at || "";
 
-            bubbleElement.append(nameElement, textElement, timeElement);
+            const likeElement = document.createElement("div");
+            likeElement.className = "chat-like";
+            const likeCount = Number.parseInt(chatItem.like_count ?? 0, 10);
+            likeElement.textContent = `讚 ${Number.isFinite(likeCount) ? likeCount : 0}`;
+
+            const dislikeElement = document.createElement("div");
+            dislikeElement.className = "chat-dislike";
+            const dislikeCount = Number.parseInt(chatItem.dislike_count ?? 0, 10);
+            dislikeElement.textContent = `倒讚 ${Number.isFinite(dislikeCount) ? dislikeCount : 0}`;
+
+            const metaElement = document.createElement("div");
+            metaElement.className = "chat-meta";
+            metaElement.append(timeElement, likeElement, dislikeElement);
+
+            bubbleElement.append(nameElement, textElement, metaElement);
             messageElement.append(avatarElement, bubbleElement);
+            attachChatMessageActions(messageElement, chatItem);
             return messageElement;
         }
 
@@ -1400,6 +1581,7 @@
             const shouldStickToBottom =
                 chatMessages.scrollTop + chatMessages.clientHeight >= chatMessages.scrollHeight - 40;
             chatMessages.replaceChildren(...messageElements);
+            hideChatActionMenu();
             if (shouldStickToBottom) {
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }
@@ -1450,6 +1632,7 @@
             if (isOpen) {
                 startChatRefresh();
             } else {
+                hideChatActionMenu();
                 stopChatRefresh();
                 setChatStatus("已關閉");
             }
@@ -2259,6 +2442,20 @@
 
         chatToggle.addEventListener("click", () => {
             setChatPanelOpen(!chatPanelOpen);
+        });
+
+        chatMessages.addEventListener("scroll", () => {
+            hideChatActionMenu();
+        });
+
+        chatActionMenu.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const reactionButton = event.target.closest("[data-chat-reaction]");
+            if (!reactionButton) {
+                return;
+            }
+
+            submitChatReaction(reactionButton.dataset.chatReaction);
         });
 
         globalVolumeControl.addEventListener("volumechange", (event) => {
