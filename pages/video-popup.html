@@ -161,6 +161,22 @@
             backgroundVideo.volume = globalVolume;
         }
 
+        function fitPopupToVideo() {
+            const videoWidth = backgroundVideo.videoWidth || 16;
+            const videoHeight = backgroundVideo.videoHeight || 9;
+            const maxWidth = Math.min(window.screen.availWidth * 0.9, 1200);
+            const maxHeight = Math.min(window.screen.availHeight * 0.9, 900);
+            const fitScale = Math.min(maxWidth / videoWidth, maxHeight / videoHeight);
+            const targetWidth = Math.round(videoWidth * fitScale);
+            const targetHeight = Math.round(videoHeight * fitScale);
+            const widthDelta = targetWidth - window.innerWidth;
+            const heightDelta = targetHeight - window.innerHeight;
+
+            if (Math.abs(widthDelta) > 2 || Math.abs(heightDelta) > 2) {
+                window.resizeBy(widthDelta, heightDelta);
+            }
+        }
+
         window.addEventListener("message", (event) => {
             if (event.origin !== window.location.origin) {
                 return;
@@ -193,27 +209,7 @@
                     playBackgroundVideo();
                 }
             });
-            backgroundVideo.addEventListener("loadedmetadata", () => {
-                const videoWidth = backgroundVideo.videoWidth || 16;
-                const videoHeight = backgroundVideo.videoHeight || 9;
-                const aspect = videoWidth / videoHeight;
-                const maxWidth = Math.min(window.screen.availWidth * 0.72, 960);
-                const maxHeight = Math.min(window.screen.availHeight * 0.72, 720);
-                let targetWidth = maxWidth;
-                let targetHeight = targetWidth / aspect;
-
-                if (targetHeight > maxHeight) {
-                    targetHeight = maxHeight;
-                    targetWidth = targetHeight * aspect;
-                }
-
-                const widthDelta = Math.round(targetWidth - window.innerWidth);
-                const heightDelta = Math.round(targetHeight - window.innerHeight);
-
-                if (Math.abs(widthDelta) > 2 || Math.abs(heightDelta) > 2) {
-                    window.resizeBy(widthDelta, heightDelta);
-                }
-            });
+            backgroundVideo.addEventListener("loadedmetadata", fitPopupToVideo);
             playBackgroundVideoAt(0);
         } else {
             backgroundVideo.remove();

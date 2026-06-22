@@ -7,6 +7,7 @@
 ```text
 index.html（正式主頁）
 ├─ pages/video-popup.html（影片與 agree / disagree 投票視窗）
+├─ pages/anthem-popup.html（唱國歌影片與關閉圖片）
 └─ pages/bird-camera-popup.html（鴿子身上的即時攝影機視窗）
 
 outher/
@@ -30,12 +31,14 @@ outher/
 - 使用自訂音量控制元件，同步控制主頁與 popup 的音量。
 - 顯示可開關的聊天室面板，從 webhook 讀取其他人的聊天訊息。
 - 長按聊天室訊息可選擇喜歡或不喜歡，並用該訊息 `id` 送出反應。
+- 聊天室按鈕定位在 agree 與 disagree 中間，可在 `index.html` 的 `chatTogglePlacement.x`、`chatTogglePlacement.y` 調整位置。
 - 首次點擊「開啟 3D 場景」時播放唱國歌影片。
 - 第 5 隻鴿子被擊落時開啟鴿子攝影機；第 10 隻時開啟三個投票影片的輪播 popup。
 
 使用的頁面與程式：
 
 - `pages/video-popup.html`
+- `pages/anthem-popup.html`
 - `pages/bird-camera-popup.html`
 - `scripts/press-volume-control.js`
 
@@ -49,6 +52,8 @@ outher/
 
 - `assets/environment/belfast_sunset_2k.hdr`：場景環境光與反射。
 - `assets/images/X.png`：遊戲滑鼠游標。
+- `assets/images/shut_up.png`：唱國歌 popup 的關閉圖片按鈕。
+- `assets/images/元首聊天室.svg`：主頁聊天室面板的視覺外框。
 - `assets/digits/0.bmp` 到 `9.bmp`：agree／disagree 數字顯示。
 
 使用的音效：
@@ -81,6 +86,7 @@ outher/
 
 - 讀取網址參數後播放單一影片或影片清單。
 - 依 `interval` 參數定時更換背景影片。
+- 依每支影片的原始長寬比自動調整 popup，長邊與短邊會在螢幕範圍內等比例適配。
 - 顯示 3D agree／disagree 按鈕模型。
 - 點擊按鈕後播放模型動畫或 shape key，並送出投票 webhook。
 - 接收主頁傳來的音量訊息。
@@ -104,6 +110,19 @@ outher/
 - Three.js `0.164.1` 與 `GLTFLoader`，由 unpkg CDN 載入。
 - `plus_agree`：送出 agree 投票。
 - `plus_disagree`：送出 disagree 投票。
+
+### `pages/anthem-popup.html`
+
+專門播放唱國歌影片的 popup，由首次點擊「開啟 3D 場景」時開啟。
+
+主要功能：
+
+- 播放主頁傳入的 `assets/videos/唱國歌.mp4`。
+- 依唱國歌影片的原始長寬比自動調整 popup 大小。
+- 顯示 `assets/images/shut_up.png`，取代投票模型與 agree／disagree 按鈕。
+- 點擊圖片後播放縮小效果並關閉目前 popup。
+- 接收主頁傳來的全域音量設定。
+- 不送出投票，也不進行任何計數。
 
 ### `pages/bird-camera-popup.html`
 
