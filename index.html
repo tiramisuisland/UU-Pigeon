@@ -424,6 +424,46 @@
             font: 800 calc(18px * var(--layout-scale))/1 Arial, sans-serif;
         }
 
+        .buddha-light-prompt {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            z-index: 19;
+            display: block;
+            width: calc(145px * var(--layout-scale));
+            max-width: calc(100vw - var(--safe-left) - var(--safe-right));
+            padding: 0;
+            border: 0;
+            background: transparent;
+            opacity: 0;
+            transform: translate(-50%, -50%) rotate(-7deg) scale(0.82);
+            transition:
+                opacity 180ms ease,
+                transform 260ms ease;
+            user-select: none;
+        }
+
+        .buddha-light-prompt-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 8px 14px rgba(18, 37, 54, 0.24));
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .buddha-light-prompt.is-attached {
+            opacity: 1;
+            transform: translate(-50%, -50%) rotate(-1deg) scale(1);
+        }
+
+        .buddha-light-prompt.is-closing {
+            opacity: 0;
+            transform: translate(-50%, -50%) rotate(8deg) scale(0.72);
+            pointer-events: none;
+        }
+
         .hud {
             display: none;
             position: fixed;
@@ -938,6 +978,8 @@
         let anthemPopupOpened = false;
         let birdCameraPopupOpened = false;
         let buddhaLightShown = false;
+        let buddhaLightPromptShown = false;
+        let buddhaLightPromptState = null;
         let birdCameraTargetBird = null;
         let lastBirdCameraFrameAt = -1;
         let birdCameraCloseAt = -1;
@@ -2332,13 +2374,148 @@
             return buddhaLightPopupWindow;
         }
 
-        function openBuddhaLightCannonIfNeeded() {
-            if (buddhaLightShown || getAliveBirdCount() < buddhaLightAliveThreshold) {
+        const buddhaPromptWorldPosition = new THREE.Vector3();
+        const buddhaPromptScreenPosition = new THREE.Vector3();
+
+        function getBirdScreenPosition(bird) {
+            if (!bird?.root) {
+                return null;
+            }
+
+            bird.root.getWorldPosition(buddhaPromptWorldPosition);
+            buddhaPromptScreenPosition.copy(buddhaPromptWorldPosition).project(camera);
+
+            if (
+                Math.abs(buddhaPromptScreenPosition.x) > 1.4 ||
+                Math.abs(buddhaPromptScreenPosition.y) > 1.4
+            ) {
+                return null;
+            }
+
+            return {
+                x: (buddhaPromptScreenPosition.x * 0.5 + 0.5) * appViewport.width,
+                y: (-buddhaPromptScreenPosition.y * 0.5 + 0.5) * appViewport.height
+            };
+        }
+
+        function positionBuddhaLightPrompt(prompt, bird) {
+            const birdPosition = getBirdScreenPosition(bird);
+            if (!birdPosition) {
+                prompt.classList.remove("is-attached");
+                return false;
+            }
+
+            const offsetX = -14 * appViewport.layoutScale;
+            const offsetY = -58 * appViewport.layoutScale;
+            const x = THREE.MathUtils.clamp(
+                birdPosition.x + offsetX,
+                118 * appViewport.layoutScale,
+                appViewport.width - 118 * appViewport.layoutScale
+            );
+            const y = THREE.MathUtils.clamp(
+                birdPosition.y + offsetY,
+                62 * appViewport.layoutScale,
+                appViewport.height - 76 * appViewport.layoutScale
+            );
+
+            prompt.style.left = `${x}px`;
+            prompt.style.top = `${y}px`;
+            prompt.classList.add("is-attached");
+            return true;
+        }
+
+        function pickVisiblePromptBird() {
+            return getFlyingBirds().find((bird) => getBirdScreenPosition(bird));
+        }
+
+        function updateBuddhaLightPromptPosition() {
+            if (!buddhaLightPromptState?.element) {
                 return;
             }
 
-            buddhaLightShown = true;
-            openBuddhaLightCannon();
+            const { element, bird } = buddhaLightPromptState;
+            if (!element.isConnected) {
+                buddhaLightPromptState = null;
+                buddhaLightPromptShown = false;
+                return;
+            }
+
+            if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
+                const nextBird = pickVisiblePromptBird();
+                if (!nextBird) {
+                    element.classList.remove("is-attached");
+                    return;
+                }
+                buddhaLightPromptState.bird = nextBird;
+                positionBuddhaLightPrompt(element, nextBird);
+                return;
+            }
+
+            if (!positionBuddhaLightPrompt(element, bird)) {
+                const nextBird = pickVisiblePromptBird();
+                if (nextBird) {
+                    buddhaLightPromptState.bird = nextBird;
+                    positionBuddhaLightPrompt(element, nextBird);
+                }
+            }
+        }
+
+        function showBuddhaLightPrompt() {
+            if (buddhaLightPromptShown || document.querySelector(".buddha-light-prompt")) {
+                return;
+            }
+
+            const promptBird = pickVisiblePromptBird();
+            if (!promptBird) {
+                return;
+            }
+
+            const prompt = document.createElement("button");
+
+            buddhaLightPromptShown = true;
+            prompt.className = "buddha-light-prompt";
+            prompt.type = "button";
+            prompt.innerHTML = `
+                <img class="buddha-light-prompt-image" src="./佛光砲提問.svg" alt="你要不要吃大便？要，不要">
+            `;
+            prompt.setAttribute("aria-label", "是否要播放佛光砲，是");
+            buddhaLightPromptState = {
+                element: prompt,
+                bird: promptBird
+            };
+            positionBuddhaLightPrompt(prompt, promptBird);
+
+            prompt.addEventListener("pointerdown", (event) => {
+                event.stopPropagation();
+            });
+
+            prompt.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                prompt.classList.add("is-closing");
+                window.setTimeout(() => prompt.remove(), 180);
+                buddhaLightShown = true;
+                buddhaLightPromptShown = false;
+                buddhaLightPromptState = null;
+                openBuddhaLightCannon();
+            });
+
+            document.body.appendChild(prompt);
+            requestAnimationFrame(() => {
+                updateBuddhaLightPromptPosition();
+            });
+        }
+
+        function openBuddhaLightCannonIfNeeded() {
+            if (
+                buddhaLightShown ||
+                buddhaLightPromptShown ||
+                getAliveBirdCount() < buddhaLightAliveThreshold
+            ) {
+                return;
+            }
+
+            showBuddhaLightPrompt();
         }
 
         function getFlyingBirds(excludedBird = null) {
@@ -3251,6 +3428,7 @@
 
             updateAliveMarqueeStat();
             openBuddhaLightCannonIfNeeded();
+            updateBuddhaLightPromptPosition();
 
             cloudGroup.children.forEach((cloud, index) => {
                 cloud.position.x += 0.01 + index * 0.002;
