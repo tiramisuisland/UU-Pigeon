@@ -115,8 +115,8 @@
             left: 0;
             top: 0;
             z-index: 14;
-            width: calc(48px * var(--layout-scale));
-            height: calc(38px * var(--layout-scale));
+            width: calc(34px * var(--layout-scale));
+            height: calc(27px * var(--layout-scale));
             border: 1px solid rgba(22, 50, 74, 0.16);
             border-radius: 14px;
             padding: 0;
@@ -125,7 +125,7 @@
             box-shadow: 0 10px 24px rgba(16, 44, 62, 0.2);
             opacity: 0;
             pointer-events: none;
-            transform: translate(-50%, -50%) scale(1);
+            transform: translate(-50%, -50%) rotate(90deg) scale(1);
             transition: opacity 180ms ease, transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
         }
 
@@ -137,26 +137,28 @@
         .chat-toggle::after {
             content: "";
             position: absolute;
-            left: calc(9px * var(--layout-scale));
-            bottom: calc(-6px * var(--layout-scale));
-            width: calc(12px * var(--layout-scale));
-            height: calc(12px * var(--layout-scale));
-            border-left: 1px solid rgba(22, 50, 74, 0.16);
+            right: calc(-4px * var(--layout-scale));
+            top: 50%;
+            width: calc(8px * var(--layout-scale));
+            height: calc(8px * var(--layout-scale));
+            border-right: 1px solid rgba(22, 50, 74, 0.16);
+            border-bottom: 1px solid rgba(22, 50, 74, 0.16);
             background: rgba(255, 255, 255, 0.82);
-            clip-path: polygon(0 0, 100% 0, 0 100%);
+            clip-path: polygon(0 0, 100% 50%, 0 100%);
+            transform: translateY(-50%);
         }
 
         .chat-toggle:hover,
         .chat-toggle:focus-visible {
             outline: none;
-            transform: translate(-50%, -50%) scale(1.06);
+            transform: translate(-50%, -50%) rotate(90deg) scale(1.06);
             background: rgba(255, 255, 255, 0.94);
             box-shadow: 0 13px 30px rgba(16, 44, 62, 0.27);
         }
 
         .chat-toggle:active,
         .chat-toggle.is-open {
-            transform: translate(-50%, -50%) scale(0.94);
+            transform: translate(-50%, -50%) rotate(90deg) scale(0.94);
         }
 
         .chat-typing-dots {
@@ -165,15 +167,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: calc(5px * var(--layout-scale));
+            gap: calc(3.5px * var(--layout-scale));
             width: 100%;
             height: 100%;
             pointer-events: none;
         }
 
         .chat-typing-dot {
-            width: calc(7px * var(--layout-scale));
-            height: calc(7px * var(--layout-scale));
+            width: calc(5px * var(--layout-scale));
+            height: calc(5px * var(--layout-scale));
             border-radius: 50%;
             background: #111111;
             animation: chatTypingBounce 1.05s infinite ease-in-out;
@@ -226,6 +228,22 @@
             opacity: 1;
             transform: translateY(0);
             pointer-events: auto;
+        }
+
+        .chat-drag-handle {
+            position: absolute;
+            left: 4%;
+            right: 4%;
+            top: 2.2%;
+            z-index: 2;
+            height: 9%;
+            cursor: grab !important;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .chat-panel.is-dragging .chat-drag-handle {
+            cursor: grabbing !important;
         }
 
         .chat-header {
@@ -598,8 +616,8 @@
             }
 
             .chat-toggle {
-                width: calc(44px * var(--layout-scale));
-                height: calc(35px * var(--layout-scale));
+                width: calc(31px * var(--layout-scale));
+                height: calc(25px * var(--layout-scale));
             }
 
             .chat-panel {
@@ -639,6 +657,7 @@
         </span>
     </button>
     <aside class="chat-panel" id="chatPanel" aria-label="其他人的聊天訊息" aria-hidden="true">
+        <div class="chat-drag-handle" aria-label="拖曳聊天室" title="拖曳聊天室"></div>
         <div class="chat-header">
             <div class="chat-title" id="chatTitle">其他人的聊天</div>
             <div class="chat-status" id="chatStatus">尚未載入</div>
@@ -684,6 +703,7 @@
         const chatTitle = document.querySelector("#chatTitle");
         const chatStatus = document.querySelector("#chatStatus");
         const chatActionMenu = document.querySelector("#chatActionMenu");
+        const chatDragHandle = chatPanel.querySelector(".chat-drag-handle");
         const appViewport = {
             width: 320,
             height: 480,
@@ -1822,9 +1842,78 @@
         let chatLongPressStartX = 0;
         let chatLongPressStartY = 0;
         let selectedChatMessageId = null;
+        let chatPanelDragState = null;
 
         function setChatStatus(message) {
             chatStatus.textContent = message;
+        }
+
+        function clampChatPanelPosition(left, top) {
+            const panelRect = chatPanel.getBoundingClientRect();
+            const margin = 8 * appViewport.layoutScale;
+            const maxLeft = Math.max(margin, appViewport.width - panelRect.width - margin);
+            const maxTop = Math.max(margin, appViewport.height - panelRect.height - margin);
+
+            return {
+                left: THREE.MathUtils.clamp(left, margin, maxLeft),
+                top: THREE.MathUtils.clamp(top, margin, maxTop)
+            };
+        }
+
+        function setChatPanelPosition(left, top) {
+            const position = clampChatPanelPosition(left, top);
+            chatPanel.style.left = `${position.left}px`;
+            chatPanel.style.top = `${position.top}px`;
+        }
+
+        function clampCurrentChatPanelPosition() {
+            if (!chatPanel.style.left || !chatPanel.style.top) {
+                return;
+            }
+
+            const panelRect = chatPanel.getBoundingClientRect();
+            setChatPanelPosition(panelRect.left, panelRect.top);
+        }
+
+        function startChatPanelDrag(event) {
+            if (event.button !== undefined && event.button !== 0) {
+                return;
+            }
+
+            const panelRect = chatPanel.getBoundingClientRect();
+            chatPanelDragState = {
+                pointerId: event.pointerId,
+                offsetX: event.clientX - panelRect.left,
+                offsetY: event.clientY - panelRect.top
+            };
+            chatPanel.classList.add("is-dragging");
+            chatDragHandle.setPointerCapture?.(event.pointerId);
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        function moveChatPanelDrag(event) {
+            if (!chatPanelDragState || event.pointerId !== chatPanelDragState.pointerId) {
+                return;
+            }
+
+            setChatPanelPosition(
+                event.clientX - chatPanelDragState.offsetX,
+                event.clientY - chatPanelDragState.offsetY
+            );
+            hideChatActionMenu();
+            event.preventDefault();
+        }
+
+        function stopChatPanelDrag(event) {
+            if (!chatPanelDragState || event.pointerId !== chatPanelDragState.pointerId) {
+                return;
+            }
+
+            chatDragHandle.releasePointerCapture?.(event.pointerId);
+            chatPanelDragState = null;
+            chatPanel.classList.remove("is-dragging");
+            event.preventDefault();
         }
 
         function renderChatEmpty(message) {
@@ -3129,6 +3218,11 @@
             setChatPanelOpen(!chatPanelOpen);
         });
 
+        chatDragHandle.addEventListener("pointerdown", startChatPanelDrag);
+        chatDragHandle.addEventListener("pointermove", moveChatPanelDrag);
+        chatDragHandle.addEventListener("pointerup", stopChatPanelDrag);
+        chatDragHandle.addEventListener("pointercancel", stopChatPanelDrag);
+
         chatMessages.addEventListener("scroll", () => {
             hideChatActionMenu();
         });
@@ -3472,6 +3566,7 @@
             updateScaledSceneObjects();
             updateReadManPlacement();
             updateReadManCounterPlacement();
+            clampCurrentChatPanelPosition();
         }
 
         window.addEventListener("resize", resizeSceneToViewport);
