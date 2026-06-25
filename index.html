@@ -7,6 +7,13 @@
     <style>
         :root {
             color-scheme: light;
+            --safe-top: max(16px, env(safe-area-inset-top));
+            --safe-right: max(16px, env(safe-area-inset-right));
+            --safe-bottom: max(10px, env(safe-area-inset-bottom));
+            --safe-left: max(16px, env(safe-area-inset-left));
+            --layout-scale: 1;
+            --marquee-height: calc(34px * var(--layout-scale));
+            --app-height: 100vh;
         }
 
         * {
@@ -23,6 +30,9 @@
 
         body {
             margin: 0;
+            width: 100%;
+            min-width: 320px;
+            min-height: var(--app-height);
             overflow: hidden;
             background:
                 radial-gradient(circle at 50% 78%, rgba(255, 170, 120, 0.22), transparent 24%),
@@ -39,8 +49,8 @@
             left: 0;
             top: 0;
             z-index: 9999;
-            width: 56px;
-            height: 56px;
+            width: calc(56px * var(--layout-scale));
+            height: calc(56px * var(--layout-scale));
             object-fit: contain;
             pointer-events: none;
             opacity: 0;
@@ -63,10 +73,11 @@
 
         .volume-slot {
             position: fixed;
-            top: 16px;
-            right: 16px;
+            top: var(--safe-top);
+            right: var(--safe-right);
             z-index: 12;
-            width: min(280px, calc(100vw - 32px));
+            width: clamp(calc(190px * var(--layout-scale)), 20vw, calc(280px * var(--layout-scale)));
+            max-width: calc(100vw - var(--safe-left) - var(--safe-right));
             user-select: none;
             touch-action: none;
         }
@@ -87,12 +98,13 @@
             bottom: 0;
             z-index: 11;
             width: 100%;
-            height: 34px;
+            height: calc(var(--marquee-height) + env(safe-area-inset-bottom));
+            padding-bottom: env(safe-area-inset-bottom);
             overflow: hidden;
             border: 0;
             background: transparent;
             color: #3a3a3a;
-            font: 500 15px/34px Futura, "Futura PT", Arial, sans-serif;
+            font: 500 calc(15px * var(--layout-scale))/var(--marquee-height) Futura, "Futura PT", Arial, sans-serif;
             letter-spacing: 0;
             white-space: nowrap;
             pointer-events: none;
@@ -103,8 +115,8 @@
             left: 0;
             top: 0;
             z-index: 14;
-            width: 48px;
-            height: 38px;
+            width: calc(48px * var(--layout-scale));
+            height: calc(38px * var(--layout-scale));
             border: 1px solid rgba(22, 50, 74, 0.16);
             border-radius: 14px;
             padding: 0;
@@ -125,10 +137,10 @@
         .chat-toggle::after {
             content: "";
             position: absolute;
-            left: 9px;
-            bottom: -6px;
-            width: 12px;
-            height: 12px;
+            left: calc(9px * var(--layout-scale));
+            bottom: calc(-6px * var(--layout-scale));
+            width: calc(12px * var(--layout-scale));
+            height: calc(12px * var(--layout-scale));
             border-left: 1px solid rgba(22, 50, 74, 0.16);
             background: rgba(255, 255, 255, 0.82);
             clip-path: polygon(0 0, 100% 0, 0 100%);
@@ -153,15 +165,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 5px;
+            gap: calc(5px * var(--layout-scale));
             width: 100%;
             height: 100%;
             pointer-events: none;
         }
 
         .chat-typing-dot {
-            width: 7px;
-            height: 7px;
+            width: calc(7px * var(--layout-scale));
+            height: calc(7px * var(--layout-scale));
             border-radius: 50%;
             background: #111111;
             animation: chatTypingBounce 1.05s infinite ease-in-out;
@@ -191,12 +203,13 @@
 
         .chat-panel {
             position: fixed;
-            left: 16px;
-            top: 80px;
+            left: var(--safe-left);
+            top: calc(var(--safe-top) + 64px);
             z-index: 13;
-            width: min(360px, calc(100vw - 32px));
+            width: clamp(calc(280px * var(--layout-scale)), 28vw, calc(360px * var(--layout-scale)));
+            max-width: calc(100vw - var(--safe-left) - var(--safe-right));
             aspect-ratio: 298.77 / 387.74;
-            max-height: calc(100vh - 130px);
+            max-height: calc(var(--app-height) - var(--safe-top) - var(--safe-bottom) - var(--marquee-height) - 72px);
             overflow: hidden;
             border: 0;
             border-radius: 11px;
@@ -225,20 +238,20 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
-            padding: 0 10px 0 18px;
+            gap: calc(12px * var(--layout-scale));
+            padding: 0 calc(10px * var(--layout-scale)) 0 calc(18px * var(--layout-scale));
             border: 0;
         }
 
         .chat-title {
-            font-size: 11px;
+            font-size: calc(11px * var(--layout-scale));
             font-weight: 800;
             letter-spacing: 0.06em;
             color: #dedede;
         }
 
         .chat-status {
-            font-size: 10px;
+            font-size: calc(10px * var(--layout-scale));
             color: rgba(235, 235, 235, 0.68);
         }
 
@@ -250,8 +263,8 @@
             bottom: 8.4%;
             display: flex;
             flex-direction: column;
-            gap: 14px;
-            padding: 13px 12px 18px;
+            gap: calc(14px * var(--layout-scale));
+            padding: calc(13px * var(--layout-scale)) calc(12px * var(--layout-scale)) calc(18px * var(--layout-scale));
             overflow-y: auto;
             overscroll-behavior: contain;
             background: #333333;
@@ -261,15 +274,15 @@
 
         .chat-message {
             display: grid;
-            grid-template-columns: 34px minmax(0, 1fr);
-            gap: 10px;
+            grid-template-columns: calc(34px * var(--layout-scale)) minmax(0, 1fr);
+            gap: calc(10px * var(--layout-scale));
             align-items: start;
             touch-action: pan-y;
         }
 
         .chat-avatar {
-            width: 34px;
-            height: 34px;
+            width: calc(34px * var(--layout-scale));
+            height: calc(34px * var(--layout-scale));
             border-radius: 50%;
             background: #616262;
             border: 1px solid rgba(255, 255, 255, 0.16);
@@ -278,16 +291,16 @@
 
         .chat-bubble {
             min-width: 0;
-            border-radius: 16px 16px 16px 6px;
-            padding: 10px 12px 8px;
+            border-radius: calc(16px * var(--layout-scale)) calc(16px * var(--layout-scale)) calc(16px * var(--layout-scale)) calc(6px * var(--layout-scale));
+            padding: calc(10px * var(--layout-scale)) calc(12px * var(--layout-scale)) calc(8px * var(--layout-scale));
             background: #454547;
             border: 1px solid rgba(255, 255, 255, 0.07);
             box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
         }
 
         .chat-name {
-            margin-bottom: 5px;
-            font-size: 13px;
+            margin-bottom: calc(5px * var(--layout-scale));
+            font-size: calc(13px * var(--layout-scale));
             font-weight: 800;
             color: #f1f1f1;
         }
@@ -295,23 +308,23 @@
         .chat-text {
             white-space: pre-wrap;
             overflow-wrap: anywhere;
-            font-size: 14px;
+            font-size: calc(14px * var(--layout-scale));
             line-height: 1.45;
             color: #e5e5e5;
         }
 
         .chat-time {
-            font-size: 11px;
+            font-size: calc(11px * var(--layout-scale));
             line-height: 1;
             color: rgba(235, 235, 235, 0.55);
         }
 
         .chat-meta {
             display: flex;
-            gap: 10px;
+            gap: calc(10px * var(--layout-scale));
             align-items: center;
-            margin-top: 7px;
-            font-size: 11px;
+            margin-top: calc(7px * var(--layout-scale));
+            font-size: calc(11px * var(--layout-scale));
             line-height: 1;
             color: rgba(235, 235, 235, 0.55);
         }
@@ -319,27 +332,27 @@
         .chat-like,
         .chat-dislike {
             display: inline-flex;
-            gap: 3px;
+            gap: calc(3px * var(--layout-scale));
             align-items: center;
             color: rgba(245, 245, 245, 0.72);
             font-weight: 700;
         }
 
         .chat-empty {
-            padding: 18px 6px;
+            padding: calc(18px * var(--layout-scale)) calc(6px * var(--layout-scale));
             text-align: center;
             color: rgba(235, 235, 235, 0.62);
-            font-size: 13px;
+            font-size: calc(13px * var(--layout-scale));
         }
 
         .chat-action-menu {
             position: absolute;
-            left: 58px;
-            top: 88px;
+            left: calc(58px * var(--layout-scale));
+            top: calc(88px * var(--layout-scale));
             z-index: 2;
             display: flex;
-            gap: 8px;
-            padding: 8px;
+            gap: calc(8px * var(--layout-scale));
+            padding: calc(8px * var(--layout-scale));
             border-radius: 999px;
             background: rgba(15, 45, 63, 0.92);
             box-shadow: 0 14px 36px rgba(16, 44, 62, 0.32);
@@ -358,10 +371,10 @@
         .chat-action-button {
             border: 0;
             border-radius: 999px;
-            padding: 8px 12px;
+            padding: calc(8px * var(--layout-scale)) calc(12px * var(--layout-scale));
             color: #0f2d3f;
             background: rgba(255, 255, 255, 0.92);
-            font: 800 13px/1 "Noto Sans TC", sans-serif;
+            font: 800 calc(13px * var(--layout-scale))/1 "Noto Sans TC", sans-serif;
         }
 
         .marquee-track {
@@ -391,37 +404,37 @@
         }
 
         .buddha-light-fallback iframe {
-            width: min(96vw, 1444px);
-            height: min(52vw, 450px);
-            min-height: 260px;
+            width: min(96vw, calc(1444px * var(--layout-scale)));
+            height: min(52vw, calc(450px * var(--layout-scale)));
+            min-height: calc(260px * var(--layout-scale));
             border: 0;
             box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
         }
 
         .buddha-light-close {
             position: fixed;
-            top: 16px;
-            right: 16px;
-            width: 34px;
-            height: 34px;
+            top: var(--safe-top);
+            right: var(--safe-right);
+            width: calc(34px * var(--layout-scale));
+            height: calc(34px * var(--layout-scale));
             border: 0;
             border-radius: 999px;
             background: rgba(255, 255, 255, 0.82);
             color: #121820;
-            font: 800 18px/1 Arial, sans-serif;
+            font: 800 calc(18px * var(--layout-scale))/1 Arial, sans-serif;
         }
 
         .hud {
             display: none;
             position: fixed;
-            top: 16px;
-            left: 16px;
-            padding: 10px 14px;
-            border-radius: 12px;
+            top: var(--safe-top);
+            left: var(--safe-left);
+            padding: calc(10px * var(--layout-scale)) calc(14px * var(--layout-scale));
+            border-radius: calc(12px * var(--layout-scale));
             background: rgba(255, 255, 255, 0.68);
             backdrop-filter: blur(10px);
             color: #16324a;
-            font-size: 14px;
+            font-size: calc(14px * var(--layout-scale));
             line-height: 1.5;
             pointer-events: none;
         }
@@ -443,9 +456,9 @@
         .audio-button {
             border: 0;
             border-radius: 999px;
-            padding: 16px 28px;
+            padding: calc(16px * var(--layout-scale)) calc(28px * var(--layout-scale));
             font: inherit;
-            font-size: 18px;
+            font-size: calc(18px * var(--layout-scale));
             font-weight: 700;
             color: #0f2d3f;
             background: linear-gradient(180deg, #fffdf6 0%, #ffe7a8 100%);
@@ -466,7 +479,7 @@
             left: 0;
             top: 0;
             display: flex;
-            gap: 4px;
+            gap: calc(4px * var(--layout-scale));
             align-items: center;
             justify-content: center;
             transform: translate(-50%, -50%);
@@ -480,8 +493,8 @@
         }
 
         .readman-digit {
-            width: 22px;
-            height: 35px;
+            width: calc(22px * var(--layout-scale));
+            height: calc(35px * var(--layout-scale));
             display: block;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
@@ -533,27 +546,31 @@
         }
 
         @media (max-width: 720px) {
+            :root {
+                --safe-top: max(10px, env(safe-area-inset-top));
+                --safe-right: max(10px, env(safe-area-inset-right));
+                --safe-bottom: max(8px, env(safe-area-inset-bottom));
+                --safe-left: max(10px, env(safe-area-inset-left));
+            }
+
             .volume-slot {
-                top: 10px;
-                right: 10px;
-                width: min(210px, calc(100vw - 20px));
+                width: clamp(calc(170px * var(--layout-scale)), 42vw, calc(210px * var(--layout-scale)));
             }
 
             .chat-toggle {
-                width: 44px;
-                height: 35px;
+                width: calc(44px * var(--layout-scale));
+                height: calc(35px * var(--layout-scale));
             }
 
             .chat-panel {
-                left: 10px;
-                top: 70px;
-                width: min(330px, calc(100vw - 20px));
-                max-height: calc(100vh - 114px);
+                top: calc(var(--safe-top) + 60px);
+                width: clamp(calc(270px * var(--layout-scale)), 76vw, calc(330px * var(--layout-scale)));
+                max-height: calc(var(--app-height) - var(--safe-top) - var(--safe-bottom) - var(--marquee-height) - 66px);
             }
 
             .readman-digit {
-                width: 16px;
-                height: 26px;
+                width: calc(16px * var(--layout-scale));
+                height: calc(26px * var(--layout-scale));
             }
         }
 
@@ -627,6 +644,71 @@
         const chatTitle = document.querySelector("#chatTitle");
         const chatStatus = document.querySelector("#chatStatus");
         const chatActionMenu = document.querySelector("#chatActionMenu");
+        const appViewport = {
+            width: 320,
+            height: 480,
+            aspect: 320 / 480,
+            layoutScale: 1,
+            sceneScale: 1
+        };
+
+        const designViewport = {
+            width: 1440,
+            height: 900
+        };
+
+        function clampScale(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function computeLayoutScale(width, height) {
+            const proportionalScale = Math.min(
+                width / designViewport.width,
+                height / designViewport.height
+            );
+
+            return clampScale(proportionalScale, 0.42, 1.18);
+        }
+
+        function readViewportSize() {
+            const visualViewport = window.visualViewport;
+            const width = Math.max(
+                320,
+                Math.round(visualViewport?.width || window.innerWidth || 320)
+            );
+            const height = Math.max(
+                320,
+                Math.round(visualViewport?.height || window.innerHeight || 480)
+            );
+
+            const layoutScale = computeLayoutScale(width, height);
+
+            return {
+                width,
+                height,
+                aspect: width / height,
+                layoutScale,
+                sceneScale: layoutScale
+            };
+        }
+
+        function refreshViewportMetrics() {
+            const nextViewport = readViewportSize();
+            appViewport.width = nextViewport.width;
+            appViewport.height = nextViewport.height;
+            appViewport.aspect = nextViewport.aspect;
+            appViewport.layoutScale = nextViewport.layoutScale;
+            appViewport.sceneScale = nextViewport.sceneScale;
+            document.documentElement.style.setProperty("--app-height", `${appViewport.height}px`);
+            document.documentElement.style.setProperty("--layout-scale", appViewport.layoutScale.toFixed(3));
+            globalVolumeControl.style.setProperty(
+                "--pvc-ui-scale",
+                (0.5 * appViewport.layoutScale).toFixed(3)
+            );
+            return appViewport;
+        }
+
+        refreshViewportMetrics();
 
         const scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xd99870, 34, 128);
@@ -662,7 +744,7 @@
 
         const camera = new THREE.PerspectiveCamera(
             60,
-            window.innerWidth / window.innerHeight,
+            appViewport.aspect,
             0.1,
             300
         );
@@ -673,7 +755,7 @@
         scene.add(camera);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(appViewport.width, appViewport.height);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -685,6 +767,7 @@
         const overlayCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
         overlayCamera.position.set(0, 0, 10);
         overlayCamera.lookAt(0, 0, 0);
+        updateOverlayCamera();
 
         const overlayHemisphereLight = new THREE.HemisphereLight(0xffd2b0, 0xc77b4f, 1.9);
         overlayScene.add(overlayHemisphereLight);
@@ -861,7 +944,7 @@
         let knockedDownBirdCount = 0;
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
-        const buddhaLightAliveThreshold = 22;
+        const buddhaLightAliveThreshold = 2;
         const marqueeStats = {
             alive: "0",
             currentKills: "0",
@@ -876,8 +959,10 @@
         const anthemVideoFile = "./assets/videos/唱國歌.mp4";
         const readManPlacement = {
             displaySize: 0.70,
-            rightMargin: 0.08,
-            bottomMargin: 0.6,
+            rightMarginPx: 28,
+            bottomMarginPx: 34,
+            mobileRightMarginPx: 18,
+            mobileBottomMarginPx: 46,
             sinkOffset: 0.32,
             fadeStart: -0.36,
             fadeEnd: 0.08,
@@ -902,21 +987,21 @@
         const readManVideoVolumeScale = 0.5;
         const readManCounterPlacement = {
             // === AGREE / DISAGREE 數字位置微調 ===
-            // x: 左右位置，負數往左、正數往右
-            // y: 上下位置，負數往上、正數往下
+            // xRatio: 相對右下人物外框左到右的位置，0 是最左、1 是最右
+            // yRatio: 相對右下人物外框上到下的位置，0 是最上、1 是最下
             // scale: 整組數字大小
             // rotation: 角度，負數往左斜、正數往右斜
-            left: { x: -60, y: -130, scale: 0.78, rotation: 8 },
-            right: { x: 120, y: -110, scale: 0.78, rotation: 8 },
+            left: { xRatio: 0.3, yRatio: 0.145, scale: 0.78, rotation: 8 },
+            right: { xRatio: 0.805, yRatio: 0.195, scale: 0.78, rotation: 8 },
             mobileScale: 0.78
         };
         const chatTogglePlacement = {
             // === 聊天室按鈕位置微調 ===
-            // x：正數往右，負數往左
-            // y：正數往下，負數往上
+            // xRatio：相對右下人物外框左到右的位置，0 是最左、1 是最右
+            // yRatio：相對右下人物外框上到下的位置，0 是最上、1 是最下
             // 預設值是 agree 與 disagree 的正中間
-            x: 30,
-            y: -130
+            xRatio: 0.56,
+            yRatio: 0.1
         };
         const pointEndpoints = {
             agree: "https://macn8n.tiramisu-island.com/webhook/get_agree",
@@ -1020,19 +1105,127 @@
         let audioUnlocked = false;
 
         function updateFlightArea() {
-            const aspect = window.innerWidth / window.innerHeight;
+            const aspect = appViewport.aspect;
             flightArea.width = 28 + aspect * 10;
             flightArea.height = 18 + Math.max(0, (1 / aspect) * 4);
             flightArea.depth = 22 + aspect * 6;
         }
 
         function updateOverlayCamera() {
-            const aspect = window.innerWidth / window.innerHeight;
-            overlayCamera.left = -aspect;
-            overlayCamera.right = aspect;
+            overlayCamera.left = -appViewport.aspect;
+            overlayCamera.right = appViewport.aspect;
             overlayCamera.top = 1;
             overlayCamera.bottom = -1;
             overlayCamera.updateProjectionMatrix();
+        }
+
+        function screenPxToOverlayX(px) {
+            return (px / appViewport.width) * (overlayCamera.right - overlayCamera.left);
+        }
+
+        function screenPxToOverlayY(px) {
+            return (px / appViewport.height) * (overlayCamera.top - overlayCamera.bottom);
+        }
+
+        function applyScaledModelSize(model, baseScale) {
+            if (!model || !Number.isFinite(baseScale)) {
+                return;
+            }
+
+            model.scale.setScalar(baseScale * appViewport.sceneScale);
+        }
+
+        function updateScaledSceneObjects() {
+            if (birdTemplate?.userData.baseScale) {
+                applyScaledModelSize(birdTemplate, birdTemplate.userData.baseScale);
+            }
+
+            birds.forEach((bird) => {
+                if (bird.visual?.userData.baseScale) {
+                    applyScaledModelSize(bird.visual, bird.visual.userData.baseScale);
+                }
+            });
+
+            poopModelTemplates.forEach((template) => {
+                if (template.userData.baseScale) {
+                    applyScaledModelSize(template, template.userData.baseScale);
+                }
+            });
+
+            droppedSigns.forEach((sign) => {
+                if (sign.object?.userData.baseScale) {
+                    applyScaledModelSize(sign.object, sign.object.userData.baseScale);
+                }
+            });
+        }
+
+        const projectedBoundsBox = new THREE.Box3();
+        const projectedBoundsMin = new THREE.Vector3();
+        const projectedBoundsMax = new THREE.Vector3();
+        const projectedBoundsPoint = new THREE.Vector3();
+        const projectedBoundsCorners = [
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3()
+        ];
+
+        function getProjectedScreenBounds(object, projectionCamera) {
+            if (!object) {
+                return null;
+            }
+
+            object.updateWorldMatrix(true, true);
+            projectedBoundsBox.setFromObject(object);
+
+            if (projectedBoundsBox.isEmpty()) {
+                return null;
+            }
+
+            projectedBoundsMin.copy(projectedBoundsBox.min);
+            projectedBoundsMax.copy(projectedBoundsBox.max);
+            projectedBoundsCorners[0].set(projectedBoundsMin.x, projectedBoundsMin.y, projectedBoundsMin.z);
+            projectedBoundsCorners[1].set(projectedBoundsMin.x, projectedBoundsMin.y, projectedBoundsMax.z);
+            projectedBoundsCorners[2].set(projectedBoundsMin.x, projectedBoundsMax.y, projectedBoundsMin.z);
+            projectedBoundsCorners[3].set(projectedBoundsMin.x, projectedBoundsMax.y, projectedBoundsMax.z);
+            projectedBoundsCorners[4].set(projectedBoundsMax.x, projectedBoundsMin.y, projectedBoundsMin.z);
+            projectedBoundsCorners[5].set(projectedBoundsMax.x, projectedBoundsMin.y, projectedBoundsMax.z);
+            projectedBoundsCorners[6].set(projectedBoundsMax.x, projectedBoundsMax.y, projectedBoundsMin.z);
+            projectedBoundsCorners[7].set(projectedBoundsMax.x, projectedBoundsMax.y, projectedBoundsMax.z);
+
+            let left = Number.POSITIVE_INFINITY;
+            let right = Number.NEGATIVE_INFINITY;
+            let top = Number.POSITIVE_INFINITY;
+            let bottom = Number.NEGATIVE_INFINITY;
+
+            projectedBoundsCorners.forEach((corner) => {
+                projectedBoundsPoint.copy(corner).project(projectionCamera);
+                const x = (projectedBoundsPoint.x * 0.5 + 0.5) * appViewport.width;
+                const y = (-projectedBoundsPoint.y * 0.5 + 0.5) * appViewport.height;
+                left = Math.min(left, x);
+                right = Math.max(right, x);
+                top = Math.min(top, y);
+                bottom = Math.max(bottom, y);
+            });
+
+            if (![left, right, top, bottom].every(Number.isFinite)) {
+                return null;
+            }
+
+            return {
+                left,
+                right,
+                top,
+                bottom,
+                width: Math.max(1, right - left),
+                height: Math.max(1, bottom - top),
+                centerX: (left + right) / 2,
+                centerY: (top + bottom) / 2
+            };
         }
 
         function updateReadManPlacement() {
@@ -1040,13 +1233,25 @@
                 return;
             }
 
-            const responsiveScale = window.innerWidth < 720 ? readManPlacement.mobileScale : 1;
-            const finalSize = readManPlacement.displaySize * responsiveScale;
+            const isCompactViewport = appViewport.width < 720;
+            const responsiveScale = isCompactViewport ? readManPlacement.mobileScale : 1;
+            const finalSize =
+                readManPlacement.displaySize * responsiveScale * appViewport.sceneScale;
+            const rightMargin = screenPxToOverlayX(
+                isCompactViewport
+                    ? readManPlacement.mobileRightMarginPx
+                    : readManPlacement.rightMarginPx
+            );
+            const bottomMargin = screenPxToOverlayY(
+                (isCompactViewport
+                    ? readManPlacement.mobileBottomMarginPx
+                    : readManPlacement.bottomMarginPx) + 34
+            );
 
             readManAnchor.position.set(
-                overlayCamera.right - readManPlacement.rightMargin - finalSize / 2,
+                overlayCamera.right - rightMargin - finalSize / 2,
                 overlayCamera.bottom +
-                    readManPlacement.bottomMargin +
+                    bottomMargin +
                     finalSize / 2 -
                     readManPlacement.sinkOffset,
                 0
@@ -1260,11 +1465,11 @@
             readManAnchor.getWorldPosition(readManPointerScreenPosition);
             readManPointerScreenPosition.project(overlayCamera);
 
-            const readManX = (readManPointerScreenPosition.x * 0.5 + 0.5) * window.innerWidth;
-            const readManY = (-readManPointerScreenPosition.y * 0.5 + 0.5) * window.innerHeight;
-            const radius = window.innerWidth < 720
+            const readManX = (readManPointerScreenPosition.x * 0.5 + 0.5) * appViewport.width;
+            const readManY = (-readManPointerScreenPosition.y * 0.5 + 0.5) * appViewport.height;
+            const radius = (appViewport.width < 720
                 ? readManPlacement.mobilePointerRadius
-                : readManPlacement.pointerRadius;
+                : readManPlacement.pointerRadius) * appViewport.layoutScale;
             const distance = Math.hypot(pointerClientX - readManX, pointerClientY - readManY);
 
             return distance <= radius;
@@ -1306,8 +1511,8 @@
                 return false;
             }
 
-            clickPointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-            clickPointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
+            clickPointer.x = (event.clientX / appViewport.width) * 2 - 1;
+            clickPointer.y = -((event.clientY / appViewport.height) * 2 - 1);
             raycaster.setFromCamera(clickPointer, overlayCamera);
             return raycaster.intersectObject(readManModel, true).length > 0;
         }
@@ -1445,29 +1650,42 @@
                 return;
             }
 
-            readManAnchor.getWorldPosition(readManScreenPosition);
-            readManScreenPosition.project(overlayCamera);
+            const screenBounds = getProjectedScreenBounds(readManModel, overlayCamera);
+            if (!screenBounds) {
+                readManAnchor.getWorldPosition(readManScreenPosition);
+                readManScreenPosition.project(overlayCamera);
+            }
 
-            const baseX = (readManScreenPosition.x * 0.5 + 0.5) * window.innerWidth;
-            const baseY = (-readManScreenPosition.y * 0.5 + 0.5) * window.innerHeight;
+            const fallbackX = (readManScreenPosition.x * 0.5 + 0.5) * appViewport.width;
+            const fallbackY = (-readManScreenPosition.y * 0.5 + 0.5) * appViewport.height;
             const responsiveScale =
-                window.innerWidth < 720 ? readManCounterPlacement.mobileScale : 1;
+                appViewport.width < 720 ? readManCounterPlacement.mobileScale : 1;
+            const getAttachedPosition = (placement) => {
+                if (!screenBounds) {
+                    return { x: fallbackX, y: fallbackY };
+                }
+
+                return {
+                    x: screenBounds.left + placement.xRatio * screenBounds.width,
+                    y: screenBounds.top + placement.yRatio * screenBounds.height
+                };
+            };
 
             [
                 [agreeCounterElement, readManCounterPlacement.left],
                 [disagreeCounterElement, readManCounterPlacement.right]
             ].forEach(([element, placement]) => {
-                element.style.left = `${baseX + placement.x * responsiveScale}px`;
-                element.style.top = `${baseY + placement.y * responsiveScale}px`;
+                const position = getAttachedPosition(placement);
+                element.style.left = `${position.x}px`;
+                element.style.top = `${position.y}px`;
                 element.style.transform =
                     `translate(-50%, -50%) rotate(${placement.rotation}deg) scale(${placement.scale * responsiveScale})`;
                 element.classList.add("is-visible");
             });
 
-            chatToggle.style.left =
-                `${baseX + chatTogglePlacement.x * responsiveScale}px`;
-            chatToggle.style.top =
-                `${baseY + chatTogglePlacement.y * responsiveScale}px`;
+            const chatPosition = getAttachedPosition(chatTogglePlacement);
+            chatToggle.style.left = `${chatPosition.x}px`;
+            chatToggle.style.top = `${chatPosition.y}px`;
             chatToggle.classList.add("is-positioned");
         }
 
@@ -2309,7 +2527,7 @@
                 birdCameraPixels
             );
             renderer.setRenderTarget(null);
-            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            renderer.setViewport(0, 0, appViewport.width, appViewport.height);
             renderer.setClearColor(previousRendererClearColor, previousClearAlpha);
             renderer.toneMappingExposure = previousExposure;
 
@@ -2373,6 +2591,10 @@
             const template =
                 poopModelTemplates[Math.floor(Math.random() * poopModelTemplates.length)];
             const dropObject = clone(template);
+            if (template.userData.baseScale) {
+                dropObject.userData.baseScale = template.userData.baseScale;
+                applyScaledModelSize(dropObject, template.userData.baseScale);
+            }
             dropObject.position.copy(getBirdDropPosition(bird));
             dropObject.rotation.copy(bird.root.rotation);
             scene.add(dropObject);
@@ -2597,6 +2819,10 @@
             };
 
             if (!bird) {
+                if (birdTemplate.userData.baseScale) {
+                    targetBird.visual.userData.baseScale = birdTemplate.userData.baseScale;
+                    applyScaledModelSize(targetBird.visual, birdTemplate.userData.baseScale);
+                }
                 targetBird.root.add(targetBird.visual);
                 setBirdChildrenId(targetBird.root, targetBird.id);
                 scene.add(targetBird.root);
@@ -2760,7 +2986,8 @@
 
                     const maxAxis = Math.max(size.x, size.y, size.z) || 1;
                     const scale = 5 / maxAxis;
-                    template.scale.setScalar(scale);
+                    template.userData.baseScale = scale;
+                    applyScaledModelSize(template, scale);
                     poopModelTemplates.push(template);
                 },
                 undefined,
@@ -2788,7 +3015,7 @@
                 const scale = 1 / maxAxis;
                 readManModel.userData.baseScale = scale;
                 readManModel.userData.center = center;
-                readManModel.scale.setScalar(scale);
+                applyScaledModelSize(readManModel, scale);
                 readManAnchor.add(readManModel);
                 overlayScene.add(readManAnchor);
                 if (gltf.animations.length > 0) {
@@ -2857,7 +3084,8 @@
 
                 const maxAxis = Math.max(size.x, size.y, size.z) || 1;
                 const scale = 4 / maxAxis;
-                birdTemplate.scale.setScalar(scale);
+                birdTemplate.userData.baseScale = scale;
+                applyScaledModelSize(birdTemplate, scale);
 
                 hud.innerHTML = "動作模型載入完成<br>正在套用互動動畫";
                 spawnWave(0);
@@ -3055,16 +3283,21 @@
 
         animate();
 
-        window.addEventListener("resize", () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
+        function resizeSceneToViewport() {
+            refreshViewportMetrics();
+            camera.aspect = appViewport.aspect;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(appViewport.width, appViewport.height);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             updateFlightArea();
             updateOverlayCamera();
+            updateScaledSceneObjects();
             updateReadManPlacement();
             updateReadManCounterPlacement();
-        });
+        }
+
+        window.addEventListener("resize", resizeSceneToViewport);
+        window.visualViewport?.addEventListener("resize", resizeSceneToViewport);
 
         window.addEventListener("pointermove", (event) => {
             pointerClientX = event.clientX;
@@ -3072,8 +3305,8 @@
             gameCursor.style.left = `${event.clientX}px`;
             gameCursor.style.top = `${event.clientY}px`;
             gameCursor.classList.add("is-visible");
-            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-            pointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
+            pointer.x = (event.clientX / appViewport.width) * 2 - 1;
+            pointer.y = -((event.clientY / appViewport.height) * 2 - 1);
             lastPointerMoveAt = clock.elapsedTime;
         });
 
@@ -3109,8 +3342,8 @@
                 return;
             }
 
-            clickPointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-            clickPointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
+            clickPointer.x = (event.clientX / appViewport.width) * 2 - 1;
+            clickPointer.y = -((event.clientY / appViewport.height) * 2 - 1);
             raycaster.setFromCamera(clickPointer, camera);
 
             const hits = raycaster.intersectObjects(clickableBirdRoots, true);
