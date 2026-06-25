@@ -1,0 +1,245 @@
+:root {
+  --duration: 9600ms;
+  --charge-duration: 1800ms;
+  --drift-duration: 26000ms;
+  --stage-width: 1444px;
+  --stage-height: 450px;
+  --code-width: 9000px;
+  --hand-x: 86.5%;
+  --hand-y: 34.2%;
+  --origin-x: var(--hand-x);
+  --origin-y: var(--hand-y);
+  --beam-travel: 0px;
+  --beam-front-travel: 0px;
+  --beam-line-opacity: 0;
+  --world-offset: 0px;
+  --beam-thickness: clamp(26px, 9.5vh, 54px);
+  --beam-head-size: clamp(104px, 22.5vh, 150px);
+  --beam-front-width: clamp(132px, 28vh, 210px);
+  --world-drift: calc(var(--stage-width) + 46vw);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #101820;
+}
+
+.viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(12, 20, 28, 0.96), rgba(18, 35, 44, 0.9) 42%, rgba(212, 222, 232, 0.92) 100%);
+}
+
+.world {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: calc(var(--stage-width) + var(--code-width));
+  height: var(--stage-height);
+  min-height: var(--stage-height);
+  transform: translate3d(var(--world-offset), 0, 0);
+  will-change: transform;
+}
+
+.stage {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--stage-width);
+  height: var(--stage-height);
+  min-height: var(--stage-height);
+  overflow: visible;
+}
+
+.code-exposure {
+  position: absolute;
+  top: 0;
+  right: var(--stage-width);
+  width: var(--code-width);
+  height: var(--stage-height);
+  min-height: var(--stage-height);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 92% 34%, rgba(255, 221, 77, 0.18), transparent 18%),
+    linear-gradient(90deg, rgba(8, 15, 21, 0.98), rgba(13, 27, 34, 0.94));
+}
+
+.code-exposure::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(90deg, transparent 0 70%, rgba(212, 222, 232, 0.22)),
+    repeating-linear-gradient(0deg, rgba(255, 220, 92, 0.06) 0 1px, transparent 1px 52px);
+  pointer-events: none;
+}
+
+.path-field {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 34%;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255, 226, 112, 0), rgba(255, 226, 112, 0.22), rgba(255, 226, 112, 0));
+  box-shadow: 0 0 22px rgba(255, 209, 72, 0.3);
+  pointer-events: none;
+}
+
+.destruction-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.target-building {
+  position: absolute;
+  bottom: 5%;
+  left: var(--spawn-x);
+  width: var(--building-width);
+  height: var(--building-height);
+  transform: translateX(-50%);
+  opacity: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  filter: none;
+  overflow: visible;
+  animation: building-enter 520ms ease-out forwards;
+  contain: layout paint;
+  will-change: transform, opacity;
+}
+
+.target-building.hit {
+  z-index: 3;
+  animation: building-hit 900ms cubic-bezier(0.12, 0.72, 0.2, 1) forwards;
+}
+
+.target-building img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: contain;
+  object-position: center;
+}
+
+.target-building.hit img {
+  animation: image-glitch-base 420ms steps(2, end) forwards;
+}
+
+.glitch-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.production-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  pointer-events: none;
+}
+
+.beam {
+  position: absolute;
+  left: var(--hand-x);
+  top: var(--hand-y);
+  width: 1px;
+  height: var(--beam-head-size);
+  transform: translate(-100%, -50%);
+  opacity: 0.8;
+}
+
+.beam-line {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: var(--beam-travel);
+  height: var(--beam-thickness);
+  border-radius: 999px;
+  transform: translate3d(calc(-1 * var(--beam-front-travel) + var(--beam-front-width) * -0.72), -50%, 0);
+  transform-origin: left center;
+  background:
+    linear-gradient(90deg, #fff 0 18%, rgba(255, 244, 166, 0.9) 42%, rgba(255, 228, 92, 0.74) 100%),
+    linear-gradient(#ffc42f, #ffc42f);
+  box-shadow:
+    0 0 18px rgba(255, 203, 39, 0.9),
+    0 0 54px rgba(255, 184, 19, 0.52);
+  opacity: var(--beam-line-opacity);
+}
+
+.beam-front {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: var(--beam-front-width);
+  height: var(--beam-head-size);
+  border-radius: 50%;
+  transform: translate3d(calc(-1 * var(--beam-front-travel) + var(--beam-front-width) * 0.08), -50%, 0) scale(var(--beam-front-scale, 0.32));
+  background:
+    radial-gradient(ellipse at 50% 50%, #fff 0 45%, rgba(255, 250, 201, 0.98) 54%, rgba(255, 197, 31, 0.94) 67%, rgba(255, 196, 38, 0) 78%),
+    radial-gradient(ellipse, rgba(255, 255, 255, 0.9), rgba(255, 214, 69, 0));
+  box-shadow:
+    0 0 18px rgba(255, 255, 255, 0.98),
+    0 0 62px rgba(255, 200, 34, 0.82),
+    0 0 118px rgba(255, 174, 18, 0.46);
+  will-change: transform;
+}
+
+@keyframes building-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(24px) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes building-hit {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(calc(-50% + 220px)) translateY(-8px);
+  }
+}
+
+@keyframes image-glitch-base {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  45% {
+    opacity: 0.56;
+    transform: translate(8px, -2px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-12px, 0);
+  }
+}

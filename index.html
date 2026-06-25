@@ -381,6 +381,36 @@
             }
         }
 
+        .buddha-light-fallback {
+            position: fixed;
+            inset: 0;
+            z-index: 30;
+            display: grid;
+            place-items: center;
+            background: rgba(8, 14, 20, 0.72);
+        }
+
+        .buddha-light-fallback iframe {
+            width: min(96vw, 1444px);
+            height: min(52vw, 450px);
+            min-height: 260px;
+            border: 0;
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+        }
+
+        .buddha-light-close {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.82);
+            color: #121820;
+            font: 800 18px/1 Arial, sans-serif;
+        }
+
         .hud {
             display: none;
             position: fixed;
@@ -819,16 +849,19 @@
         let buttonModelPopupWindow = null;
         let anthemPopupWindow = null;
         let birdCameraPopupWindow = null;
+        let buddhaLightPopupWindow = null;
         const popupWindows = new Set();
         let videoPlaylistPopupOpened = false;
         let anthemPopupOpened = false;
         let birdCameraPopupOpened = false;
+        let buddhaLightShown = false;
         let birdCameraTargetBird = null;
         let lastBirdCameraFrameAt = -1;
         let birdCameraCloseAt = -1;
         let knockedDownBirdCount = 0;
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
+        const buddhaLightAliveThreshold = 22;
         const marqueeStats = {
             alive: "0",
             currentKills: "0",
@@ -2010,6 +2043,86 @@
             anthemPopupOpened = Boolean(anthemPopupWindow);
         }
 
+        function showBuddhaLightFallback() {
+            const existingFallback = document.querySelector(".buddha-light-fallback");
+            if (existingFallback) {
+                return;
+            }
+
+            const fallback = document.createElement("div");
+            const frame = document.createElement("iframe");
+            const closeButton = document.createElement("button");
+
+            fallback.className = "buddha-light-fallback";
+            frame.src = new URL("./佛光砲/popup.html", window.location.href).href;
+            frame.title = "佛光衝擊波";
+            closeButton.className = "buddha-light-close";
+            closeButton.type = "button";
+            closeButton.textContent = "x";
+            closeButton.setAttribute("aria-label", "關閉佛光砲");
+            closeButton.addEventListener("click", () => {
+                fallback.remove();
+            });
+
+            fallback.append(frame, closeButton);
+            document.body.appendChild(fallback);
+            window.setTimeout(() => {
+                fallback.remove();
+            }, 18000);
+        }
+
+        function openBuddhaLightCannon() {
+            const targetHeight = Math.min(
+                520,
+                Math.max(360, Math.round(window.screen.availHeight * 0.54))
+            );
+            const imageDisplayWidth = Math.round(targetHeight * 1444 / 450);
+            const startWidth = Math.round(imageDisplayWidth / 7);
+            const popupLeft = window.screen.availLeft + window.screen.availWidth - startWidth;
+            const popupTop =
+                window.screen.availTop +
+                Math.max(24, Math.round((window.screen.availHeight - targetHeight) / 2));
+            const popupFeatures = [
+                "popup=yes",
+                `width=${startWidth}`,
+                `height=${targetHeight}`,
+                `left=${popupLeft}`,
+                `top=${popupTop}`,
+                "menubar=no",
+                "toolbar=no",
+                "location=no",
+                "status=no",
+                "scrollbars=no",
+                "resizable=yes"
+            ].join(",");
+            const popupUrl = new URL("./佛光砲/popup.html", window.location.href);
+
+            buddhaLightPopupWindow = window.open(
+                popupUrl.href,
+                "buddha_light_cannon",
+                popupFeatures
+            );
+
+            if (!buddhaLightPopupWindow) {
+                hud.innerHTML = "佛光砲小視窗被瀏覽器擋下<br>改用頁面內顯示";
+                showBuddhaLightFallback();
+                return null;
+            }
+
+            popupWindows.add(buddhaLightPopupWindow);
+            buddhaLightPopupWindow.focus();
+            return buddhaLightPopupWindow;
+        }
+
+        function openBuddhaLightCannonIfNeeded() {
+            if (buddhaLightShown || getAliveBirdCount() < buddhaLightAliveThreshold) {
+                return;
+            }
+
+            buddhaLightShown = true;
+            openBuddhaLightCannon();
+        }
+
         function getFlyingBirds(excludedBird = null) {
             return birds.filter((bird) => (
                 bird !== excludedBird &&
@@ -2909,6 +3022,7 @@
             });
 
             updateAliveMarqueeStat();
+            openBuddhaLightCannonIfNeeded();
 
             cloudGroup.children.forEach((cloud, index) => {
                 cloud.position.x += 0.01 + index * 0.002;
