@@ -31,18 +31,21 @@
 
         .close-button {
             position: fixed;
-            left: 50%;
-            top: 50%;
+            inset: 0 !important;
             z-index: 1;
-            width: min(62vw, 520px);
-            max-width: calc(100vw - 40px);
-            max-height: calc(100vh - 40px);
+            width: 100vw !important;
+            min-width: 100vw;
+            max-width: none !important;
+            height: 100vh !important;
+            min-height: 100vh;
+            max-height: none !important;
             padding: 0;
             border: 0;
             background: transparent;
+            appearance: none;
             opacity: 0;
             pointer-events: none;
-            transform: translate(-50%, -50%) scale(1);
+            transform: scale(1);
             filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42));
             transition: transform 150ms ease, filter 150ms ease, opacity 150ms ease;
         }
@@ -55,16 +58,22 @@
 
         .close-button:hover,
         .close-button:focus-visible {
-            transform: translate(-50%, -50%) scale(1.05);
+            transform: scale(1);
             filter: drop-shadow(0 22px 28px rgba(0, 0, 0, 0.5));
             outline: none;
         }
 
         .close-button img {
+            position: fixed;
+            inset: 0 !important;
             display: block;
-            width: 100%;
-            max-height: calc(100vh - 40px);
-            object-fit: contain;
+            width: 100vw !important;
+            min-width: 100vw;
+            max-width: none !important;
+            height: 100vh !important;
+            min-height: 100vh;
+            max-height: none !important;
+            object-fit: fill !important;
             pointer-events: none;
             user-select: none;
             -webkit-user-drag: none;
@@ -77,21 +86,16 @@
         }
 
         body:hover .close-button:active {
-            transform: translate(-50%, -50%) scale(0.92);
+            transform: scale(0.98);
         }
 
         body:hover .close-button.is-closing,
         .close-button.is-closing {
-            transform: translate(-50%, -50%) scale(0.84);
+            transform: scale(0.96);
             opacity: 0;
             pointer-events: none;
         }
 
-        @media (max-width: 720px) {
-            .close-button {
-                width: min(82vw, 480px);
-            }
-        }
     </style>
 </head>
 <body>
