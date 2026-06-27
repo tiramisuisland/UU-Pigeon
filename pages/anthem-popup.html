@@ -115,6 +115,7 @@
             0,
             Math.min(1, Number.isFinite(initialVolume) ? initialVolume : 1)
         );
+        let pointerInside = false;
         let closing = false;
 
         if (popupTitle) {
@@ -122,7 +123,7 @@
         }
 
         function playVideo() {
-            backgroundVideo.muted = false;
+            backgroundVideo.muted = pointerInside;
             backgroundVideo.volume = globalVolume;
             backgroundVideo.play().catch(() => {});
         }
@@ -130,6 +131,18 @@
         function setGlobalVolume(volume) {
             globalVolume = Math.max(0, Math.min(1, Number(volume) || 0));
             backgroundVideo.volume = globalVolume;
+        }
+
+        function muteWhilePointerIsInside() {
+            pointerInside = true;
+            backgroundVideo.muted = true;
+        }
+
+        function resumeAudioAfterPointerLeaves() {
+            pointerInside = false;
+            backgroundVideo.muted = false;
+            backgroundVideo.volume = globalVolume;
+            backgroundVideo.play().catch(() => {});
         }
 
         function fitPopupToVideo() {
@@ -181,6 +194,8 @@
 
         window.addEventListener("focus", playVideo);
         window.addEventListener("pointerdown", playVideo, { once: true });
+        document.documentElement.addEventListener("mouseenter", muteWhilePointerIsInside);
+        document.documentElement.addEventListener("mouseleave", resumeAudioAfterPointerLeaves);
         closeButton.addEventListener("pointerup", (event) => {
             event.preventDefault();
             event.stopPropagation();
