@@ -1,5 +1,31 @@
 # UU 的鴿子網頁
 
+## Docker 執行
+
+Cloudflare Tunnel 後台的 Published application route Service URL 請設定為 `http://web:8080`。
+
+建置並在背景啟動網站：
+
+```bash
+docker compose up -d --build
+```
+
+網站不映射主機連接埠，只能由同一個 Docker network 裡的 `cloudflared` 透過 `http://web:8080` 存取。外部使用者請透過 Cloudflare 綁定的 HTTPS 網域開啟網站。
+
+查看狀態：
+
+```bash
+docker compose ps
+```
+
+停止網站：
+
+```bash
+docker compose down
+```
+
+Docker Compose 預設使用 bridge 網路，網站與 `cloudflared` 會一起啟動。兩個服務都使用 `none` logging driver，因此不會保存或顯示容器記錄。
+
 這份文件記錄每個頁面的作用、頁面之間的關係，以及各頁面使用的本機檔案與外部服務。
 
 ## 頁面流程
