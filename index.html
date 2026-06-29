@@ -685,10 +685,10 @@
         </div>
         <div class="chat-action-menu" id="chatActionMenu" aria-hidden="true">
             <button class="chat-action-button" type="button" data-chat-reaction="like" aria-label="喜歡" title="喜歡">
-                <img src="./like.png" alt="">
+                <img src="./assets/images/like.png" alt="">
             </button>
             <button class="chat-action-button" type="button" data-chat-reaction="dislike" aria-label="不喜歡" title="不喜歡">
-                <img src="./dislike.png" alt="">
+                <img src="./assets/images/dislike.png" alt="">
             </button>
         </div>
     </aside>
@@ -2088,7 +2088,7 @@
             const likeCount = Number.parseInt(chatItem.like_count ?? 0, 10);
             const likeIcon = document.createElement("img");
             likeIcon.className = "chat-reaction-icon";
-            likeIcon.src = "./like.png";
+            likeIcon.src = "./assets/images/like.png";
             likeIcon.alt = "讚";
             const likeCountElement = document.createElement("span");
             likeCountElement.textContent = Number.isFinite(likeCount) ? likeCount : 0;
@@ -2099,7 +2099,7 @@
             const dislikeCount = Number.parseInt(chatItem.dislike_count ?? 0, 10);
             const dislikeIcon = document.createElement("img");
             dislikeIcon.className = "chat-reaction-icon";
-            dislikeIcon.src = "./dislike.png";
+            dislikeIcon.src = "./assets/images/dislike.png";
             dislikeIcon.alt = "倒讚";
             const dislikeCountElement = document.createElement("span");
             dislikeCountElement.textContent = Number.isFinite(dislikeCount) ? dislikeCount : 0;
