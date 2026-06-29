@@ -518,27 +518,20 @@
         .audio-gate {
             position: fixed;
             inset: 0;
-            display: grid;
-            place-items: center;
-            background: rgba(10, 26, 38, 0.28);
-            backdrop-filter: blur(10px);
-            z-index: 20;
+            background: #ffffff;
+            z-index: 10000;
         }
 
         .audio-gate.is-hidden {
             display: none;
         }
 
-        .audio-button {
+        .front-page-frame {
+            display: block;
+            width: 100%;
+            height: 100%;
             border: 0;
-            border-radius: 999px;
-            padding: calc(16px * var(--layout-scale)) calc(28px * var(--layout-scale));
-            font: inherit;
-            font-size: calc(18px * var(--layout-scale));
-            font-weight: 700;
-            color: #0f2d3f;
-            background: linear-gradient(180deg, #fffdf6 0%, #ffe7a8 100%);
-            box-shadow: 0 18px 40px rgba(16, 44, 62, 0.22);
+            background: #ffffff;
         }
 
         .readman-counters {
@@ -655,7 +648,12 @@
 <body>
     <div class="hud">載入模型中...<br>場景檔：<code>action.glb</code></div>
     <div class="audio-gate">
-        <button class="audio-button" type="button">點一下開啟 3D 場景</button>
+        <iframe
+            class="front-page-frame"
+            src="./front_page/index.html"
+            title="進入網站"
+            allow="autoplay"
+        ></iframe>
     </div>
     <div class="readman-counters" aria-label="agree disagree 即時數字">
         <div class="readman-counter" id="agreeCounter" aria-label="agree 數字"></div>
@@ -712,7 +710,6 @@
 
         const hud = document.querySelector(".hud");
         const audioGate = document.querySelector(".audio-gate");
-        const audioButton = document.querySelector(".audio-button");
         const agreeCounterElement = document.querySelector("#agreeCounter");
         const disagreeCounterElement = document.querySelector("#disagreeCounter");
         const gameCursor = document.querySelector(".game-cursor");
@@ -3721,11 +3718,13 @@
             openVideoPlaylistAfterTenKillsIfNeeded();
         });
 
-        audioButton.addEventListener("click", () => {
+        function completeFrontPageEntrance() {
             unlockAudio();
             playReadManVideo();
             openAnthemPopup();
-        });
+        }
+
+        window.completeFrontPageEntrance = completeFrontPageEntrance;
     </script>
 </body>
 </html>
