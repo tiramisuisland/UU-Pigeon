@@ -24,6 +24,8 @@
   let isDragging = false;
   let entered = false;
   let autoFrame = 0;
+  let attentionNumberFrame = 0;
+  let nextAttentionNumberTick = 0;
 
   function setProgress(value, min = AUTO_START, max = COMPLETE) {
     progress = clamp(value, min, max);
@@ -90,6 +92,39 @@
     track.classList.remove("is-auto-loading");
     track.classList.add("can-drag");
     track.setAttribute("aria-valuemin", AUTO_END.toString());
+    startAttentionNumberJitter();
+  }
+
+  function startAttentionNumberJitter() {
+    stopAttentionNumberJitter(false);
+
+    function tick(now) {
+      if (entered || isDragging || track.classList.contains("has-dragged")) {
+        stopAttentionNumberJitter();
+        return;
+      }
+
+      if (now >= nextAttentionNumberTick) {
+        const offset = Math.round(randomBetween(-3, 3));
+        const displayedProgress = clamp(Math.round(progress) + offset, AUTO_END - 3, AUTO_END + 3);
+        loadingValue.textContent = `${displayedProgress}%`;
+        nextAttentionNumberTick = now + 130 + Math.random() * 170;
+      }
+
+      attentionNumberFrame = window.requestAnimationFrame(tick);
+    }
+
+    nextAttentionNumberTick = 0;
+    attentionNumberFrame = window.requestAnimationFrame(tick);
+  }
+
+  function stopAttentionNumberJitter(restore = true) {
+    window.cancelAnimationFrame(attentionNumberFrame);
+    attentionNumberFrame = 0;
+
+    if (restore) {
+      loadingValue.textContent = `${Math.round(progress)}%`;
+    }
   }
 
   function preloadMedia(paths) {
@@ -272,6 +307,7 @@
 
   function beginDrag(event) {
     if (entered || !isNearPullEdge(event)) return;
+    stopAttentionNumberJitter();
     isDragging = true;
     track.classList.add("is-dragging");
     track.classList.add("is-hovering-pull");
@@ -304,6 +340,7 @@
     if (entered) return;
     entered = true;
     window.cancelAnimationFrame(autoFrame);
+    stopAttentionNumberJitter(false);
     setProgress(COMPLETE, AUTO_END, COMPLETE);
     document.body.classList.remove("is-loading-dragging");
     hidePullCue();
