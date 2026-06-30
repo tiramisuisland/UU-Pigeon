@@ -148,8 +148,8 @@
         function fitPopupToVideo() {
             const videoWidth = backgroundVideo.videoWidth || 16;
             const videoHeight = backgroundVideo.videoHeight || 9;
-            const maxWidth = Math.min(window.screen.availWidth * 0.9, 1200);
-            const maxHeight = Math.min(window.screen.availHeight * 0.9, 900);
+            const maxWidth = Math.min(window.screen.availWidth * 0.6, 760);
+            const maxHeight = Math.min(window.screen.availHeight * 0.6, 520);
             const fitScale = Math.min(maxWidth / videoWidth, maxHeight / videoHeight);
             const targetWidth = Math.round(videoWidth * fitScale);
             const targetHeight = Math.round(videoHeight * fitScale);
