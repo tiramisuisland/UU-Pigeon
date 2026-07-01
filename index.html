@@ -500,6 +500,44 @@
             pointer-events: none;
         }
 
+        .explosion-prompt {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            z-index: 20;
+            display: block;
+            width: calc(116px * var(--layout-scale));
+            max-width: calc(100vw - var(--safe-left) - var(--safe-right));
+            padding: 0;
+            border: 0;
+            background: transparent;
+            opacity: 0;
+            transform: translate(-50%, -50%) rotate(7deg) scale(0.82);
+            transition: opacity 180ms ease, transform 260ms ease;
+            user-select: none;
+        }
+
+        .explosion-prompt-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 8px 14px rgba(18, 37, 54, 0.24));
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .explosion-prompt.is-attached {
+            opacity: 1;
+            transform: translate(-50%, -50%) rotate(1deg) scale(1);
+        }
+
+        .explosion-prompt.is-closing {
+            opacity: 0;
+            transform: translate(-50%, -50%) rotate(-8deg) scale(0.72);
+            pointer-events: none;
+        }
+
         .hud {
             display: none;
             position: fixed;
@@ -526,12 +564,18 @@
             display: none;
         }
 
-        .front-page-frame {
+        .front-page-frame,
+        .popup-permission-frame {
             display: block;
             width: 100%;
             height: 100%;
             border: 0;
             background: #ffffff;
+        }
+
+        .front-page-frame[hidden],
+        .popup-permission-frame[hidden] {
+            display: none;
         }
 
         .readman-counters {
@@ -649,10 +693,16 @@
     <div class="hud">載入模型中...<br>場景檔：<code>action.glb</code></div>
     <div class="audio-gate">
         <iframe
+            class="popup-permission-frame"
+            src="./爆炸0701/index.html?mode=permission"
+            title="開啟爆炸彈出視窗權限"
+        ></iframe>
+        <iframe
             class="front-page-frame"
-            src="./front_page/index.html"
+            data-src="./front_page/index.html"
             title="進入網站"
             allow="autoplay"
+            hidden
         ></iframe>
     </div>
     <div class="readman-counters" aria-label="agree disagree 即時數字">
@@ -691,6 +741,22 @@
         </div>
     </aside>
     <img class="game-cursor" src="./assets/images/X.png" alt="" aria-hidden="true">
+
+    <script>
+        window.completeExplosionPermission = function completeExplosionPermission() {
+            const permissionFrame = document.querySelector(".popup-permission-frame");
+            const frontPageFrame = document.querySelector(".front-page-frame");
+            if (!frontPageFrame) {
+                return;
+            }
+
+            permissionFrame?.setAttribute("hidden", "");
+            frontPageFrame.removeAttribute("hidden");
+            if (!frontPageFrame.getAttribute("src")) {
+                frontPageFrame.src = frontPageFrame.dataset.src;
+            }
+        };
+    </script>
 
     <script type="importmap">
         {
@@ -1012,6 +1078,7 @@
         let anthemPopupWindow = null;
         let birdCameraPopupWindow = null;
         let buddhaLightPopupWindow = null;
+        let explosionPopupWindow = null;
         const popupWindows = new Set();
         let videoPlaylistPopupOpened = false;
         let anthemPopupOpened = false;
@@ -1019,6 +1086,9 @@
         let buddhaLightShown = false;
         let buddhaLightPromptShown = false;
         let buddhaLightPromptState = null;
+        let explosionShown = false;
+        let explosionPromptShown = false;
+        let explosionPromptState = null;
         let birdCameraTargetBird = null;
         let lastBirdCameraFrameAt = -1;
         let birdCameraCloseAt = -1;
@@ -1026,6 +1096,7 @@
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
         const buddhaLightAliveThreshold = 2;
+        const explosionAliveThreshold = 8;
         const marqueeStats = {
             alive: "0",
             currentKills: "0",
@@ -2557,8 +2628,8 @@
             return true;
         }
 
-        function pickVisiblePromptBird() {
-            return getFlyingBirds().find((bird) => getBirdScreenPosition(bird));
+        function pickVisiblePromptBird(excludedBird = null) {
+            return getFlyingBirds(excludedBird).find((bird) => getBirdScreenPosition(bird));
         }
 
         function updateBuddhaLightPromptPosition() {
@@ -2574,7 +2645,7 @@
             }
 
             if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
-                const nextBird = pickVisiblePromptBird();
+                const nextBird = pickVisiblePromptBird(explosionPromptState?.bird);
                 if (!nextBird) {
                     element.classList.remove("is-attached");
                     return;
@@ -2585,7 +2656,7 @@
             }
 
             if (!positionBuddhaLightPrompt(element, bird)) {
-                const nextBird = pickVisiblePromptBird();
+                const nextBird = pickVisiblePromptBird(explosionPromptState?.bird);
                 if (nextBird) {
                     buddhaLightPromptState.bird = nextBird;
                     positionBuddhaLightPrompt(element, nextBird);
@@ -2598,7 +2669,7 @@
                 return;
             }
 
-            const promptBird = pickVisiblePromptBird();
+            const promptBird = pickVisiblePromptBird(explosionPromptState?.bird);
             if (!promptBird) {
                 return;
             }
@@ -2649,6 +2720,160 @@
             }
 
             showBuddhaLightPrompt();
+        }
+
+        function openExplosionExperience() {
+            const popupWidth = Math.min(780, Math.round(window.screen.availWidth * 0.72));
+            const popupHeight = Math.min(620, Math.round(window.screen.availHeight * 0.72));
+            const popupLeft = Math.round(
+                window.screen.availLeft + (window.screen.availWidth - popupWidth) / 2
+            );
+            const popupTop = Math.round(
+                window.screen.availTop + (window.screen.availHeight - popupHeight) / 2
+            );
+            const popupFeatures = [
+                "popup=yes",
+                `width=${popupWidth}`,
+                `height=${popupHeight}`,
+                `left=${popupLeft}`,
+                `top=${popupTop}`,
+                "menubar=no",
+                "toolbar=no",
+                "location=no",
+                "status=no",
+                "scrollbars=no",
+                "resizable=yes"
+            ].join(",");
+            const popupUrl = new URL("./爆炸0701/index.html", window.location.href);
+            popupUrl.searchParams.set("autostart", "1");
+
+            explosionPopupWindow = window.open(
+                popupUrl.href,
+                "explosion_launcher",
+                popupFeatures
+            );
+
+            if (!explosionPopupWindow) {
+                hud.innerHTML = "爆炸視窗被瀏覽器擋下<br>請確認已允許彈出式視窗";
+                return null;
+            }
+
+            popupWindows.add(explosionPopupWindow);
+            explosionPopupWindow.focus();
+            return explosionPopupWindow;
+        }
+
+        function positionExplosionPrompt(prompt, bird) {
+            const birdPosition = getBirdScreenPosition(bird);
+            if (!birdPosition) {
+                prompt.classList.remove("is-attached");
+                return false;
+            }
+
+            const offsetX = 0;
+            const offsetY = -58 * appViewport.layoutScale;
+            const x = THREE.MathUtils.clamp(
+                birdPosition.x + offsetX,
+                96 * appViewport.layoutScale,
+                appViewport.width - 96 * appViewport.layoutScale
+            );
+            const y = THREE.MathUtils.clamp(
+                birdPosition.y + offsetY,
+                54 * appViewport.layoutScale,
+                appViewport.height - 68 * appViewport.layoutScale
+            );
+
+            prompt.style.left = `${x}px`;
+            prompt.style.top = `${y}px`;
+            prompt.classList.add("is-attached");
+            return true;
+        }
+
+        function updateExplosionPromptPosition() {
+            if (!explosionPromptState?.element) {
+                return;
+            }
+
+            const { element, bird } = explosionPromptState;
+            if (!element.isConnected) {
+                explosionPromptState = null;
+                explosionPromptShown = false;
+                return;
+            }
+
+            if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
+                const nextBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+                if (!nextBird) {
+                    element.classList.remove("is-attached");
+                    return;
+                }
+                explosionPromptState.bird = nextBird;
+                positionExplosionPrompt(element, nextBird);
+                return;
+            }
+
+            if (!positionExplosionPrompt(element, bird)) {
+                const nextBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+                if (nextBird) {
+                    explosionPromptState.bird = nextBird;
+                    positionExplosionPrompt(element, nextBird);
+                }
+            }
+        }
+
+        function showExplosionPrompt() {
+            if (explosionPromptShown || document.querySelector(".explosion-prompt")) {
+                return;
+            }
+
+            const promptBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+            if (!promptBird) {
+                return;
+            }
+
+            const prompt = document.createElement("button");
+            explosionPromptShown = true;
+            prompt.className = "explosion-prompt";
+            prompt.type = "button";
+            prompt.innerHTML = `
+                <img class="explosion-prompt-image" src="./88p.svg" alt="播放爆炸">
+            `;
+            prompt.setAttribute("aria-label", "播放爆炸影片");
+            explosionPromptState = {
+                element: prompt,
+                bird: promptBird
+            };
+            positionExplosionPrompt(prompt, promptBird);
+
+            prompt.addEventListener("pointerdown", (event) => {
+                event.stopPropagation();
+            });
+
+            prompt.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                prompt.classList.add("is-closing");
+                window.setTimeout(() => prompt.remove(), 180);
+                explosionShown = true;
+                explosionPromptShown = false;
+                explosionPromptState = null;
+                openExplosionExperience();
+            });
+
+            document.body.appendChild(prompt);
+            requestAnimationFrame(updateExplosionPromptPosition);
+        }
+
+        function openExplosionIfNeeded() {
+            if (
+                explosionShown ||
+                explosionPromptShown ||
+                getAliveBirdCount() < explosionAliveThreshold
+            ) {
+                return;
+            }
+
+            showExplosionPrompt();
         }
 
         function getFlyingBirds(excludedBird = null) {
@@ -3567,6 +3792,8 @@
             updateAliveMarqueeStat();
             openBuddhaLightCannonIfNeeded();
             updateBuddhaLightPromptPosition();
+            openExplosionIfNeeded();
+            updateExplosionPromptPosition();
 
             cloudGroup.children.forEach((cloud, index) => {
                 cloud.position.x += 0.01 + index * 0.002;

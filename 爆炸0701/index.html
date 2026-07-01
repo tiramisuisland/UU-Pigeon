@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Explosion Popups</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Futura, "Trebuchet MS", Arial, sans-serif;
+      background: #050505;
+      color: #f5f5f5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 48%, rgba(255, 68, 0, 0.22), transparent 24rem),
+        linear-gradient(135deg, #050505 0%, #17110f 46%, #050505 100%);
+    }
+
+    main {
+      width: min(100% - 32px, 780px);
+      display: grid;
+      place-items: center;
+      gap: 24px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(42px, 8vw, 104px);
+      line-height: 0.86;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 8px;
+      background: #f2f2f2;
+      color: #050505;
+      cursor: pointer;
+      font: 700 22px/1 Futura, "Trebuchet MS", Arial, sans-serif;
+      min-width: 230px;
+      min-height: 64px;
+      padding: 0 28px;
+      text-transform: uppercase;
+      transition: transform 120ms ease, background 120ms ease, color 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      background: #ff4a19;
+      color: #fff;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.62;
+      transform: none;
+    }
+
+    .status {
+      min-height: 22px;
+      margin: 0;
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 16px;
+      text-transform: uppercase;
+    }
+
+    .permission-panel {
+      width: min(100%, 560px);
+      display: none;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.48);
+      text-align: left;
+    }
+
+    .permission-panel.is-visible {
+      display: grid;
+    }
+
+    .permission-panel h2,
+    .permission-panel p {
+      margin: 0;
+    }
+
+    .permission-panel h2 {
+      font-size: 18px;
+      line-height: 1.15;
+      text-transform: uppercase;
+    }
+
+    .permission-panel p {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 15px;
+      line-height: 1.42;
+    }
+
+    .permission-guide,
+    .permission-arrow {
+      display: none;
+    }
+
+    body.permission-mode .permission-guide {
+      display: grid;
+      width: min(100%, 620px);
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.58);
+      text-align: left;
+    }
+
+    .permission-graphic {
+      position: relative;
+      height: 58px;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 8px;
+      background: #ececec;
+    }
+
+    .permission-address-bar {
+      position: absolute;
+      left: 12px;
+      right: 58px;
+      top: 12px;
+      height: 32px;
+      border: 1px solid #a6a6a6;
+      border-radius: 16px;
+      background: #fff;
+    }
+
+    .permission-popup-icon {
+      position: absolute;
+      right: 16px;
+      top: 15px;
+      width: 27px;
+      height: 24px;
+      border: 2px solid #222;
+      background: #fff;
+    }
+
+    .permission-popup-icon::after {
+      content: "x";
+      position: absolute;
+      right: -8px;
+      top: -11px;
+      display: grid;
+      place-items: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #d92828;
+      color: #fff;
+      font: 700 13px/1 Arial, sans-serif;
+    }
+
+    .permission-steps {
+      margin: 0;
+      padding-left: 24px;
+      color: rgba(255, 255, 255, 0.88);
+      font: 600 15px/1.55 Arial, "Noto Sans TC", sans-serif;
+    }
+
+    .permission-note {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.65);
+      font: 500 13px/1.45 Arial, "Noto Sans TC", sans-serif;
+    }
+
+    body.permission-mode .permission-arrow {
+      position: fixed;
+      right: clamp(150px, 11vw, 230px);
+      top: 10px;
+      z-index: 4;
+      display: block;
+      width: min(260px, 42vw);
+      padding-top: 82px;
+      color: #fff;
+      font: 700 15px/1.25 Arial, "Noto Sans TC", sans-serif;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .permission-arrow::before {
+      content: "";
+      position: absolute;
+      right: 18px;
+      top: 12px;
+      width: 112px;
+      height: 4px;
+      background: #ff4a19;
+      transform: rotate(-24deg);
+      transform-origin: right center;
+    }
+
+    .permission-arrow::after {
+      content: "";
+      position: absolute;
+      right: 2px;
+      top: 0;
+      border-left: 13px solid transparent;
+      border-right: 13px solid transparent;
+      border-bottom: 22px solid #ff4a19;
+      transform: rotate(35deg);
+    }
+
+    .ending-prompt {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 10;
+    }
+
+    .ending-prompt.is-visible {
+      display: grid;
+    }
+
+    .prompt-inner {
+      display: grid;
+      gap: 28px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .prompt-question {
+      margin: 0;
+      font-family: Futura, "Trebuchet MS", Arial, sans-serif;
+      font-size: clamp(34px, 7vw, 96px);
+      font-weight: 700;
+      line-height: 0.95;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .prompt-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    .prompt-actions button {
+      min-width: 150px;
+    }
+
+    .no-button {
+      background: transparent;
+      color: #fff;
+    }
+
+    .closed {
+      display: none;
+      font-size: clamp(30px, 8vw, 90px);
+      text-transform: uppercase;
+    }
+
+    body.has-closed main,
+    body.has-closed .ending-prompt {
+      display: none;
+    }
+
+    body.has-closed .closed {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Explosion<br>Launcher</h1>
+    <section class="permission-guide" aria-label="彈出式視窗權限開啟說明">
+      <div class="permission-graphic" aria-hidden="true">
+        <span class="permission-address-bar"></span>
+        <span class="permission-popup-icon"></span>
+      </div>
+      <ol class="permission-steps">
+        <li>按下「開啟彈出視窗」。</li>
+        <li>點擊網址列右側、星號左邊的封鎖圖示。</li>
+        <li>選擇「一律允許」並按完成，再回來重新檢查。</li>
+      </ol>
+      <p class="permission-note">Safari：設定 → 網站 → 彈出式視窗 → 允許。</p>
+    </section>
+    <button id="launchButton" type="button">Launch</button>
+    <p id="status" class="status">Ready</p>
+    <section id="permissionPanel" class="permission-panel" aria-live="polite">
+      <h2>尚未開啟彈出式視窗權限</h2>
+      <p>請依照上方圖示操作，允許後按下「重新檢查」。</p>
+    </section>
+  </main>
+
+  <div class="permission-arrow" aria-hidden="true">點擊網址列右側、星號左邊的封鎖圖示</div>
+
+  <div class="closed">Closed</div>
+
+  <script>
+    const explosionVideos = [
+      "爆炸用/1.mp4",
+      "爆炸用/2.mp4",
+      "爆炸用/3.mp4",
+      "爆炸用/4.mp4",
+      "爆炸用/5.mp4",
+      "爆炸用/6.mp4",
+      "爆炸用/7.mp4",
+      "爆炸用/8.mp4",
+      "爆炸用/9.mp4",
+      "爆炸用/10.mp4",
+      "爆炸用/11.mp4",
+      "爆炸用/12.mp4",
+      "爆炸用/13.mp4",
+      "爆炸用/14.mp4",
+      "爆炸用/15.mp4",
+      "爆炸用/16.mp4",
+      "爆炸用/17.mp4",
+      "爆炸用/18.mp4",
+      "爆炸用/18_1.mp4",
+      "爆炸用/19.mp4",
+      "爆炸用/20.mp4",
+      "爆炸用/21.mp4",
+      "爆炸用/22.mp4",
+      "爆炸用/23.mp4",
+      "爆炸用/24.mp4",
+      "爆炸用/25.mp4"
+    ];
+
+    const endingVideo = "Ending song.mp4";
+    const pageParams = new URLSearchParams(window.location.search);
+    const permissionOnlyMode = pageParams.get("mode") === "permission";
+    const autoStartMode = pageParams.get("autostart") === "1";
+    const launchButton = document.querySelector("#launchButton");
+    const permissionPanel = document.querySelector("#permissionPanel");
+    const statusText = document.querySelector("#status");
+    const openWindows = [];
+    const explosionWindows = [];
+    const popupStorageKey = "explosionPopupAccessReady";
+    let endingWindowRef = null;
+    let endingIsActive = false;
+    let endingFocusTimer = null;
+
+    const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const randomBetween = (min, max) => Math.random() * (max - min) + min;
+
+    function shuffled(items) {
+      const result = [...items];
+      for (let i = result.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    function popupFeatures(width = 480, height = 270, left = null, top = null) {
+      const x = left ?? Math.round((screen.availWidth - width) / 2);
+      const y = top ?? Math.round((screen.availHeight - height) / 2);
+      return [
+        "popup=yes",
+        "menubar=no",
+        "toolbar=no",
+        "location=no",
+        "status=no",
+        "scrollbars=no",
+        "resizable=yes",
+        `width=${Math.round(width)}`,
+        `height=${Math.round(height)}`,
+        `left=${Math.round(x)}`,
+        `top=${Math.round(y)}`
+      ].join(",");
+    }
+
+    function videoDocument(videoPath, title, muted) {
+      const source = new URL(videoPath, window.location.href).href;
+      return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    video {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      object-fit: cover;
+      object-position: center;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <video src="${source}" autoplay loop playsinline ${muted ? "muted" : ""}></video>
+  <script>
+    const video = document.querySelector("video");
+    const fitToVideo = () => {
+      const width = video.videoWidth || 480;
+      const height = video.videoHeight || 270;
+      const chromeWidth = Math.max(0, window.outerWidth - window.innerWidth);
+      const chromeHeight = Math.max(0, window.outerHeight - window.innerHeight);
+      window.resizeTo(width + chromeWidth, height + chromeHeight);
+    };
+    video.addEventListener("loadedmetadata", fitToVideo, { once: true });
+    let lastTime = 0;
+    let lastLoopNotice = 0;
+    video.addEventListener("timeupdate", () => {
+      if (video.currentTime < lastTime - 0.35 && Date.now() - lastLoopNotice > 700) {
+        lastLoopNotice = Date.now();
+        if (window.opener && !window.opener.closed && window.opener.onExplosionReplay) {
+          window.opener.onExplosionReplay(window.name);
+        }
+      }
+      lastTime = video.currentTime;
+    });
+    video.play().catch(() => {
+      video.muted = true;
+      video.play().catch(() => {});
+    });
+  <\/script>
+</body>
+</html>`;
+    }
+
+    function endingDocument(videoPath) {
+      const source = new URL(videoPath, window.location.href).href;
+      return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ending song</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: Futura, "Trebuchet MS", Arial, sans-serif;
+    }
+
+    video {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      object-fit: cover;
+      object-position: center;
+      background: #000;
+    }
+
+    .ending-question {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #000;
+      z-index: 2;
+    }
+
+    .ending-inner {
+      width: calc(100vw - 48px);
+      display: grid;
+      gap: 34px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(48px, 8vw, 112px);
+      line-height: 0.9;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1 span {
+      display: block;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      justify-content: center;
+    }
+
+    button {
+      appearance: none;
+      min-width: 280px;
+      min-height: 86px;
+      padding: 0 36px;
+      border: 1px solid rgba(255, 255, 255, 0.34);
+      border-radius: 8px;
+      background: #f2f2f2;
+      color: #050505;
+      cursor: pointer;
+      font: 700 32px/1 Futura, "Trebuchet MS", Arial, sans-serif;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 760px) {
+      h1 {
+        font-size: 42px;
+      }
+
+      button {
+        min-width: 220px;
+        min-height: 72px;
+        font-size: 26px;
+      }
+    }
+
+    .no-button {
+      background: transparent;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <video src="${source}" loop playsinline></video>
+  <section class="ending-question" aria-modal="true" role="dialog">
+    <div class="ending-inner">
+      <h1><span>Once you in !</span><span>No way back !!</span></h1>
+      <div class="actions">
+        <button id="yesButton" type="button">NO FEAR</button>
+        <button id="noButton" class="no-button" type="button">COWARD</button>
+      </div>
+    </div>
+  </section>
+  <script>
+    const video = document.querySelector("video");
+    const prompt = document.querySelector(".ending-question");
+    const fitToVideo = () => {
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 360;
+      const chromeWidth = Math.max(0, window.outerWidth - window.innerWidth);
+      const chromeHeight = Math.max(0, window.outerHeight - window.innerHeight);
+      window.resizeTo(width + chromeWidth, height + chromeHeight);
+    };
+    video.addEventListener("loadedmetadata", fitToVideo, { once: true });
+    window.addEventListener("beforeunload", () => {
+      if (window.opener && !window.opener.closed && window.opener.closeAllAfterEndingWindowClosed) {
+        window.opener.closeAllAfterEndingWindowClosed();
+      }
+    });
+    document.querySelector("#yesButton").addEventListener("click", () => {
+      prompt.style.display = "none";
+      video.muted = false;
+      video.play().catch(() => {
+        video.controls = true;
+      });
+    });
+    document.querySelector("#noButton").addEventListener("click", () => {
+      if (window.opener && !window.opener.closed && window.opener.rejectEndingFromPopup) {
+        window.opener.rejectEndingFromPopup();
+      }
+      window.close();
+    });
+  <\/script>
+</body>
+</html>`;
+    }
+
+    function writeEndingPopup(win) {
+      if (!win || win.closed) {
+        return;
+      }
+      endingWindowRef = win;
+      endingIsActive = true;
+      win.document.open();
+      win.document.write(endingDocument(endingVideo));
+      win.document.close();
+      win.focus();
+      window.clearInterval(endingFocusTimer);
+      endingFocusTimer = window.setInterval(() => {
+        if (endingWindowRef && !endingWindowRef.closed) {
+          endingWindowRef.focus();
+        } else {
+          window.clearInterval(endingFocusTimer);
+        }
+      }, 900);
+    }
+
+    function writeVideoPopup(win, videoPath, title, muted = false) {
+      if (!win || win.closed) {
+        return;
+      }
+      win.document.open();
+      win.document.write(videoDocument(videoPath, title, muted));
+      win.document.close();
+      win.focus();
+    }
+
+    function closeAllPopups() {
+      window.clearInterval(endingFocusTimer);
+      for (const win of openWindows) {
+        if (win && !win.closed) {
+          win.close();
+        }
+      }
+    }
+
+    function showPermissionHelp() {
+      permissionPanel.classList.add("is-visible");
+      statusText.textContent = permissionOnlyMode
+        ? "請允許彈出式視窗後重新檢查"
+        : "Allow pop-ups, then press again";
+      launchButton.textContent = permissionOnlyMode ? "重新檢查" : "Retry";
+      launchButton.disabled = false;
+    }
+
+    function markPopupAccessReady() {
+      localStorage.setItem(popupStorageKey, "true");
+      permissionPanel.classList.remove("is-visible");
+    }
+
+    function moveFromCenter(win, index, total = openWindows.length, startAtCenter = true) {
+      if (!win || win.closed) {
+        return;
+      }
+
+      const centerX = Math.round((screen.availWidth - 480) / 2);
+      const centerY = Math.round((screen.availHeight - 270) / 2);
+      const startX = startAtCenter ? centerX : win.screenX;
+      const startY = startAtCenter ? centerY : win.screenY;
+      const sector = (Math.PI * 2) / Math.max(1, total);
+      const angle = index * sector + randomBetween(sector * 0.18, sector * 0.82);
+      const ring = index % 3;
+      const minDistance = Math.min(screen.availWidth, screen.availHeight) * (0.42 + ring * 0.07);
+      const maxDistance = Math.min(screen.availWidth, screen.availHeight) * (0.9 + ring * 0.08);
+      const distance = randomBetween(minDistance, maxDistance);
+      const rawTargetX = centerX + Math.cos(angle) * distance + randomBetween(-88, 88);
+      const rawTargetY = centerY + Math.sin(angle) * distance + randomBetween(-68, 68);
+      const targetX = Math.max(-220, Math.min(screen.availWidth - 140, rawTargetX));
+      const targetY = Math.max(-140, Math.min(screen.availHeight - 120, rawTargetY));
+      const steps = Math.floor(randomBetween(5, 10));
+      let step = 0;
+
+      if (startAtCenter) {
+        win.moveTo(centerX, centerY);
+      }
+      const timer = window.setInterval(() => {
+        if (!win || win.closed || step >= steps) {
+          window.clearInterval(timer);
+          return;
+        }
+        const t = step / (steps - 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const shakeX = randomBetween(-18, 18);
+        const shakeY = randomBetween(-14, 14);
+        win.moveTo(
+          startX + (targetX - startX) * eased + shakeX,
+          startY + (targetY - startY) * eased + shakeY
+        );
+        step += 1;
+      }, randomBetween(24, 52));
+    }
+
+    function moveEndingToCenter(win) {
+      if (!win || win.closed) {
+        return;
+      }
+
+      const width = Math.min(1080, Math.round(screen.availWidth * 0.68));
+      const height = Math.min(620, Math.round(screen.availHeight * 0.64));
+      const x = Math.round((screen.availWidth - width) / 2);
+      const y = Math.round((screen.availHeight - height) / 2);
+      win.resizeTo(width, height);
+      win.moveTo(x, y);
+      win.focus();
+    }
+
+    function writeBlankHoldingPage(win, showLoading = false) {
+      if (!win || win.closed) {
+        return;
+      }
+      win.document.open();
+      win.document.write(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Waiting</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: Futura, "Trebuchet MS", Arial, sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    .loader {
+      display: ${showLoading ? "grid" : "none"};
+      gap: 10px;
+      justify-items: center;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    .spinner {
+      width: 37px;
+      height: 37px;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 720ms linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <div>Loading</div>
+  </div>
+</body>
+</html>`);
+      win.document.close();
+    }
+
+    function preopenExplosionWindows(count) {
+      const centerFeatures = popupFeatures(64, 36);
+      const windows = [];
+      for (let i = 0; i < count; i += 1) {
+        const win = window.open("about:blank", `explosion_${Date.now()}_${i}`, centerFeatures);
+        if (win) {
+          writeBlankHoldingPage(win);
+          windows.push(win);
+          explosionWindows.push(win);
+          openWindows.push(win);
+        }
+      }
+      return windows;
+    }
+
+    function preopenEndingWindow() {
+      const win = window.open("about:blank", `ending_${Date.now()}`, popupFeatures(208, 144));
+      if (win) {
+        writeBlankHoldingPage(win, true);
+        openWindows.push(win);
+      }
+      return win;
+    }
+
+    function requestPopupPermission() {
+      const win = window.open("about:blank", `permission_check_${Date.now()}`, popupFeatures(220, 120));
+      if (!win) {
+        return false;
+      }
+
+      win.document.open();
+      win.document.write(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Permission</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: #050505;
+      color: #fff;
+      font: 700 18px/1 Futura, "Trebuchet MS", Arial, sans-serif;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>Ready</body>
+</html>`);
+      win.document.close();
+      win.close();
+      return true;
+    }
+
+    function requestPopupPermissionBurst() {
+      const testWindows = [];
+      for (let index = 0; index < 3; index += 1) {
+        const win = window.open(
+          "about:blank",
+          `permission_burst_${Date.now()}_${index}`,
+          popupFeatures(120, 80)
+        );
+        if (win) {
+          testWindows.push(win);
+        }
+      }
+
+      testWindows.forEach((win) => win.close());
+      return testWindows.length === 3;
+    }
+
+    window.onExplosionReplay = (popupName) => {
+      if (endingIsActive) {
+        if (endingWindowRef && !endingWindowRef.closed) {
+          endingWindowRef.focus();
+        }
+        return;
+      }
+
+      const index = explosionWindows.findIndex((win) => win && !win.closed && win.name === popupName);
+      if (index === -1) {
+        return;
+      }
+
+      const win = explosionWindows[index];
+      const shiftedIndex = (index + Math.floor(randomBetween(1, explosionWindows.length))) % explosionWindows.length;
+      moveFromCenter(win, shiftedIndex, explosionWindows.length, false);
+      if (Math.random() > 0.35) {
+        win.focus();
+      }
+    };
+
+    async function launchExplosions() {
+      launchButton.disabled = true;
+      statusText.textContent = "Checking permission";
+
+      if (!requestPopupPermission()) {
+        showPermissionHelp();
+        return;
+      }
+
+      markPopupAccessReady();
+      statusText.textContent = "Launching";
+      launchButton.textContent = "Launching";
+      const order = shuffled(explosionVideos);
+      const windows = preopenExplosionWindows(order.length);
+      const endingWindow = preopenEndingWindow();
+
+      if (windows.length < order.length || !endingWindow) {
+        closeAllPopups();
+        localStorage.removeItem(popupStorageKey);
+        showPermissionHelp();
+        return;
+      }
+
+      let delay = 80;
+      for (let i = 0; i < windows.length; i += 1) {
+        delay += randomBetween(35, 185);
+        window.setTimeout(() => {
+          writeVideoPopup(windows[i], order[i], `Explosion ${i + 1}`, true);
+          moveFromCenter(windows[i], i, windows.length);
+        }, delay);
+      }
+
+      await sleep(15000);
+      statusText.textContent = "Waiting";
+      writeEndingPopup(endingWindow);
+      moveEndingToCenter(endingWindow);
+    }
+
+    function requestPermissionAndContinue() {
+      launchButton.disabled = true;
+      statusText.textContent = "正在檢查權限";
+
+      if (!requestPopupPermissionBurst()) {
+        showPermissionHelp();
+        return;
+      }
+
+      markPopupAccessReady();
+      statusText.textContent = "權限已開啟";
+      launchButton.textContent = "完成";
+
+      if (
+        window.parent !== window &&
+        typeof window.parent.completeExplosionPermission === "function"
+      ) {
+        window.parent.completeExplosionPermission();
+      }
+    }
+
+    if (permissionOnlyMode) {
+      document.body.classList.add("permission-mode");
+      document.querySelector("h1").innerHTML = "Popup<br>Permission";
+      launchButton.textContent = "開啟彈出視窗";
+      statusText.textContent = "進入網站前需要開啟權限";
+      launchButton.addEventListener("click", requestPermissionAndContinue);
+    } else {
+      launchButton.addEventListener("click", launchExplosions);
+      if (autoStartMode) {
+        window.setTimeout(launchExplosions, 0);
+      }
+    }
+
+    if (!permissionOnlyMode && localStorage.getItem(popupStorageKey) === "true") {
+      statusText.textContent = "Permission ready";
+    }
+
+    window.rejectEndingFromPopup = () => {
+      closeAllPopups();
+      document.body.classList.add("has-closed");
+      window.close();
+    };
+
+    window.closeAllAfterEndingWindowClosed = () => {
+      endingIsActive = false;
+      endingWindowRef = null;
+      window.clearInterval(endingFocusTimer);
+      closeAllPopups();
+      document.body.classList.add("has-closed");
+    };
+
+    window.addEventListener("beforeunload", closeAllPopups);
+  </script>
+</body>
+</html>
