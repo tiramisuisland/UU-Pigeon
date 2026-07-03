@@ -64,3 +64,4 @@ Pods/
 .env.production.local
 *.pem
 *.key
+uu-pigeon-web.tar

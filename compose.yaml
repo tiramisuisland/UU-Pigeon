@@ -1,0 +1,23 @@
+services:
+  web:
+    image: uu-pigeon-web:latest
+    build:
+      context: .
+    restart: unless-stopped
+    logging:
+      driver: none
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    logging:
+      driver: none
+    depends_on:
+      web:
+        condition: service_healthy
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - "eyJhIjoiYTMxN2JlMTU0MGUzZGI4NGE1NTAyYjkwY2NjODU2YzkiLCJ0IjoiMmJkZDBmYzgtNzc4NC00ZmI1LTg3M2QtNzhiNmY5Y2FiMjlkIiwicyI6IlkyTTRZak0xWTJFdFlUaGtOaTAwTXpCa0xUbGxNR010WlRrNFpUQTNOV015T1dJeCJ9"

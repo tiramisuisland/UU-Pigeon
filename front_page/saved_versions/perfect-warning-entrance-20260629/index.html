@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Warning Entrance</title>
+    <link rel="stylesheet" href="style.css?v=20260629-25">
+  </head>
+  <body>
+    <svg class="filter-defs" aria-hidden="true" focusable="false">
+      <filter id="shape-noise" x="-3%" y="-3%" width="106%" height="106%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.82" numOctaves="1" seed="5" result="noise">
+          <animate attributeName="seed" values="5;9;2;7;5" dur="1.4s" repeatCount="indefinite" calcMode="discrete"></animate>
+        </feTurbulence>
+        <feColorMatrix
+          in="noise"
+          type="matrix"
+          values="
+            0 0 0 0 1
+            0 0 0 0 1
+            0 0 0 0 1
+            .75 .75 .75 0 -1.05"
+          result="speckles"
+        ></feColorMatrix>
+        <feComposite in="speckles" in2="SourceAlpha" operator="in" result="speckles-in-shape"></feComposite>
+        <feBlend in="SourceGraphic" in2="speckles-in-shape" mode="screen"></feBlend>
+      </filter>
+    </svg>
+    <div id="entrance-overlay" class="entrance-overlay" aria-label="Warning entrance screen">
+      <section class="warning-composition" aria-hidden="true">
+        <div class="title-row">
+          <div class="smile-fx smile-left-fx">
+            <img class="smile fx-base" src="assest/smile.svg" alt="">
+            <img class="smile fx-layer fx-red" src="assest/smile.svg" alt="">
+            <img class="smile fx-layer fx-blue" src="assest/smile.svg" alt="">
+          </div>
+          <div class="svg-fx title-fx" data-slices="10">
+            <img class="warning-title fx-base" src="assest/title2-animated.svg" alt="">
+            <img class="warning-title fx-layer fx-red" src="assest/title2-animated.svg" alt="">
+            <img class="warning-title fx-layer fx-blue" src="assest/title2-animated.svg" alt="">
+          </div>
+          <div class="smile-fx smile-right-fx">
+            <img class="smile fx-base" src="assest/smile.svg" alt="">
+            <img class="smile fx-layer fx-red" src="assest/smile.svg" alt="">
+            <img class="smile fx-layer fx-blue" src="assest/smile.svg" alt="">
+          </div>
+        </div>
+
+        <div class="content-frame">
+          <div class="svg-fx content-fx">
+            <img class="warning-content fx-base" src="assest/content2-animated.svg" alt="">
+            <img class="warning-content fx-layer fx-red" src="assest/content2-animated.svg" alt="">
+            <img class="warning-content fx-layer fx-blue" src="assest/content2-animated.svg" alt="">
+          </div>
+        </div>
+
+        <div class="loader-zone">
+          <div id="loading-value" class="loading-value" aria-hidden="true">0%</div>
+          <div
+            id="loading-track"
+            class="loading-track"
+            role="slider"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="15"
+            aria-label="Drag loading handle to enter"
+            tabindex="0"
+          >
+            <div id="loading-fill" class="loading-fill" aria-hidden="true"></div>
+            <div class="loading-label" aria-hidden="true">
+              <span class="loading-word">loading</span>
+              <span class="loading-dot dot-one"></span>
+              <span class="loading-dot dot-two"></span>
+              <span class="loading-dot dot-three"></span>
+            </div>
+            <div id="loading-handle" class="loading-handle" aria-hidden="true"></div>
+          </div>
+        </div>
+      </section>
+      <div id="pull-cue" class="pull-cue" aria-hidden="true">
+        <span class="pull-cue-arrow"></span>
+        <span class="pull-cue-text">pull</span>
+      </div>
+    </div>
+
+    <main id="main-page" aria-hidden="true">
+      <!-- main artwork goes here -->
+    </main>
+
+    <script src="script.js?v=20260629-25"></script>
+  </body>
+</html>

@@ -356,6 +356,13 @@
             font-weight: 700;
         }
 
+        .chat-reaction-icon {
+            display: block;
+            width: calc(15px * var(--layout-scale));
+            height: calc(15px * var(--layout-scale));
+            object-fit: contain;
+        }
+
         .chat-empty {
             padding: calc(18px * var(--layout-scale)) calc(6px * var(--layout-scale));
             text-align: center;
@@ -369,8 +376,8 @@
             top: calc(88px * var(--layout-scale));
             z-index: 2;
             display: flex;
-            gap: calc(8px * var(--layout-scale));
-            padding: calc(8px * var(--layout-scale));
+            gap: calc(4px * var(--layout-scale));
+            padding: calc(4px * var(--layout-scale));
             border-radius: 999px;
             background: rgba(15, 45, 63, 0.92);
             box-shadow: 0 14px 36px rgba(16, 44, 62, 0.32);
@@ -389,10 +396,21 @@
         .chat-action-button {
             border: 0;
             border-radius: 999px;
-            padding: calc(8px * var(--layout-scale)) calc(12px * var(--layout-scale));
+            display: grid;
+            place-items: center;
+            width: calc(19px * var(--layout-scale));
+            height: calc(19px * var(--layout-scale));
+            padding: calc(3.5px * var(--layout-scale));
             color: #0f2d3f;
             background: rgba(255, 255, 255, 0.92);
             font: 800 calc(13px * var(--layout-scale))/1 "Noto Sans TC", sans-serif;
+        }
+
+        .chat-action-button img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
 
         .marquee-track {
@@ -482,6 +500,44 @@
             pointer-events: none;
         }
 
+        .explosion-prompt {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            z-index: 20;
+            display: block;
+            width: calc(116px * var(--layout-scale));
+            max-width: calc(100vw - var(--safe-left) - var(--safe-right));
+            padding: 0;
+            border: 0;
+            background: transparent;
+            opacity: 0;
+            transform: translate(-50%, -50%) rotate(7deg) scale(0.82);
+            transition: opacity 180ms ease, transform 260ms ease;
+            user-select: none;
+        }
+
+        .explosion-prompt-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 8px 14px rgba(18, 37, 54, 0.24));
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .explosion-prompt.is-attached {
+            opacity: 1;
+            transform: translate(-50%, -50%) rotate(1deg) scale(1);
+        }
+
+        .explosion-prompt.is-closing {
+            opacity: 0;
+            transform: translate(-50%, -50%) rotate(-8deg) scale(0.72);
+            pointer-events: none;
+        }
+
         .hud {
             display: none;
             position: fixed;
@@ -500,27 +556,26 @@
         .audio-gate {
             position: fixed;
             inset: 0;
-            display: grid;
-            place-items: center;
-            background: rgba(10, 26, 38, 0.28);
-            backdrop-filter: blur(10px);
-            z-index: 20;
+            background: #ffffff;
+            z-index: 10000;
         }
 
         .audio-gate.is-hidden {
             display: none;
         }
 
-        .audio-button {
+        .front-page-frame,
+        .popup-permission-frame {
+            display: block;
+            width: 100%;
+            height: 100%;
             border: 0;
-            border-radius: 999px;
-            padding: calc(16px * var(--layout-scale)) calc(28px * var(--layout-scale));
-            font: inherit;
-            font-size: calc(18px * var(--layout-scale));
-            font-weight: 700;
-            color: #0f2d3f;
-            background: linear-gradient(180deg, #fffdf6 0%, #ffe7a8 100%);
-            box-shadow: 0 18px 40px rgba(16, 44, 62, 0.22);
+            background: #ffffff;
+        }
+
+        .front-page-frame[hidden],
+        .popup-permission-frame[hidden] {
+            display: none;
         }
 
         .readman-counters {
@@ -637,7 +692,18 @@
 <body>
     <div class="hud">載入模型中...<br>場景檔：<code>action.glb</code></div>
     <div class="audio-gate">
-        <button class="audio-button" type="button">點一下開啟 3D 場景</button>
+        <iframe
+            class="popup-permission-frame"
+            src="./爆炸0701/index.html?mode=permission"
+            title="開啟爆炸彈出視窗權限"
+        ></iframe>
+        <iframe
+            class="front-page-frame"
+            data-src="./front_page/index.html"
+            title="進入網站"
+            allow="autoplay"
+            hidden
+        ></iframe>
     </div>
     <div class="readman-counters" aria-label="agree disagree 即時數字">
         <div class="readman-counter" id="agreeCounter" aria-label="agree 數字"></div>
@@ -666,11 +732,31 @@
             <div class="chat-empty">打開後會載入聊天內容</div>
         </div>
         <div class="chat-action-menu" id="chatActionMenu" aria-hidden="true">
-            <button class="chat-action-button" type="button" data-chat-reaction="like">喜歡</button>
-            <button class="chat-action-button" type="button" data-chat-reaction="dislike">不喜歡</button>
+            <button class="chat-action-button" type="button" data-chat-reaction="like" aria-label="喜歡" title="喜歡">
+                <img src="./assets/images/like.png" alt="">
+            </button>
+            <button class="chat-action-button" type="button" data-chat-reaction="dislike" aria-label="不喜歡" title="不喜歡">
+                <img src="./assets/images/dislike.png" alt="">
+            </button>
         </div>
     </aside>
     <img class="game-cursor" src="./assets/images/X.png" alt="" aria-hidden="true">
+
+    <script>
+        window.completeExplosionPermission = function completeExplosionPermission() {
+            const permissionFrame = document.querySelector(".popup-permission-frame");
+            const frontPageFrame = document.querySelector(".front-page-frame");
+            if (!frontPageFrame) {
+                return;
+            }
+
+            permissionFrame?.setAttribute("hidden", "");
+            frontPageFrame.removeAttribute("hidden");
+            if (!frontPageFrame.getAttribute("src")) {
+                frontPageFrame.src = frontPageFrame.dataset.src;
+            }
+        };
+    </script>
 
     <script type="importmap">
         {
@@ -690,7 +776,6 @@
 
         const hud = document.querySelector(".hud");
         const audioGate = document.querySelector(".audio-gate");
-        const audioButton = document.querySelector(".audio-button");
         const agreeCounterElement = document.querySelector("#agreeCounter");
         const disagreeCounterElement = document.querySelector("#disagreeCounter");
         const gameCursor = document.querySelector(".game-cursor");
@@ -993,6 +1078,7 @@
         let anthemPopupWindow = null;
         let birdCameraPopupWindow = null;
         let buddhaLightPopupWindow = null;
+        let explosionPopupWindow = null;
         const popupWindows = new Set();
         let videoPlaylistPopupOpened = false;
         let anthemPopupOpened = false;
@@ -1000,6 +1086,9 @@
         let buddhaLightShown = false;
         let buddhaLightPromptShown = false;
         let buddhaLightPromptState = null;
+        let explosionShown = false;
+        let explosionPromptShown = false;
+        let explosionPromptState = null;
         let birdCameraTargetBird = null;
         let lastBirdCameraFrameAt = -1;
         let birdCameraCloseAt = -1;
@@ -1007,6 +1096,7 @@
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
         const buddhaLightAliveThreshold = 2;
+        const explosionAliveThreshold = 8;
         const marqueeStats = {
             alive: "0",
             currentKills: "0",
@@ -1942,10 +2032,23 @@
             selectedChatMessageId = messageId;
             const panelRect = chatPanel.getBoundingClientRect();
             const messageRect = messageElement.getBoundingClientRect();
-            const menuTop = Math.max(
-                54,
-                Math.min(messageRect.top - panelRect.top + 8, panelRect.height - 54)
+            const menuRect = chatActionMenu.getBoundingClientRect();
+            const edgePadding = 4;
+            const menuLeft = Math.max(
+                edgePadding,
+                Math.min(
+                    messageRect.left - panelRect.left + edgePadding,
+                    panelRect.width - menuRect.width - edgePadding
+                )
             );
+            const menuTop = Math.max(
+                edgePadding,
+                Math.min(
+                    messageRect.bottom - panelRect.top - menuRect.height - edgePadding,
+                    panelRect.height - menuRect.height - edgePadding
+                )
+            );
+            chatActionMenu.style.left = `${menuLeft}px`;
             chatActionMenu.style.top = `${menuTop}px`;
             chatActionMenu.classList.add("is-open");
             chatActionMenu.setAttribute("aria-hidden", "false");
@@ -2051,12 +2154,24 @@
             const likeElement = document.createElement("div");
             likeElement.className = "chat-like";
             const likeCount = Number.parseInt(chatItem.like_count ?? 0, 10);
-            likeElement.textContent = `讚 ${Number.isFinite(likeCount) ? likeCount : 0}`;
+            const likeIcon = document.createElement("img");
+            likeIcon.className = "chat-reaction-icon";
+            likeIcon.src = "./assets/images/like.png";
+            likeIcon.alt = "讚";
+            const likeCountElement = document.createElement("span");
+            likeCountElement.textContent = Number.isFinite(likeCount) ? likeCount : 0;
+            likeElement.append(likeIcon, likeCountElement);
 
             const dislikeElement = document.createElement("div");
             dislikeElement.className = "chat-dislike";
             const dislikeCount = Number.parseInt(chatItem.dislike_count ?? 0, 10);
-            dislikeElement.textContent = `倒讚 ${Number.isFinite(dislikeCount) ? dislikeCount : 0}`;
+            const dislikeIcon = document.createElement("img");
+            dislikeIcon.className = "chat-reaction-icon";
+            dislikeIcon.src = "./assets/images/dislike.png";
+            dislikeIcon.alt = "倒讚";
+            const dislikeCountElement = document.createElement("span");
+            dislikeCountElement.textContent = Number.isFinite(dislikeCount) ? dislikeCount : 0;
+            dislikeElement.append(dislikeIcon, dislikeCountElement);
 
             const metaElement = document.createElement("div");
             metaElement.className = "chat-meta";
@@ -2513,8 +2628,8 @@
             return true;
         }
 
-        function pickVisiblePromptBird() {
-            return getFlyingBirds().find((bird) => getBirdScreenPosition(bird));
+        function pickVisiblePromptBird(excludedBird = null) {
+            return getFlyingBirds(excludedBird).find((bird) => getBirdScreenPosition(bird));
         }
 
         function updateBuddhaLightPromptPosition() {
@@ -2530,7 +2645,7 @@
             }
 
             if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
-                const nextBird = pickVisiblePromptBird();
+                const nextBird = pickVisiblePromptBird(explosionPromptState?.bird);
                 if (!nextBird) {
                     element.classList.remove("is-attached");
                     return;
@@ -2541,7 +2656,7 @@
             }
 
             if (!positionBuddhaLightPrompt(element, bird)) {
-                const nextBird = pickVisiblePromptBird();
+                const nextBird = pickVisiblePromptBird(explosionPromptState?.bird);
                 if (nextBird) {
                     buddhaLightPromptState.bird = nextBird;
                     positionBuddhaLightPrompt(element, nextBird);
@@ -2554,7 +2669,7 @@
                 return;
             }
 
-            const promptBird = pickVisiblePromptBird();
+            const promptBird = pickVisiblePromptBird(explosionPromptState?.bird);
             if (!promptBird) {
                 return;
             }
@@ -2605,6 +2720,160 @@
             }
 
             showBuddhaLightPrompt();
+        }
+
+        function openExplosionExperience() {
+            const popupWidth = Math.min(780, Math.round(window.screen.availWidth * 0.72));
+            const popupHeight = Math.min(620, Math.round(window.screen.availHeight * 0.72));
+            const popupLeft = Math.round(
+                window.screen.availLeft + (window.screen.availWidth - popupWidth) / 2
+            );
+            const popupTop = Math.round(
+                window.screen.availTop + (window.screen.availHeight - popupHeight) / 2
+            );
+            const popupFeatures = [
+                "popup=yes",
+                `width=${popupWidth}`,
+                `height=${popupHeight}`,
+                `left=${popupLeft}`,
+                `top=${popupTop}`,
+                "menubar=no",
+                "toolbar=no",
+                "location=no",
+                "status=no",
+                "scrollbars=no",
+                "resizable=yes"
+            ].join(",");
+            const popupUrl = new URL("./爆炸0701/index.html", window.location.href);
+            popupUrl.searchParams.set("autostart", "1");
+
+            explosionPopupWindow = window.open(
+                popupUrl.href,
+                "explosion_launcher",
+                popupFeatures
+            );
+
+            if (!explosionPopupWindow) {
+                hud.innerHTML = "爆炸視窗被瀏覽器擋下<br>請確認已允許彈出式視窗";
+                return null;
+            }
+
+            popupWindows.add(explosionPopupWindow);
+            explosionPopupWindow.focus();
+            return explosionPopupWindow;
+        }
+
+        function positionExplosionPrompt(prompt, bird) {
+            const birdPosition = getBirdScreenPosition(bird);
+            if (!birdPosition) {
+                prompt.classList.remove("is-attached");
+                return false;
+            }
+
+            const offsetX = 0;
+            const offsetY = -58 * appViewport.layoutScale;
+            const x = THREE.MathUtils.clamp(
+                birdPosition.x + offsetX,
+                96 * appViewport.layoutScale,
+                appViewport.width - 96 * appViewport.layoutScale
+            );
+            const y = THREE.MathUtils.clamp(
+                birdPosition.y + offsetY,
+                54 * appViewport.layoutScale,
+                appViewport.height - 68 * appViewport.layoutScale
+            );
+
+            prompt.style.left = `${x}px`;
+            prompt.style.top = `${y}px`;
+            prompt.classList.add("is-attached");
+            return true;
+        }
+
+        function updateExplosionPromptPosition() {
+            if (!explosionPromptState?.element) {
+                return;
+            }
+
+            const { element, bird } = explosionPromptState;
+            if (!element.isConnected) {
+                explosionPromptState = null;
+                explosionPromptShown = false;
+                return;
+            }
+
+            if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
+                const nextBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+                if (!nextBird) {
+                    element.classList.remove("is-attached");
+                    return;
+                }
+                explosionPromptState.bird = nextBird;
+                positionExplosionPrompt(element, nextBird);
+                return;
+            }
+
+            if (!positionExplosionPrompt(element, bird)) {
+                const nextBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+                if (nextBird) {
+                    explosionPromptState.bird = nextBird;
+                    positionExplosionPrompt(element, nextBird);
+                }
+            }
+        }
+
+        function showExplosionPrompt() {
+            if (explosionPromptShown || document.querySelector(".explosion-prompt")) {
+                return;
+            }
+
+            const promptBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+            if (!promptBird) {
+                return;
+            }
+
+            const prompt = document.createElement("button");
+            explosionPromptShown = true;
+            prompt.className = "explosion-prompt";
+            prompt.type = "button";
+            prompt.innerHTML = `
+                <img class="explosion-prompt-image" src="./88p.svg" alt="播放爆炸">
+            `;
+            prompt.setAttribute("aria-label", "播放爆炸影片");
+            explosionPromptState = {
+                element: prompt,
+                bird: promptBird
+            };
+            positionExplosionPrompt(prompt, promptBird);
+
+            prompt.addEventListener("pointerdown", (event) => {
+                event.stopPropagation();
+            });
+
+            prompt.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                prompt.classList.add("is-closing");
+                window.setTimeout(() => prompt.remove(), 180);
+                explosionShown = true;
+                explosionPromptShown = false;
+                explosionPromptState = null;
+                openExplosionExperience();
+            });
+
+            document.body.appendChild(prompt);
+            requestAnimationFrame(updateExplosionPromptPosition);
+        }
+
+        function openExplosionIfNeeded() {
+            if (
+                explosionShown ||
+                explosionPromptShown ||
+                getAliveBirdCount() < explosionAliveThreshold
+            ) {
+                return;
+            }
+
+            showExplosionPrompt();
         }
 
         function getFlyingBirds(excludedBird = null) {
@@ -3523,6 +3792,8 @@
             updateAliveMarqueeStat();
             openBuddhaLightCannonIfNeeded();
             updateBuddhaLightPromptPosition();
+            openExplosionIfNeeded();
+            updateExplosionPromptPosition();
 
             cloudGroup.children.forEach((cloud, index) => {
                 cloud.position.x += 0.01 + index * 0.002;
@@ -3674,11 +3945,13 @@
             openVideoPlaylistAfterTenKillsIfNeeded();
         });
 
-        audioButton.addEventListener("click", () => {
+        function completeFrontPageEntrance() {
             unlockAudio();
             playReadManVideo();
             openAnthemPopup();
-        });
+        }
+
+        window.completeFrontPageEntrance = completeFrontPageEntrance;
     </script>
 </body>
 </html>
