@@ -743,6 +743,9 @@
     <img class="game-cursor" src="./assets/images/X.png" alt="" aria-hidden="true">
 
     <script>
+        const explosionPopupStorageKey = "explosionPopupAccessReady";
+        const explosionCloseSignalKey = "uuPigeonExplosionCloseMain";
+
         window.completeExplosionPermission = function completeExplosionPermission() {
             const permissionFrame = document.querySelector(".popup-permission-frame");
             const frontPageFrame = document.querySelector(".front-page-frame");
@@ -756,6 +759,44 @@
                 frontPageFrame.src = frontPageFrame.dataset.src;
             }
         };
+
+        if (localStorage.getItem(explosionPopupStorageKey) === "true") {
+            window.completeExplosionPermission();
+        }
+
+        window.closeUUPigeonMainPageAfterExplosion = function closeUUPigeonMainPageAfterExplosion() {
+            document.body.innerHTML = "";
+            document.body.style.background = "#000";
+            document.documentElement.style.background = "#000";
+            document.title = "";
+            try {
+                window.open("", "_self");
+            } catch (error) {
+                // Some browsers disallow this close workaround.
+            }
+            window.close();
+            window.setTimeout(() => {
+                if (!window.closed) {
+                    window.location.replace("about:blank");
+                }
+            }, 180);
+        };
+
+        window.addEventListener("message", (event) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+
+            if (event.data?.type === "close-uu-pigeon-main-after-explosion") {
+                window.closeUUPigeonMainPageAfterExplosion();
+            }
+        });
+
+        window.addEventListener("storage", (event) => {
+            if (event.key === explosionCloseSignalKey && event.newValue) {
+                window.closeUUPigeonMainPageAfterExplosion();
+            }
+        });
     </script>
 
     <script type="importmap">
@@ -2723,43 +2764,25 @@
         }
 
         function openExplosionExperience() {
-            const popupWidth = Math.min(780, Math.round(window.screen.availWidth * 0.72));
-            const popupHeight = Math.min(620, Math.round(window.screen.availHeight * 0.72));
-            const popupLeft = Math.round(
-                window.screen.availLeft + (window.screen.availWidth - popupWidth) / 2
-            );
-            const popupTop = Math.round(
-                window.screen.availTop + (window.screen.availHeight - popupHeight) / 2
-            );
-            const popupFeatures = [
-                "popup=yes",
-                `width=${popupWidth}`,
-                `height=${popupHeight}`,
-                `left=${popupLeft}`,
-                `top=${popupTop}`,
-                "menubar=no",
-                "toolbar=no",
-                "location=no",
-                "status=no",
-                "scrollbars=no",
-                "resizable=yes"
-            ].join(",");
             const popupUrl = new URL("./爆炸0701/index.html", window.location.href);
             popupUrl.searchParams.set("autostart", "1");
 
-            explosionPopupWindow = window.open(
-                popupUrl.href,
-                "explosion_launcher",
-                popupFeatures
-            );
+            const previousController = document.querySelector(".explosion-controller-frame");
+            previousController?.remove();
 
-            if (!explosionPopupWindow) {
-                hud.innerHTML = "爆炸視窗被瀏覽器擋下<br>請確認已允許彈出式視窗";
-                return null;
+            const controllerFrame = document.createElement("iframe");
+            controllerFrame.className = "explosion-controller-frame";
+            controllerFrame.src = popupUrl.href;
+            controllerFrame.setAttribute("hidden", "");
+            controllerFrame.setAttribute("aria-hidden", "true");
+            controllerFrame.style.display = "none";
+            document.body.appendChild(controllerFrame);
+
+            explosionPopupWindow = controllerFrame.contentWindow;
+            if (explosionPopupWindow) {
+                popupWindows.add(explosionPopupWindow);
             }
 
-            popupWindows.add(explosionPopupWindow);
-            explosionPopupWindow.focus();
             return explosionPopupWindow;
         }
 

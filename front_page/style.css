@@ -443,6 +443,35 @@ body.is-loading-dragging {
   opacity: 1;
 }
 
+.loading-tip {
+  position: fixed;
+  z-index: 10002;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: clamp(28px, 3.2vw, 42px);
+  aspect-ratio: 1;
+  border: clamp(2px, 0.24vw, 3px) solid #000;
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  font-family: var(--ui-font);
+  font-size: clamp(20px, 2.6vw, 34px);
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -115%) rotate(-4deg);
+  filter: drop-shadow(3px 3px 0 #000);
+  transition: opacity 120ms steps(2, end);
+  animation: loading-tip-jitter 640ms steps(2, end) infinite;
+}
+
+.loading-tip.is-visible {
+  opacity: 1;
+}
+
 .pull-cue-arrow {
   width: 14px;
   height: 18px;
@@ -693,6 +722,22 @@ body.entered #main-page {
   }
   72% {
     transform: translateX(-1px);
+  }
+}
+
+@keyframes loading-tip-jitter {
+  0%,
+  100% {
+    transform: translate(-50%, -115%) rotate(-4deg);
+  }
+  24% {
+    transform: translate(calc(-50% - 1px), calc(-115% + 1px)) rotate(3deg);
+  }
+  52% {
+    transform: translate(calc(-50% + 2px), calc(-115% - 1px)) rotate(-1deg);
+  }
+  78% {
+    transform: translate(calc(-50% - 1px), -115%) rotate(5deg);
   }
 }
 

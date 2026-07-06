@@ -5,6 +5,7 @@
   const COMPLETE = 100;
   const PRELOAD_TIMEOUT = 14000;
   const EMPTY_HOLD = 700;
+  const TIP_DELAY = 30000;
 
   const mediaToPreload = [
     "../assets/videos/video1.mp4",
@@ -18,6 +19,7 @@
   const pullCue = document.getElementById("pull-cue");
   const track = document.getElementById("loading-track");
   const handle = document.getElementById("loading-handle");
+  const loadingTip = document.getElementById("loading-tip");
 
   let progress = 0;
   let canDrag = false;
@@ -26,6 +28,8 @@
   let autoFrame = 0;
   let attentionNumberFrame = 0;
   let nextAttentionNumberTick = 0;
+  let loadingTipTimer = 0;
+  let loadingTipVisible = false;
 
   function setProgress(value, min = AUTO_START, max = COMPLETE) {
     progress = clamp(value, min, max);
@@ -37,6 +41,8 @@
     if (progress >= COMPLETE) {
       enterMainPage();
     }
+
+    positionLoadingTip();
   }
 
   function startFakeAutoLoad() {
@@ -93,6 +99,8 @@
     track.classList.add("can-drag");
     track.setAttribute("aria-valuemin", AUTO_END.toString());
     startAttentionNumberJitter();
+    positionLoadingTip();
+    loadingTipTimer = window.setTimeout(showLoadingTip, TIP_DELAY);
   }
 
   function startAttentionNumberJitter() {
@@ -198,6 +206,37 @@
   function hidePullCue() {
     if (!pullCue) return;
     pullCue.classList.remove("is-visible");
+  }
+
+  function positionLoadingTip() {
+    if (!loadingTip || !loadingTipVisible) return;
+    const rect = track.getBoundingClientRect();
+    const x = rect.left + rect.width * (progress / COMPLETE);
+    const y = rect.top - 10;
+    loadingTip.style.left = `${x}px`;
+    loadingTip.style.top = `${y}px`;
+  }
+
+  function showLoadingTip() {
+    if (!loadingTip || entered || isDragging || track.classList.contains("has-dragged")) {
+      return;
+    }
+
+    if (!canDrag) {
+      loadingTipTimer = window.setTimeout(showLoadingTip, 500);
+      return;
+    }
+
+    loadingTipVisible = true;
+    positionLoadingTip();
+    loadingTip.classList.add("is-visible");
+  }
+
+  function hideLoadingTip() {
+    window.clearTimeout(loadingTipTimer);
+    loadingTipTimer = 0;
+    loadingTipVisible = false;
+    loadingTip?.classList.remove("is-visible");
   }
 
   function createFxSlices() {
@@ -307,6 +346,7 @@
 
   function beginDrag(event) {
     if (entered || !isNearPullEdge(event)) return;
+    hideLoadingTip();
     stopAttentionNumberJitter();
     isDragging = true;
     track.classList.add("is-dragging");
@@ -340,6 +380,7 @@
     if (entered) return;
     entered = true;
     window.cancelAnimationFrame(autoFrame);
+    hideLoadingTip();
     stopAttentionNumberJitter(false);
     setProgress(COMPLETE, AUTO_END, COMPLETE);
     document.body.classList.remove("is-loading-dragging");
@@ -374,7 +415,8 @@
     movePullCue(event);
     showPullCue(event);
     if (isDragging) return;
-    track.classList.toggle("is-hovering-pull", isNearPullEdge(event));
+    const nearPullEdge = isNearPullEdge(event);
+    track.classList.toggle("is-hovering-pull", nearPullEdge);
   });
   track.addEventListener("pointerleave", () => {
     if (!isDragging) hidePullCue();
@@ -383,11 +425,14 @@
   window.addEventListener("pointermove", drag);
   window.addEventListener("pointerup", endDrag);
   window.addEventListener("pointercancel", endDrag);
+  window.addEventListener("resize", positionLoadingTip);
+  window.addEventListener("scroll", positionLoadingTip, { passive: true });
 
   track.addEventListener("keydown", (event) => {
     if (!canDrag) return;
     if (event.key !== "ArrowRight" && event.key !== "End") return;
     event.preventDefault();
+    hideLoadingTip();
     setProgress(event.key === "End" ? COMPLETE : progress + 3, AUTO_END, COMPLETE);
   });
 
