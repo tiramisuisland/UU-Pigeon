@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Explo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Futura, "Futura PT", Avenir, "Century Gothic", Arial, "Noto Sans TC", sans-serif;
+      background: #090909;
+      color: #fff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background: #090909;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .entry {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      border: 0;
+      color: #fff;
+      background: #090909;
+      cursor: pointer;
+    }
+
+    .mark {
+      display: grid;
+      width: 72px;
+      height: 72px;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, .46);
+      border-radius: 50%;
+      font-size: 32px;
+      font-weight: 300;
+      line-height: 1;
+    }
+
+    .fallback {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      display: none;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, .72);
+      font-size: 14px;
+      text-decoration: none;
+    }
+
+    .fallback.is-visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <button class="entry" id="entry" type="button" aria-label="開啟播放分頁">
+    <span class="mark">↗</span>
+  </button>
+  <a class="fallback" id="fallback" href="player.html" target="_blank" rel="noopener">開啟分頁</a>
+
+  <script>
+    const entry = document.querySelector("#entry");
+    const fallback = document.querySelector("#fallback");
+
+    function randomBetween(min, max) {
+      return Math.floor(min + Math.random() * Math.max(1, max - min));
+    }
+
+    function intersects(a, b) {
+      return a.left < b.left + b.width &&
+        a.left + a.width > b.left &&
+        a.top < b.top + b.height &&
+        a.top + a.height > b.top;
+    }
+
+    function randomPlacement(width, height, avoid = null) {
+      const margin = 24;
+      const maxLeft = Math.max(margin, window.screen.availWidth - width - margin);
+      const maxTop = Math.max(margin, window.screen.availHeight - height - margin);
+
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        const placement = {
+          left: randomBetween(margin, maxLeft),
+          top: randomBetween(margin, maxTop),
+          width,
+          height
+        };
+
+        if (!avoid || !intersects(placement, avoid)) {
+          return placement;
+        }
+      }
+
+      return {
+        left: randomBetween(margin, maxLeft),
+        top: randomBetween(margin, maxTop),
+        width,
+        height
+      };
+    }
+
+    function popupFeatures(placement) {
+      return `popup=yes,width=${placement.width},height=${placement.height},left=${placement.left},top=${placement.top}`;
+    }
+
+    entry.addEventListener("click", () => {
+      localStorage.setItem("exploAudioEnabled", "1");
+
+      const runId = Date.now();
+      const firstPlacement = randomPlacement(832, 468);
+      const secondPlacement = randomPlacement(480, 360, firstPlacement);
+      const firstPopup = window.open(
+        "player.html",
+        `explo_player_${runId}`,
+        popupFeatures(firstPlacement)
+      );
+      let secondPopup = null;
+
+      if (firstPopup) {
+        firstPopup.moveTo(firstPlacement.left, firstPlacement.top);
+        firstPopup.resizeTo(firstPlacement.width, firstPlacement.height);
+        firstPopup.focus();
+        const beginFirst = window.setInterval(() => {
+          if (firstPopup.closed) {
+            window.clearInterval(beginFirst);
+            return;
+          }
+
+          if (typeof firstPopup.beginExplo === "function") {
+            firstPopup.beginExplo();
+            window.clearInterval(beginFirst);
+          }
+        }, 200);
+      } else {
+        fallback.classList.add("is-visible");
+      }
+
+      window.setTimeout(() => {
+        secondPopup = window.open(
+          "player2.html?delay=0",
+          `explo_player_2_${runId}`,
+          popupFeatures(secondPlacement)
+        );
+
+        if (secondPopup) {
+          secondPopup.moveTo(secondPlacement.left, secondPlacement.top);
+          secondPopup.resizeTo(secondPlacement.width, secondPlacement.height);
+          secondPopup.focus();
+        } else {
+          fallback.textContent = "開啟第二支";
+          fallback.href = "player2.html?delay=0";
+          fallback.classList.add("is-visible");
+        }
+      }, 15000);
+    });
+  </script>
+</body>
+</html>

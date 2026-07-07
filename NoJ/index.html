@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>886 Slot Machine</title>
+  <style>
+    :root {
+      --ink: #28292c;
+      --paper: #f4f1ee;
+      --muted: #bebbb7;
+      --shadow: rgba(0, 0, 0, .28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow-x: hidden;
+      color: var(--ink);
+      font-family: Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(255, 255, 255, .72), transparent 30rem),
+        linear-gradient(180deg, #dedbd7 0%, #c8c3be 54%, #aaa5a0 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .16;
+      background-image:
+        repeating-linear-gradient(0deg, transparent 0 10px, rgba(255, 255, 255, .5) 11px),
+        repeating-linear-gradient(90deg, transparent 0 15px, rgba(42, 42, 42, .18) 16px);
+      mix-blend-mode: soft-light;
+    }
+
+    main {
+      width: 100vw;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+
+    .stage {
+      position: relative;
+      width: min(480px, 100vw, calc(100vh * 1.142857));
+      aspect-ratio: 1200 / 1050;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      perspective: 900px;
+    }
+
+    .machine {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      aspect-ratio: 1200 / 1050;
+      cursor: pointer;
+      filter: drop-shadow(0 16px 14px var(--shadow));
+      user-select: none;
+    }
+
+    .machine-art,
+    .driver-art {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .machine-art {
+      z-index: 1;
+    }
+
+    .driver-art {
+      z-index: 5;
+      transform-origin: 87.4% 42%;
+      transition: transform .25s cubic-bezier(.18, .84, .3, 1);
+      will-change: transform, filter;
+    }
+
+    .machine.spinning .driver-art {
+      animation: pullHandle 1.08s cubic-bezier(.2, .78, .22, 1);
+    }
+
+    @keyframes pullHandle {
+      0%, 100% {
+        filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+        transform: perspective(700px) translate3d(0, 0, 0) rotateX(0deg) rotateZ(0deg) scale(1);
+      }
+
+      24% {
+        filter: drop-shadow(0 8px 5px rgba(0, 0, 0, .2));
+        transform: perspective(700px) translate3d(-.3%, 7.2%, 38px) rotateX(18deg) rotateZ(-1.8deg) skewX(-1deg) scale(1.018, .982);
+      }
+
+      48% {
+        filter: drop-shadow(0 4px 3px rgba(0, 0, 0, .16));
+        transform: perspective(700px) translate3d(.15%, 3.1%, 18px) rotateX(-7deg) rotateZ(.9deg) scale(.995, 1.006);
+      }
+
+      68% {
+        filter: drop-shadow(0 6px 4px rgba(0, 0, 0, .18));
+        transform: perspective(700px) translate3d(-.1%, 5.2%, 26px) rotateX(9deg) rotateZ(-.6deg) scale(1.008, .992);
+      }
+    }
+
+    .reel-window {
+      position: absolute;
+      z-index: 3;
+      left: 24%;
+      top: 30.1%;
+      width: 48.8%;
+      height: 24.6%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8.6%;
+      padding: 0 .25%;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .reel {
+      position: relative;
+      min-width: 0;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 2px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .66), transparent 26%),
+        linear-gradient(180deg, #fbfaf8 0%, #e9e5e1 49%, #fffefd 100%);
+    }
+
+    .reel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, .06), transparent 24%, transparent 70%, rgba(0, 0, 0, .1)),
+        linear-gradient(90deg, rgba(255, 255, 255, .45), transparent 28%, transparent 72%, rgba(0, 0, 0, .08));
+    }
+
+    .strip {
+      position: absolute;
+      inset: auto 0 0;
+      display: grid;
+      transform: translateY(0);
+    }
+
+    .symbol {
+      height: clamp(72px, 20vw, 88px);
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      font-size: clamp(3.2rem, 15vw, 4.7rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+      text-shadow:
+        0 1px 0 #fff,
+        0 0 1px rgba(0, 0, 0, .22);
+    }
+
+    .symbol.small {
+      font-size: clamp(1.6rem, 7vw, 2.5rem);
+      font-weight: 700;
+    }
+
+    .machine.spinning .strip {
+      animation: roll .13s linear infinite;
+      filter: blur(2px);
+    }
+
+    .machine.spinning .reel:nth-child(2) .strip {
+      animation-duration: .11s;
+    }
+
+    .machine.spinning .reel:nth-child(3) .strip {
+      animation-duration: .15s;
+    }
+
+    @keyframes roll {
+      from { transform: translateY(0); }
+      to { transform: translateY(clamp(72px, 20vw, 88px)); }
+    }
+
+    .sparks {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .spark {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      opacity: 0;
+      border: 2px solid var(--spark-color, #28292c);
+      border-radius: 50%;
+      background: transparent;
+    }
+
+    .spark.burst {
+      animation: burst .75s ease-out forwards;
+    }
+
+    @keyframes burst {
+      0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(.8);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(var(--x), var(--y)) scale(.1);
+      }
+    }
+
+    .result-badge {
+      position: absolute;
+      z-index: 7;
+      left: 50%;
+      bottom: 7.8%;
+      display: grid;
+      place-items: center;
+      min-width: 176px;
+      min-height: 46px;
+      padding: 7px 16px 8px;
+      opacity: 0;
+      pointer-events: none;
+      text-align: center;
+      color: #f3f0ed;
+      border: 2px solid rgba(244, 241, 238, .9);
+      border-radius: 5px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .14), transparent 42%),
+        rgba(31, 32, 35, .92);
+      box-shadow:
+        inset 0 0 0 1px rgba(0, 0, 0, .35),
+        0 12px 20px rgba(0, 0, 0, .24);
+      transform: translateX(-50%) translateY(10px) scale(.92);
+      transition: opacity .16s ease;
+    }
+
+    .result-badge.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+      animation: resultPop .34s cubic-bezier(.19, 1.12, .28, 1) forwards;
+    }
+
+    @keyframes resultPop {
+      0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(12px) scale(.88);
+      }
+      72% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-3px) scale(1.04);
+      }
+      100% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+    }
+
+    .result-number {
+      display: none;
+      font-size: 1.1rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .result-message {
+      display: block;
+      font-size: .9rem;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    @media (max-width: 480px), (max-height: 420px) {
+      .symbol {
+        height: clamp(56px, 20vw, 72px);
+        font-size: clamp(2.5rem, 15vw, 3.4rem);
+      }
+
+      .symbol.small {
+        font-size: clamp(1.25rem, 7vw, 1.8rem);
+      }
+
+      @keyframes roll {
+        from { transform: translateY(0); }
+        to { transform: translateY(clamp(56px, 20vw, 72px)); }
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="stage" aria-label="886 角子老虎機">
+      <div class="machine" id="machine">
+        <img class="machine-art" src="slot machine.png" alt="Slot machine">
+        <div class="reel-window" aria-live="polite" aria-label="轉輪結果">
+          <div class="reel"><div class="strip" data-final="8"></div></div>
+          <div class="reel"><div class="strip" data-final="8"></div></div>
+          <div class="reel"><div class="strip" data-final="6"></div></div>
+        </div>
+        <img class="driver-art" src="driver.png" alt="">
+        <div class="sparks" id="sparks" aria-hidden="true"></div>
+      </div>
+
+      <div class="result-badge" id="resultBadge" aria-live="polite" aria-hidden="true">
+        <span class="result-number" id="resultNumber">886</span>
+        <span class="result-message" id="resultMessage">BYE~ BYE</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const machine = document.querySelector("#machine");
+    const strips = [...document.querySelectorAll(".strip")];
+    const sparks = document.querySelector("#sparks");
+    const resultBadge = document.querySelector("#resultBadge");
+    const resultNumber = document.querySelector("#resultNumber");
+    const resultMessage = document.querySelector("#resultMessage");
+    const pool = ["8", "8", "6", "7", "○", "◠", "◡", "▱", "∩", "◞"];
+    const spinPool = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "○", "◠", "◡", "▱"];
+    const colors = ["#28292c", "#747579", "#f4f1ee"];
+    const outcomeMessages = {
+      "777": "loser",
+      "444": "hahaha",
+      "886": "BYE~ BYE"
+    };
+    let isSpinning = false;
+    let pullsSince886 = 0;
+    let audioContext;
+    let tickTimer;
+    let scrambleTimer;
+
+    function getAudioContext() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioContext.state === "suspended") {
+        audioContext.resume();
+      }
+      return audioContext;
+    }
+
+    function playTone(frequency, start, duration, volume = .08, type = "sine") {
+      const context = getAudioContext();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(volume, start + .012);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(start);
+      oscillator.stop(start + duration + .03);
+    }
+
+    function playNoise(start, duration, volume = .12) {
+      const context = getAudioContext();
+      const buffer = context.createBuffer(1, context.sampleRate * duration, context.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i += 1) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      }
+      const source = context.createBufferSource();
+      const filter = context.createBiquadFilter();
+      const gain = context.createGain();
+      source.buffer = buffer;
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(650, start);
+      filter.Q.setValueAtTime(1.6, start);
+      gain.gain.setValueAtTime(volume, start);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(context.destination);
+      source.start(start);
+    }
+
+    function playPullSound() {
+      const context = getAudioContext();
+      const now = context.currentTime;
+      playNoise(now, .18, .12);
+      playTone(110, now + .02, .18, .08, "sawtooth");
+      playTone(72, now + .2, .14, .09, "triangle");
+      playTone(180, now + .34, .07, .045, "square");
+    }
+
+    function startReelTicks() {
+      stopReelTicks();
+      tickTimer = window.setInterval(() => {
+        const context = getAudioContext();
+        playTone(580 + Math.random() * 220, context.currentTime, .035, .035, "square");
+      }, 86);
+    }
+
+    function stopReelTicks() {
+      if (tickTimer) {
+        window.clearInterval(tickTimer);
+        tickTimer = null;
+      }
+    }
+
+    function playResultSound(outcome) {
+      const context = getAudioContext();
+      const now = context.currentTime;
+      const sequences = {
+        "777": [150, 118, 92],
+        "444": [310, 390, 310, 460],
+        "886": [440, 554, 659, 880],
+        "866": [520, 440, 392, 330]
+      };
+      const notes = sequences[outcome.value] || [440, 660];
+      notes.forEach((note, index) => {
+        playTone(note, now + index * .11, .12, .075, outcome.value === "777" ? "triangle" : "sine");
+      });
+    }
+
+    function pickSymbol() {
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function symbolClass(symbol) {
+      return Number.isNaN(Number(symbol)) ? "symbol small" : "symbol";
+    }
+
+    function nextOutcome() {
+      const value = pullsSince886 >= 2
+        ? "886"
+        : Array.from({ length: 3 }, () => Math.floor(Math.random() * 10)).join("");
+
+      pullsSince886 = value === "886" ? 0 : pullsSince886 + 1;
+
+      return {
+        value,
+        message: outcomeMessages[value] || ""
+      };
+    }
+
+    function fillStrip(strip, finalSymbol) {
+      const symbols = Array.from({ length: 9 }, pickSymbol);
+      symbols.push(finalSymbol);
+      strip.innerHTML = symbols
+        .map((symbol) => `<div class="${symbolClass(symbol)}">${symbol}</div>`)
+        .join("");
+    }
+
+    function pickSpinSymbol() {
+      return spinPool[Math.floor(Math.random() * spinPool.length)];
+    }
+
+    function scrambleStrips() {
+      strips.forEach((strip) => {
+        const symbols = Array.from({ length: 10 }, pickSpinSymbol);
+        strip.innerHTML = symbols
+          .map((symbol) => `<div class="${symbolClass(symbol)}">${symbol}</div>`)
+          .join("");
+      });
+    }
+
+    function startSymbolScramble() {
+      stopSymbolScramble();
+      scrambleStrips();
+      scrambleTimer = window.setInterval(scrambleStrips, 72);
+    }
+
+    function stopSymbolScramble() {
+      if (scrambleTimer) {
+        window.clearInterval(scrambleTimer);
+        scrambleTimer = null;
+      }
+    }
+
+    function setFinal(result = "886") {
+      strips.forEach((strip, index) => {
+        const finalSymbol = result[index] || strip.dataset.final;
+        strip.dataset.final = finalSymbol;
+        strip.innerHTML = `<div class="${symbolClass(finalSymbol)}">${finalSymbol}</div>`;
+      });
+    }
+
+    function burst() {
+      sparks.innerHTML = "";
+      for (let i = 0; i < 28; i += 1) {
+        const spark = document.createElement("span");
+        const angle = (Math.PI * 2 * i) / 28;
+        const distance = 72 + Math.random() * 92;
+        spark.className = "spark burst";
+        spark.style.left = `${48 + Math.random() * 4}%`;
+        spark.style.top = `${43 + Math.random() * 6}%`;
+        spark.style.setProperty("--x", `${Math.cos(angle) * distance}px`);
+        spark.style.setProperty("--y", `${Math.sin(angle) * distance}px`);
+        spark.style.setProperty("--spark-color", colors[i % colors.length]);
+        sparks.appendChild(spark);
+      }
+    }
+
+    function showResult(outcome) {
+      if (!outcome.message) {
+        resultBadge.classList.remove("show");
+        resultBadge.setAttribute("aria-hidden", "true");
+        return;
+      }
+
+      resultNumber.textContent = outcome.value;
+      resultMessage.textContent = outcome.message;
+      resultBadge.classList.remove("show");
+      resultBadge.setAttribute("aria-hidden", "false");
+      void resultBadge.offsetWidth;
+      resultBadge.classList.add("show");
+    }
+
+    function spin() {
+      if (isSpinning) {
+        return;
+      }
+
+      const outcome = nextOutcome();
+      isSpinning = true;
+      playPullSound();
+      startReelTicks();
+      resultBadge.classList.remove("show");
+      resultBadge.setAttribute("aria-hidden", "true");
+      strips.forEach((strip, index) => fillStrip(strip, outcome.value[index]));
+      startSymbolScramble();
+      machine.classList.add("spinning");
+
+      window.setTimeout(() => {
+        stopReelTicks();
+        stopSymbolScramble();
+        machine.classList.remove("spinning");
+        setFinal(outcome.value);
+        isSpinning = false;
+        burst();
+        playResultSound(outcome);
+        showResult(outcome);
+      }, 1400);
+    }
+
+    machine.addEventListener("click", spin);
+    setFinal();
+  </script>
+</body>
+</html>

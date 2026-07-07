@@ -466,13 +466,13 @@
             top: 50%;
             z-index: 19;
             display: block;
-            width: calc(145px * var(--layout-scale));
+            width: calc(120px * var(--layout-scale));
             max-width: calc(100vw - var(--safe-left) - var(--safe-right));
             padding: 0;
             border: 0;
             background: transparent;
             opacity: 0;
-            transform: translate(-50%, -50%) rotate(-7deg) scale(0.82);
+            transform: translate(-50%, -100%) rotate(-7deg) scale(0.82);
             transition:
                 opacity 180ms ease,
                 transform 260ms ease;
@@ -491,12 +491,50 @@
 
         .buddha-light-prompt.is-attached {
             opacity: 1;
-            transform: translate(-50%, -50%) rotate(-1deg) scale(1);
+            transform: translate(-50%, -100%) rotate(-1deg) scale(1);
         }
 
         .buddha-light-prompt.is-closing {
             opacity: 0;
-            transform: translate(-50%, -50%) rotate(8deg) scale(0.72);
+            transform: translate(-50%, -100%) rotate(8deg) scale(0.72);
+            pointer-events: none;
+        }
+
+        .alive-bird-prompt {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            z-index: 18;
+            display: block;
+            width: calc(120px * var(--layout-scale));
+            max-width: calc(100vw - var(--safe-left) - var(--safe-right));
+            padding: 0;
+            border: 0;
+            background: transparent;
+            opacity: 0;
+            transform: translate(-50%, -100%);
+            transition: opacity 180ms ease, transform 260ms ease;
+            user-select: none;
+        }
+
+        .alive-bird-prompt-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 8px 14px rgba(18, 37, 54, 0.24));
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .alive-bird-prompt.is-attached {
+            opacity: 1;
+            transform: translate(-50%, -100%);
+        }
+
+        .alive-bird-prompt.is-closing {
+            opacity: 0;
+            transform: translate(-50%, -100%);
             pointer-events: none;
         }
 
@@ -506,13 +544,13 @@
             top: 50%;
             z-index: 20;
             display: block;
-            width: calc(116px * var(--layout-scale));
+            width: calc(120px * var(--layout-scale));
             max-width: calc(100vw - var(--safe-left) - var(--safe-right));
             padding: 0;
             border: 0;
             background: transparent;
             opacity: 0;
-            transform: translate(-50%, -50%) rotate(7deg) scale(0.82);
+            transform: translate(-50%, -100%) rotate(7deg) scale(0.82);
             transition: opacity 180ms ease, transform 260ms ease;
             user-select: none;
         }
@@ -529,12 +567,12 @@
 
         .explosion-prompt.is-attached {
             opacity: 1;
-            transform: translate(-50%, -50%) rotate(1deg) scale(1);
+            transform: translate(-50%, -100%) rotate(1deg) scale(1);
         }
 
         .explosion-prompt.is-closing {
             opacity: 0;
-            transform: translate(-50%, -50%) rotate(-8deg) scale(0.72);
+            transform: translate(-50%, -100%) rotate(-8deg) scale(0.72);
             pointer-events: none;
         }
 
@@ -1127,6 +1165,7 @@
         let buddhaLightShown = false;
         let buddhaLightPromptShown = false;
         let buddhaLightPromptState = null;
+        const aliveBirdPromptStates = new Map();
         let explosionShown = false;
         let explosionPromptShown = false;
         let explosionPromptState = null;
@@ -1136,8 +1175,18 @@
         let knockedDownBirdCount = 0;
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
-        const buddhaLightAliveThreshold = 2;
-        const explosionAliveThreshold = 8;
+        const testAliveValue = new URLSearchParams(window.location.search).get("testAlive");
+        const parsedTestAliveCount = Number.parseInt(testAliveValue ?? "", 10);
+        const testAliveCount = testAliveValue === null
+            ? null
+            : THREE.MathUtils.clamp(Number.isFinite(parsedTestAliveCount) ? parsedTestAliveCount : 0, 0, 100);
+        const buddhaLightAliveThreshold = 28;
+        const explosionAliveThreshold = 88;
+        const aliveBirdPromptThresholds = [6, 7, 9, 10, 13, 15, 17, 20, 26, 33, 35, 50, 58, 60, 77];
+        const aliveBirdPromptExperiences = new Map([
+            [13, { url: "./NoJ/index.html", windowName: "noj_experience", label: "NoJ" }]
+        ]);
+        const shownAliveBirdPrompts = new Set();
         const marqueeStats = {
             alive: "0",
             currentKills: "0",
@@ -2619,27 +2668,25 @@
             return buddhaLightPopupWindow;
         }
 
-        const buddhaPromptWorldPosition = new THREE.Vector3();
-        const buddhaPromptScreenPosition = new THREE.Vector3();
-
         function getBirdScreenPosition(bird) {
-            if (!bird?.root) {
+            if (!bird?.visual) {
                 return null;
             }
 
-            bird.root.getWorldPosition(buddhaPromptWorldPosition);
-            buddhaPromptScreenPosition.copy(buddhaPromptWorldPosition).project(camera);
-
+            const bounds = getProjectedScreenBounds(bird.visual, camera);
             if (
-                Math.abs(buddhaPromptScreenPosition.x) > 1.4 ||
-                Math.abs(buddhaPromptScreenPosition.y) > 1.4
+                !bounds ||
+                bounds.right < 0 ||
+                bounds.left > appViewport.width ||
+                bounds.bottom < 0 ||
+                bounds.top > appViewport.height
             ) {
                 return null;
             }
 
             return {
-                x: (buddhaPromptScreenPosition.x * 0.5 + 0.5) * appViewport.width,
-                y: (-buddhaPromptScreenPosition.y * 0.5 + 0.5) * appViewport.height
+                x: bounds.centerX,
+                y: bounds.top
             };
         }
 
@@ -2650,15 +2697,13 @@
                 return false;
             }
 
-            const offsetX = -14 * appViewport.layoutScale;
-            const offsetY = -58 * appViewport.layoutScale;
             const x = THREE.MathUtils.clamp(
-                birdPosition.x + offsetX,
+                birdPosition.x,
                 118 * appViewport.layoutScale,
                 appViewport.width - 118 * appViewport.layoutScale
             );
             const y = THREE.MathUtils.clamp(
-                birdPosition.y + offsetY,
+                birdPosition.y,
                 62 * appViewport.layoutScale,
                 appViewport.height - 76 * appViewport.layoutScale
             );
@@ -2669,8 +2714,154 @@
             return true;
         }
 
-        function pickVisiblePromptBird(excludedBird = null) {
-            return getFlyingBirds(excludedBird).find((bird) => getBirdScreenPosition(bird));
+        function pickUnboundVisiblePromptBird(currentBird = null) {
+            const boundBirds = new Set();
+            aliveBirdPromptStates.forEach((state) => {
+                if (state.bird !== currentBird) {
+                    boundBirds.add(state.bird);
+                }
+            });
+            if (buddhaLightPromptState?.bird !== currentBird) {
+                boundBirds.add(buddhaLightPromptState?.bird);
+            }
+            if (explosionPromptState?.bird !== currentBird) {
+                boundBirds.add(explosionPromptState?.bird);
+            }
+
+            return getFlyingBirds().find((bird) => (
+                !boundBirds.has(bird) && getBirdScreenPosition(bird)
+            ));
+        }
+
+        function updateAliveBirdPromptPosition() {
+            aliveBirdPromptStates.forEach((state, threshold) => {
+                const { element, bird } = state;
+                if (!element.isConnected) {
+                    aliveBirdPromptStates.delete(threshold);
+                    return;
+                }
+
+                if (
+                    !bird?.isActive ||
+                    bird.isGrounded ||
+                    bird.isCrashed ||
+                    !positionBuddhaLightPrompt(element, bird)
+                ) {
+                    const nextBird = pickUnboundVisiblePromptBird(bird);
+                    if (!nextBird) {
+                        element.classList.remove("is-attached");
+                        return;
+                    }
+                    state.bird = nextBird;
+                    positionBuddhaLightPrompt(element, nextBird);
+                }
+            });
+        }
+
+        function openExploVideos() {
+            localStorage.setItem("exploAudioEnabled", "1");
+            const runId = Date.now();
+            const screenLeft = window.screen.availLeft ?? 0;
+            const screenTop = window.screen.availTop ?? 0;
+            const firstWindow = window.open(
+                new URL("./explo/player.html", window.location.href).href,
+                `explo_player_${runId}`,
+                `popup=yes,width=832,height=468,left=${screenLeft + 24},top=${screenTop + 24},resizable=yes`
+            );
+            const secondWindow = window.open(
+                new URL("./explo/player2.html?delay=0", window.location.href).href,
+                `explo_player_2_${runId}`,
+                `popup=yes,width=480,height=360,left=${screenLeft + Math.max(24, window.screen.availWidth - 504)},top=${screenTop + Math.max(24, window.screen.availHeight - 384)},resizable=yes`
+            );
+
+            [firstWindow, secondWindow].forEach((popupWindow) => {
+                if (popupWindow) {
+                    popupWindows.add(popupWindow);
+                }
+            });
+
+            if (firstWindow) {
+                const beginFirstVideo = window.setInterval(() => {
+                    if (firstWindow.closed) {
+                        window.clearInterval(beginFirstVideo);
+                    } else if (typeof firstWindow.beginExplo === "function") {
+                        firstWindow.beginExplo();
+                        window.clearInterval(beginFirstVideo);
+                    }
+                }, 200);
+            }
+
+            if (!firstWindow || !secondWindow) {
+                hud.innerHTML = "影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+            } else {
+                secondWindow.focus();
+            }
+        }
+
+        function showAliveBirdPrompt(threshold) {
+            if (aliveBirdPromptStates.has(threshold)) {
+                return;
+            }
+
+            const promptBird = pickUnboundVisiblePromptBird();
+            if (!promptBird) {
+                return;
+            }
+
+            const prompt = document.createElement("button");
+            prompt.className = "alive-bird-prompt";
+            prompt.type = "button";
+            prompt.innerHTML = `
+                <img class="alive-bird-prompt-image" src="./活鴿子講話/${threshold}.svg" alt="活鴿子達到 ${threshold} 隻的對話">
+            `;
+            prompt.setAttribute("aria-label", `關閉活鴿子達到 ${threshold} 隻的對話`);
+            aliveBirdPromptStates.set(threshold, {
+                element: prompt,
+                bird: promptBird,
+                threshold
+            });
+            shownAliveBirdPrompts.add(threshold);
+            positionBuddhaLightPrompt(prompt, promptBird);
+
+            prompt.addEventListener("pointerdown", (event) => {
+                event.stopPropagation();
+            });
+
+            prompt.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (threshold === 58) {
+                    openExploVideos();
+                }
+                const experience = aliveBirdPromptExperiences.get(threshold);
+                if (experience) {
+                    const experienceWindow = window.open(
+                        new URL(experience.url, window.location.href).href,
+                        experience.windowName,
+                        "popup=yes,width=960,height=720,resizable=yes,scrollbars=yes"
+                    );
+                    if (experienceWindow) {
+                        popupWindows.add(experienceWindow);
+                        experienceWindow.focus();
+                    } else {
+                        hud.innerHTML = `${experience.label} 小視窗被瀏覽器擋下<br>請允許彈出式視窗`;
+                    }
+                }
+                prompt.classList.add("is-closing");
+                window.setTimeout(() => prompt.remove(), 180);
+                aliveBirdPromptStates.delete(threshold);
+            });
+
+            document.body.appendChild(prompt);
+            requestAnimationFrame(updateAliveBirdPromptPosition);
+        }
+
+        function showAliveBirdPromptIfNeeded() {
+            const aliveCount = getAliveBirdCount();
+            const pendingThresholds = aliveBirdPromptThresholds.filter((threshold) => (
+                threshold <= aliveCount && !shownAliveBirdPrompts.has(threshold)
+            ));
+            pendingThresholds.forEach(showAliveBirdPrompt);
         }
 
         function updateBuddhaLightPromptPosition() {
@@ -2686,7 +2877,7 @@
             }
 
             if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
-                const nextBird = pickVisiblePromptBird(explosionPromptState?.bird);
+                const nextBird = pickUnboundVisiblePromptBird(bird);
                 if (!nextBird) {
                     element.classList.remove("is-attached");
                     return;
@@ -2697,7 +2888,7 @@
             }
 
             if (!positionBuddhaLightPrompt(element, bird)) {
-                const nextBird = pickVisiblePromptBird(explosionPromptState?.bird);
+                const nextBird = pickUnboundVisiblePromptBird(bird);
                 if (nextBird) {
                     buddhaLightPromptState.bird = nextBird;
                     positionBuddhaLightPrompt(element, nextBird);
@@ -2710,7 +2901,7 @@
                 return;
             }
 
-            const promptBird = pickVisiblePromptBird(explosionPromptState?.bird);
+            const promptBird = pickUnboundVisiblePromptBird();
             if (!promptBird) {
                 return;
             }
@@ -2721,7 +2912,7 @@
             prompt.className = "buddha-light-prompt";
             prompt.type = "button";
             prompt.innerHTML = `
-                <img class="buddha-light-prompt-image" src="./佛光砲提問.svg" alt="你要不要吃大便？要，不要">
+                <img class="buddha-light-prompt-image" src="./活鴿子講話/28.svg" alt="你要不要吃大便？要，不要">
             `;
             prompt.setAttribute("aria-label", "是否要播放佛光砲，是");
             buddhaLightPromptState = {
@@ -2755,6 +2946,7 @@
             if (
                 buddhaLightShown ||
                 buddhaLightPromptShown ||
+                explosionPromptState ||
                 getAliveBirdCount() < buddhaLightAliveThreshold
             ) {
                 return;
@@ -2793,15 +2985,13 @@
                 return false;
             }
 
-            const offsetX = 0;
-            const offsetY = -58 * appViewport.layoutScale;
             const x = THREE.MathUtils.clamp(
-                birdPosition.x + offsetX,
+                birdPosition.x,
                 96 * appViewport.layoutScale,
                 appViewport.width - 96 * appViewport.layoutScale
             );
             const y = THREE.MathUtils.clamp(
-                birdPosition.y + offsetY,
+                birdPosition.y,
                 54 * appViewport.layoutScale,
                 appViewport.height - 68 * appViewport.layoutScale
             );
@@ -2825,7 +3015,7 @@
             }
 
             if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
-                const nextBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+                const nextBird = pickUnboundVisiblePromptBird(bird);
                 if (!nextBird) {
                     element.classList.remove("is-attached");
                     return;
@@ -2836,7 +3026,7 @@
             }
 
             if (!positionExplosionPrompt(element, bird)) {
-                const nextBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+                const nextBird = pickUnboundVisiblePromptBird(bird);
                 if (nextBird) {
                     explosionPromptState.bird = nextBird;
                     positionExplosionPrompt(element, nextBird);
@@ -2849,7 +3039,7 @@
                 return;
             }
 
-            const promptBird = pickVisiblePromptBird(buddhaLightPromptState?.bird);
+            const promptBird = pickUnboundVisiblePromptBird();
             if (!promptBird) {
                 return;
             }
@@ -2859,7 +3049,7 @@
             prompt.className = "explosion-prompt";
             prompt.type = "button";
             prompt.innerHTML = `
-                <img class="explosion-prompt-image" src="./88p.svg" alt="播放爆炸">
+                <img class="explosion-prompt-image" src="./活鴿子講話/88.svg" alt="播放大爆炸">
             `;
             prompt.setAttribute("aria-label", "播放爆炸影片");
             explosionPromptState = {
@@ -2891,6 +3081,7 @@
             if (
                 explosionShown ||
                 explosionPromptShown ||
+                buddhaLightPromptState ||
                 getAliveBirdCount() < explosionAliveThreshold
             ) {
                 return;
@@ -3650,8 +3841,16 @@
                 birdTemplate.userData.baseScale = scale;
                 applyScaledModelSize(birdTemplate, scale);
 
-                hud.innerHTML = "動作模型載入完成<br>正在套用互動動畫";
-                spawnWave(0);
+                if (testAliveCount === null) {
+                    hud.innerHTML = "動作模型載入完成<br>正在套用互動動畫";
+                    spawnWave(0);
+                } else {
+                    for (let index = 0; index < testAliveCount; index += 1) {
+                        spawnBird(0);
+                    }
+                    nextSpawnAt = Number.POSITIVE_INFINITY;
+                    hud.innerHTML = `測試模式<br>已設定 ${testAliveCount} 隻存活鴿子`;
+                }
             },
             undefined,
             (error) => {
@@ -3813,6 +4012,8 @@
             });
 
             updateAliveMarqueeStat();
+            showAliveBirdPromptIfNeeded();
+            updateAliveBirdPromptPosition();
             openBuddhaLightCannonIfNeeded();
             updateBuddhaLightPromptPosition();
             openExplosionIfNeeded();

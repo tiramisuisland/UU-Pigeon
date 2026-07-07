@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Explo Player 2</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Futura, "Futura PT", Avenir, "Century Gothic", Arial, "Noto Sans TC", sans-serif;
+      background: #000;
+      color: #fff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background: #000;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .stage {
+      position: fixed;
+      inset: 0;
+      background: #000;
+    }
+
+    .video-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .35s ease;
+    }
+
+    .video-layer.is-visible {
+      opacity: 1;
+    }
+
+    .control-zone {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      z-index: 5;
+      padding: 46px 14px 14px 46px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      backdrop-filter: none;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .22s ease, transform .22s ease;
+      pointer-events: none;
+    }
+
+    .controls.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .icon {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      padding: 0;
+      color: #fff;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-weight: 300;
+      line-height: 1;
+    }
+
+    .icon.speed {
+      width: 36px;
+      font-size: 15px;
+    }
+
+    .speaker {
+      width: 25px;
+      height: 25px;
+      fill: #fff;
+    }
+
+    .speaker.is-muted {
+      opacity: .44;
+    }
+
+    .volume {
+      width: 96px;
+      accent-color: #fff;
+      opacity: 1;
+      transition: opacity .18s ease;
+    }
+
+    .volume.is-muted {
+      opacity: .44;
+    }
+
+    .start {
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      display: none;
+      place-items: center;
+      border: 0;
+      color: #fff;
+      background: #000;
+      cursor: pointer;
+      font-size: 34px;
+      font-weight: 300;
+    }
+
+    .start.is-visible {
+      display: grid;
+    }
+
+    @media (max-width: 520px) {
+      .control-zone {
+        left: 50%;
+        right: auto;
+        bottom: 0;
+        padding: 12px;
+        transform: translateX(-50%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="影片播放區">
+    <video class="video-layer" id="video" src="explo1.mp4" playsinline loop preload="auto" autoplay muted></video>
+  </main>
+
+  <button class="start" id="start" type="button" aria-label="開始播放">▶</button>
+
+  <div class="control-zone">
+    <div class="controls" aria-label="影片控制器">
+      <button class="icon" id="mute" type="button" aria-label="靜音">
+        <svg class="speaker" id="speaker" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M6 25c0-2.2 1.8-4 4-4h12L43 3c1.9-1.6 5-.3 5 2.2v53.6c0 2.5-3.1 3.8-5 2.2L22 43H10c-2.2 0-4-1.8-4-4V25z"/>
+        </svg>
+      </button>
+      <input class="volume" id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="音量">
+      <button class="icon speed" id="speed" type="button" aria-label="切換速度">>></button>
+    </div>
+  </div>
+
+  <script>
+    const start = document.querySelector("#start");
+    const mute = document.querySelector("#mute");
+    const speaker = document.querySelector("#speaker");
+    const volume = document.querySelector("#volume");
+    const speed = document.querySelector("#speed");
+    const controls = document.querySelector(".controls");
+    const video = document.querySelector("#video");
+    const rates = [1, 2, 3, 4];
+    const delay = Number(new URLSearchParams(window.location.search).get("delay") || 0);
+
+    let rateIndex = 0;
+    let started = false;
+    let isMuted = true;
+
+    function applySettings() {
+      const nextVolume = Number(volume.value);
+      const nextRate = rates[rateIndex];
+      const muted = isMuted || nextVolume === 0;
+
+      video.volume = nextVolume;
+      video.muted = muted;
+      video.playbackRate = nextRate;
+
+      speaker.classList.toggle("is-muted", muted);
+      volume.classList.toggle("is-muted", muted);
+      speed.setAttribute("aria-label", `切換速度，目前 ${nextRate}x`);
+      speed.textContent = ">".repeat(rateIndex + 1);
+    }
+
+    async function playVideo() {
+      video.currentTime = 0;
+      video.classList.add("is-visible");
+      await video.play();
+    }
+
+    function resizeToVideoPixels() {
+      if (!video.videoWidth || !video.videoHeight) return;
+
+      const chromeWidth = window.outerWidth - window.innerWidth;
+      const chromeHeight = window.outerHeight - window.innerHeight;
+      window.resizeTo(video.videoWidth + chromeWidth, video.videoHeight + chromeHeight);
+    }
+
+    async function begin(preferAudio = false) {
+      if (started) return;
+      started = true;
+      start.classList.remove("is-visible");
+      isMuted = !preferAudio || localStorage.getItem("exploAudioEnabled") !== "1";
+      applySettings();
+
+      try {
+        await playVideo();
+      } catch (error) {
+        try {
+          isMuted = true;
+          applySettings();
+          await playVideo();
+        } catch (mutedError) {
+          started = false;
+          start.classList.add("is-visible");
+        }
+      }
+    }
+
+    volume.addEventListener("input", () => {
+      isMuted = Number(volume.value) === 0;
+      applySettings();
+    });
+    mute.addEventListener("click", () => {
+      isMuted = !isMuted;
+      if (!isMuted && Number(volume.value) === 0) {
+        volume.value = "0.8";
+      }
+      applySettings();
+    });
+    speed.addEventListener("click", () => {
+      rateIndex = (rateIndex + 1) % rates.length;
+      applySettings();
+    });
+    let controlsTimer = 0;
+
+    function showControls() {
+      controls.classList.add("is-visible");
+      window.clearTimeout(controlsTimer);
+      controlsTimer = window.setTimeout(() => {
+        if (!controls.matches(":hover") && document.activeElement !== volume) {
+          controls.classList.remove("is-visible");
+        }
+      }, 1200);
+    }
+
+    function hideControls() {
+      window.clearTimeout(controlsTimer);
+      controls.classList.remove("is-visible");
+    }
+
+    window.addEventListener("mousemove", showControls);
+    window.addEventListener("mouseenter", showControls);
+    window.addEventListener("mouseleave", hideControls);
+    window.addEventListener("blur", hideControls);
+    start.addEventListener("click", () => begin(true));
+
+    let scheduled = false;
+
+    function scheduleBegin() {
+      if (scheduled) return;
+      scheduled = true;
+
+      window.setTimeout(() => {
+        window.focus();
+        begin(true);
+      }, delay);
+    }
+
+    window.addEventListener("DOMContentLoaded", scheduleBegin);
+    window.addEventListener("pageshow", scheduleBegin);
+    video.addEventListener("loadedmetadata", resizeToVideoPixels, { once: true });
+  </script>
+</body>
+</html>
