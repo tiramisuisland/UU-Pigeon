@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CS Gallery</title>
+    <link rel="stylesheet" href="./styles.css?v=20260707-hide-target-card" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main id="game">
+      <canvas id="stage" aria-label="WebGL first person gallery shooting game"></canvas>
+      <div id="visionOverlay" class="visionOverlay" aria-hidden="true"></div>
+
+      <section id="startPanel" class="loadingPanel" aria-label="Loading game assets">
+        <div class="loadingPanel__inner">
+          <img class="loadingPanel__face" src="./assets/smile copy.svg" alt="" />
+          <div class="loadingPanel__progress" aria-hidden="true">
+            <span id="loadingProgressBar"></span>
+            <strong id="loadingProgressText">0%</strong>
+          </div>
+        </div>
+      </section>
+
+      <section id="endPanel" class="panel panel--hidden">
+        <div class="panel__inner">
+          <p class="kicker">TARGET DESTROYED</p>
+          <h2 id="endTitle">指定作品已損毀</h2>
+          <p id="endMessage">瀏覽器若阻擋自動關閉，請直接關閉此視窗或分頁。</p>
+        </div>
+      </section>
+
+      <div class="hud" aria-hidden="true">
+        <div class="radar">
+          <span class="radar__sweep"></span>
+          <span id="radarGoalDot" class="radar__dot radar__dot--goal"></span>
+          <span id="radarGlassesDot" class="radar__dot radar__dot--glasses"></span>
+          <span id="radarWeaponDot" class="radar__dot radar__dot--weapon"></span>
+          <span class="radar__dot radar__dot--player"></span>
+        </div>
+
+        <div class="targetCard">
+          <span>指定作品</span>
+          <strong id="targetName">載入中</strong>
+          <small id="targetHealth">完整度 100%</small>
+        </div>
+
+        <div class="crosshair">
+          <span></span><span></span><span></span><span></span>
+        </div>
+
+        <div class="statusBar">
+          <span>HP <strong id="hp">100</strong></span>
+          <span>ARMOR <strong id="armor">100</strong></span>
+          <span>AMMO <strong id="ammo">∞</strong></span>
+        </div>
+
+        <div id="hitMarker" class="hitMarker">×</div>
+        <div id="pickupNotice" class="pickupNotice">視線無法對焦，尋找眼鏡</div>
+        <div id="damageOverlay" class="damageOverlay"></div>
+        <div id="dialogueLog" class="dialogueLog"></div>
+      </div>
+    </main>
+
+    <script type="module" src="./src/main.js?v=20260707-restore-lighting"></script>
+  </body>
+</html>

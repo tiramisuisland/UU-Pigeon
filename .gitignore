@@ -65,3 +65,6 @@ Pods/
 *.pem
 *.key
 uu-pigeon-web.tar
+
+# Local project toolchains (downloaded binaries; never commit)
+**/.tools/

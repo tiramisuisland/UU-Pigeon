@@ -2614,6 +2614,30 @@
             });
         }
 
+        function openCsGalleryIfNeeded() {
+            if (knockedDownBirdCount !== 18) {
+                return;
+            }
+
+            const width = Math.min(1200, Math.round(window.screen.availWidth * 0.86));
+            const height = Math.min(800, Math.round(window.screen.availHeight * 0.86));
+            const left = (window.screen.availLeft ?? 0) + Math.round((window.screen.availWidth - width) / 2);
+            const top = (window.screen.availTop ?? 0) + Math.round((window.screen.availHeight - height) / 2);
+            const gameWindow = window.open(
+                new URL("./CS個展/index.html", window.location.href).href,
+                "cs_gallery_game",
+                `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no`
+            );
+
+            if (!gameWindow) {
+                hud.innerHTML = "CS 個展遊戲視窗被瀏覽器擋下<br>請允許彈出式視窗";
+                return;
+            }
+
+            popupWindows.add(gameWindow);
+            gameWindow.focus();
+        }
+
         function setTestKillCount(count) {
             if (!testKillsMode) {
                 return false;
@@ -2636,6 +2660,7 @@
             }
             setMarqueeStat("currentKills", knockedDownBirdCount);
             openKillCountVideoIfNeeded();
+            openCsGalleryIfNeeded();
             openVideoPlaylistAfterTwentyKillsIfNeeded();
             openBirdCameraPopupIfNeeded();
             return true;
@@ -4238,6 +4263,7 @@
             }
             hud.innerHTML = "命中一隻鴿子<br>牠丟下「幹麻打我」後墜落";
             openKillCountVideoIfNeeded();
+            openCsGalleryIfNeeded();
             openBirdCameraPopupIfNeeded(hitBird);
             if (hitBird === birdCameraTargetBird) {
                 scheduleBirdCameraClose(clock.elapsedTime);
