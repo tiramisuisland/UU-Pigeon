@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UU Pigeon｜擊殺數量測試</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      background: #111820;
+      color: #fff;
+      font-family: Arial, "Noto Sans TC", sans-serif;
+    }
+    .toolbar {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      min-height: 62px;
+      padding: 10px 14px;
+      background: rgba(13, 20, 28, 0.94);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+    }
+    label { font-size: 14px; font-weight: 700; }
+    input, button {
+      min-height: 38px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 8px;
+      font: inherit;
+    }
+    input {
+      width: 92px;
+      padding: 0 10px;
+      background: #fff;
+      color: #111;
+    }
+    button {
+      padding: 0 14px;
+      background: #f4d83f;
+      color: #171717;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .preset { background: #fff; }
+    .status { min-width: 130px; font-size: 13px; color: #bfe7ff; }
+    iframe {
+      position: fixed;
+      inset: 62px 0 0;
+      width: 100%;
+      height: calc(100% - 62px);
+      border: 0;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <form class="toolbar" id="test-form">
+    <label for="kill-count">目前擊殺數量</label>
+    <input id="kill-count" type="number" min="0" max="999" step="1" value="5" required>
+    <button type="submit">觸發測試</button>
+    <button class="preset" type="button" data-count="5">5</button>
+    <button class="preset" type="button" data-count="6">6</button>
+    <button class="preset" type="button" data-count="7">7</button>
+    <button class="preset" type="button" data-count="8">8</button>
+    <button class="preset" type="button" data-count="9">9</button>
+    <button class="preset" type="button" data-count="10">10</button>
+    <button class="preset" type="button" data-count="20">20</button>
+    <button class="preset" type="button" data-count="23">23</button>
+    <span class="status" id="status">載入測試畫面中…</span>
+  </form>
+
+  <iframe
+    id="game"
+    src="./index.html?testAlive=30&testKillsMode=1"
+    title="UU Pigeon 擊殺數量測試"
+  ></iframe>
+
+  <script>
+    const form = document.querySelector("#test-form");
+    const input = document.querySelector("#kill-count");
+    const game = document.querySelector("#game");
+    const status = document.querySelector("#status");
+
+    function triggerTest(count) {
+      const safeCount = Math.min(999, Math.max(0, Number.parseInt(count, 10) || 0));
+      input.value = safeCount;
+      const applied = game.contentWindow?.setTestKillCount?.(safeCount);
+      status.textContent = applied
+        ? `已觸發第 ${safeCount} 隻`
+        : "主畫面尚未載入完成";
+    }
+
+    game.addEventListener("load", () => {
+      status.textContent = "可以開始測試";
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      triggerTest(input.value);
+    });
+
+    document.querySelectorAll("[data-count]").forEach((button) => {
+      button.addEventListener("click", () => triggerTest(button.dataset.count));
+    });
+  </script>
+</body>
+</html>

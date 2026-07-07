@@ -1175,7 +1175,9 @@
         let knockedDownBirdCount = 0;
         let globalVolume = 100;
         let lastAliveBirdCount = -1;
-        const testAliveValue = new URLSearchParams(window.location.search).get("testAlive");
+        const pageSearchParams = new URLSearchParams(window.location.search);
+        const testAliveValue = pageSearchParams.get("testAlive");
+        const testKillsMode = pageSearchParams.has("testKillsMode");
         const parsedTestAliveCount = Number.parseInt(testAliveValue ?? "", 10);
         const testAliveCount = testAliveValue === null
             ? null
@@ -2612,6 +2614,35 @@
             });
         }
 
+        function setTestKillCount(count) {
+            if (!testKillsMode) {
+                return false;
+            }
+
+            knockedDownBirdCount = THREE.MathUtils.clamp(
+                Number.parseInt(count, 10) || 0,
+                0,
+                999
+            );
+            if (knockedDownBirdCount === 20) {
+                if (buttonModelPopupWindow && !buttonModelPopupWindow.closed) {
+                    buttonModelPopupWindow.close();
+                }
+                buttonModelPopupWindow = null;
+                videoPlaylistPopupOpened = false;
+            }
+            if (knockedDownBirdCount === 23) {
+                closeBirdCameraPopup();
+            }
+            setMarqueeStat("currentKills", knockedDownBirdCount);
+            openKillCountVideoIfNeeded();
+            openVideoPlaylistAfterTwentyKillsIfNeeded();
+            openBirdCameraPopupIfNeeded();
+            return true;
+        }
+
+        window.setTestKillCount = setTestKillCount;
+
         function openAnthemPopup() {
             if (anthemPopupOpened) {
                 return;
@@ -2895,6 +2926,10 @@
         }
 
         function showAliveBirdPromptIfNeeded() {
+            if (testKillsMode) {
+                return;
+            }
+
             const aliveCount = getAliveBirdCount();
             const pendingThresholds = aliveBirdPromptThresholds.filter((threshold) => (
                 threshold <= aliveCount && !shownAliveBirdPrompts.has(threshold)
@@ -2982,6 +3017,7 @@
 
         function openBuddhaLightCannonIfNeeded() {
             if (
+                testKillsMode ||
                 buddhaLightShown ||
                 buddhaLightPromptShown ||
                 explosionPromptState ||
@@ -3117,6 +3153,7 @@
 
         function openExplosionIfNeeded() {
             if (
+                testKillsMode ||
                 explosionShown ||
                 explosionPromptShown ||
                 buddhaLightPromptState ||
