@@ -17,6 +17,7 @@
   const mainPage = document.getElementById("main-page");
   const loadingValue = document.getElementById("loading-value");
   const pullCue = document.getElementById("pull-cue");
+  const scrollCue = document.getElementById("scroll-cue");
   const track = document.getElementById("loading-track");
   const handle = document.getElementById("loading-handle");
   const loadingTip = document.getElementById("loading-tip");
@@ -43,6 +44,7 @@
     }
 
     positionLoadingTip();
+    updateScrollCue();
   }
 
   function startFakeAutoLoad() {
@@ -239,6 +241,18 @@
     loadingTip?.classList.remove("is-visible");
   }
 
+  function updateScrollCue() {
+    if (!scrollCue || entered) {
+      return;
+    }
+
+    const rect = track.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const trackBelowViewport = rect.top > viewportHeight - 42;
+    const trackBottomClipped = rect.bottom > viewportHeight - 12 && rect.top > 0;
+    scrollCue.classList.toggle("is-visible", trackBelowViewport || trackBottomClipped);
+  }
+
   function createFxSlices() {
     document.querySelectorAll(".svg-fx[data-slices]").forEach((container) => {
       const count = Number(container.dataset.slices) || 10;
@@ -385,6 +399,7 @@
     setProgress(COMPLETE, AUTO_END, COMPLETE);
     document.body.classList.remove("is-loading-dragging");
     hidePullCue();
+    scrollCue?.classList.remove("is-visible");
     document.body.classList.add("entered");
     mainPage.setAttribute("aria-hidden", "false");
     overlay.classList.add("is-leaving");
@@ -425,8 +440,18 @@
   window.addEventListener("pointermove", drag);
   window.addEventListener("pointerup", endDrag);
   window.addEventListener("pointercancel", endDrag);
-  window.addEventListener("resize", positionLoadingTip);
-  window.addEventListener("scroll", positionLoadingTip, { passive: true });
+  window.addEventListener("resize", () => {
+    positionLoadingTip();
+    updateScrollCue();
+  });
+  window.addEventListener("scroll", () => {
+    positionLoadingTip();
+    updateScrollCue();
+  }, { passive: true });
+  overlay.addEventListener("scroll", () => {
+    positionLoadingTip();
+    updateScrollCue();
+  }, { passive: true });
 
   track.addEventListener("keydown", (event) => {
     if (!canDrag) return;
@@ -439,6 +464,7 @@
   createJitterLetters();
   createFxSlices();
   setProgress(0, 0, AUTO_END);
+  updateScrollCue();
   window.setTimeout(startFakeAutoLoad, EMPTY_HOLD);
   preloadMedia(mediaToPreload);
 })();
