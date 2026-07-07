@@ -51,7 +51,7 @@
 
     .stage {
       position: relative;
-      width: min(480px, 100vw, calc(100vh * 1.142857));
+      width: min(400px, 100vw, calc(100vh * 1.142857));
       aspect-ratio: 1200 / 1050;
       display: grid;
       place-items: center;
@@ -293,7 +293,7 @@
       letter-spacing: 0;
     }
 
-    @media (max-width: 480px), (max-height: 420px) {
+    @media (max-width: 400px), (max-height: 350px) {
       .symbol {
         height: clamp(56px, 20vw, 72px);
         font-size: clamp(2.5rem, 15vw, 3.4rem);
@@ -326,7 +326,7 @@
 
       <div class="result-badge" id="resultBadge" aria-live="polite" aria-hidden="true">
         <span class="result-number" id="resultNumber">886</span>
-        <span class="result-message" id="resultMessage">BYE~ BYE</span>
+        <span class="result-message" id="resultMessage">Target number is 88</span>
       </div>
     </section>
   </main>
@@ -344,7 +344,7 @@
     const outcomeMessages = {
       "777": "loser",
       "444": "hahaha",
-      "886": "BYE~ BYE"
+      "886": "Target number is 88"
     };
     let isSpinning = false;
     let pullsSince886 = 0;
