@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>影片</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        video {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <video autoplay playsinline></video>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const video = document.querySelector("video");
+        const videoSrc = params.get("video");
+        const popupTitle = params.get("label");
+        const initialVolume = Number(params.get("volume"));
+
+        if (popupTitle) {
+            document.title = popupTitle;
+        }
+
+        video.volume = Number.isFinite(initialVolume)
+            ? Math.max(0, Math.min(1, initialVolume))
+            : 1;
+
+        function playVideo() {
+            video.muted = false;
+            video.play().catch(() => {
+                video.muted = true;
+                video.play().catch(() => {});
+            });
+        }
+
+        function fitWindowToVideo() {
+            if (!video.videoWidth || !video.videoHeight) {
+                return;
+            }
+
+            const maxWidth = Math.min(window.screen.availWidth * 0.9, 1200);
+            const maxHeight = Math.min(window.screen.availHeight * 0.9, 900);
+            const scale = Math.min(
+                maxWidth / video.videoWidth,
+                maxHeight / video.videoHeight
+            );
+            const targetInnerWidth = Math.round(video.videoWidth * scale);
+            const targetInnerHeight = Math.round(video.videoHeight * scale);
+            window.resizeBy(
+                targetInnerWidth - window.innerWidth,
+                targetInnerHeight - window.innerHeight
+            );
+        }
+
+        window.addEventListener("message", (event) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+
+            if (event.data?.type === "set-global-volume") {
+                video.volume = Math.max(0, Math.min(1, Number(event.data.volume) || 0));
+            }
+        });
+
+        window.addEventListener("pointerdown", playVideo);
+        window.addEventListener("focus", playVideo);
+        video.addEventListener("loadedmetadata", fitWindowToVideo, { once: true });
+
+        if (videoSrc) {
+            video.src = videoSrc;
+            playVideo();
+        }
+    </script>
+</body>
+</html>

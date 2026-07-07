@@ -1199,6 +1199,15 @@
             "./assets/videos/video3.mp4"
         ];
         const anthemVideoFile = "./assets/videos/唱國歌.mp4";
+        const nationalJointVideoFile = "./national joint.mp4";
+        const dictatorDeflationKillVideos = new Map([
+            [5, "./獨裁者洩氣/5.mp4"],
+            [6, "./獨裁者洩氣/6.mp4"],
+            [7, "./獨裁者洩氣/7.mp4"],
+            [8, "./獨裁者洩氣/8.mp4"],
+            [9, "./獨裁者洩氣/9.mp4"],
+            [10, "./獨裁者洩氣/10.mp4"]
+        ]);
         const readManPlacement = {
             displaySize: 0.70,
             rightMarginPx: 28,
@@ -2574,12 +2583,27 @@
             videoPlaylistPopupOpened = Boolean(popupWindow);
         }
 
-        function openVideoPlaylistAfterTenKillsIfNeeded() {
-            if (knockedDownBirdCount < 10) {
+        function openVideoPlaylistAfterTwentyKillsIfNeeded() {
+            if (knockedDownBirdCount < 20) {
                 return;
             }
 
             openVideoPlaylistPopup();
+        }
+
+        function openKillCountVideoIfNeeded() {
+            const videoSrc = dictatorDeflationKillVideos.get(knockedDownBirdCount);
+            if (!videoSrc) {
+                return;
+            }
+
+            openButtonModelPopup({
+                videoSrc,
+                label: `擊殺第 ${knockedDownBirdCount} 隻鴿子`,
+                forceNew: true,
+                popupPage: "./pages/plain-video-popup.html",
+                windowName: `dictator_deflation_${knockedDownBirdCount}`
+            });
         }
 
         function openAnthemPopup() {
@@ -2686,7 +2710,7 @@
 
             return {
                 x: bounds.centerX,
-                y: bounds.top
+                y: bounds.top + 8 * appViewport.layoutScale
             };
         }
 
@@ -2830,6 +2854,14 @@
             prompt.addEventListener("click", (event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                if (threshold === 33) {
+                    openButtonModelPopup({
+                        videoSrc: nationalJointVideoFile,
+                        label: "national joint",
+                        forceNew: true,
+                        windowName: "national_joint_popup"
+                    });
+                }
                 if (threshold === 58) {
                     openExploVideos();
                 }
@@ -3154,7 +3186,7 @@
         }
 
         function openBirdCameraPopupIfNeeded(excludedBird = null) {
-            if (birdCameraPopupOpened || knockedDownBirdCount !== 5) {
+            if (birdCameraPopupOpened || knockedDownBirdCount !== 23) {
                 return;
             }
 
@@ -3163,7 +3195,7 @@
             birdCameraCloseAt = -1;
             const popupWindow = openBirdCameraPopup();
             if (popupWindow) {
-                hud.innerHTML = "第五隻鴿子被擊落<br>已開啟鴿子身上的即時攝影機";
+                hud.innerHTML = "第二十三隻鴿子被擊落<br>已開啟鴿子身上的即時攝影機";
             }
         }
 
@@ -4162,11 +4194,12 @@
                 hitBird.mixer.stopAllAction();
             }
             hud.innerHTML = "命中一隻鴿子<br>牠丟下「幹麻打我」後墜落";
+            openKillCountVideoIfNeeded();
             openBirdCameraPopupIfNeeded(hitBird);
             if (hitBird === birdCameraTargetBird) {
                 scheduleBirdCameraClose(clock.elapsedTime);
             }
-            openVideoPlaylistAfterTenKillsIfNeeded();
+            openVideoPlaylistAfterTwentyKillsIfNeeded();
         });
 
         function completeFrontPageEntrance() {
