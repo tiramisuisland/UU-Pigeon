@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CS Gallery</title>
-    <link rel="stylesheet" href="./styles.css?v=20260707-hide-target-card" />
+    <link rel="stylesheet" href="./styles.css?v=20260708-system-ticker" />
     <script type="importmap">
       {
         "imports": {
@@ -32,8 +32,8 @@
       <section id="endPanel" class="panel panel--hidden">
         <div class="panel__inner">
           <p class="kicker">TARGET DESTROYED</p>
-          <h2 id="endTitle">指定作品已損毀</h2>
-          <p id="endMessage">瀏覽器若阻擋自動關閉，請直接關閉此視窗或分頁。</p>
+          <h2 id="endTitle">Target work destroyed</h2>
+          <p id="endMessage">If the browser blocks auto-close, close this tab manually.</p>
         </div>
       </section>
 
@@ -47,28 +47,29 @@
         </div>
 
         <div class="targetCard">
-          <span>指定作品</span>
-          <strong id="targetName">載入中</strong>
-          <small id="targetHealth">完整度 100%</small>
+          <span>Target work</span>
+          <strong id="targetName">Loading</strong>
+          <small id="targetHealth">Integrity 100%</small>
         </div>
 
         <div class="crosshair">
           <span></span><span></span><span></span><span></span>
         </div>
 
-        <div class="statusBar">
-          <span>HP <strong id="hp">100</strong></span>
-          <span>ARMOR <strong id="armor">100</strong></span>
-          <span>AMMO <strong id="ammo">∞</strong></span>
+        <div class="statusBar" id="visionTicker">
+          <div class="statusBar__marquee">
+            <span>NO GLASSES EQUIPPED - NEAR OBJECTS MAY NOT FOCUS - LOCATE THE GLASSES TO CLEAR YOUR VISION</span>
+            <span>NO GLASSES EQUIPPED - NEAR OBJECTS MAY NOT FOCUS - LOCATE THE GLASSES TO CLEAR YOUR VISION</span>
+          </div>
         </div>
 
         <div id="hitMarker" class="hitMarker">×</div>
-        <div id="pickupNotice" class="pickupNotice">視線無法對焦，尋找眼鏡</div>
+        <div id="pickupNotice" class="pickupNotice pickupNotice--hidden">Vision cannot focus. Find the glasses.</div>
         <div id="damageOverlay" class="damageOverlay"></div>
         <div id="dialogueLog" class="dialogueLog"></div>
       </div>
     </main>
 
-    <script type="module" src="./src/main.js?v=20260707-restore-lighting"></script>
+    <script type="module" src="./src/main.js?v=20260708-wall-emissive-boost"></script>
   </body>
 </html>

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GALLERY_MODEL, GALLERY_VIDEOS, PLAYER, VISITOR_ENTRY_POSITION, VISITORS, WEAPON } from "./asset-manifest.js?v=20260707-safe-null-spawn";
+import { GALLERY_MODEL, GALLERY_VIDEOS, PLAYER, VISITOR_ENTRY_POSITION, VISITORS, WEAPON } from "./asset-manifest.js?v=20260708-voxel-visitors";
 
 const canvas = document.querySelector("#stage");
 const gameEl = document.querySelector("#game");
@@ -14,14 +14,13 @@ const radarGlassesDot = document.querySelector("#radarGlassesDot");
 const radarWeaponDot = document.querySelector("#radarWeaponDot");
 const targetNameEl = document.querySelector("#targetName");
 const targetHealthEl = document.querySelector("#targetHealth");
-const hpEl = document.querySelector("#hp");
-const armorEl = document.querySelector("#armor");
-const ammoEl = document.querySelector("#ammo");
 const hitMarker = document.querySelector("#hitMarker");
 const crosshairEl = document.querySelector(".crosshair");
 const pickupNotice = document.querySelector("#pickupNotice");
 const damageOverlay = document.querySelector("#damageOverlay");
 const dialogueLog = document.querySelector("#dialogueLog");
+const visionTicker = document.querySelector("#visionTicker");
+const visionTickerLines = [...document.querySelectorAll("#visionTicker .statusBar__marquee span")];
 const endTitle = document.querySelector("#endTitle");
 const endMessage = document.querySelector("#endMessage");
 
@@ -40,7 +39,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.92;
+renderer.toneMappingExposure = 0.84;
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
 
@@ -60,6 +59,7 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), presbyopiaMaterial))
 const raycaster = new THREE.Raycaster();
 const focusRaycaster = new THREE.Raycaster();
 const visitorFloorBox = new THREE.Box3();
+const pickupFloorBox = new THREE.Box3();
 const clock = new THREE.Clock();
 const gltfLoader = new GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -93,16 +93,27 @@ const MAX_BULLET_HOLES = 180;
 const GALLERY_COLLIDER_XZ_SHRINK = 0.78;
 const DESTRUCTIBLE_COLLIDER_XZ_SHRINK = 0.56;
 const MD_COLLIDER_XZ_SHRINK = 0.34;
+const CAR_LADDER_COLLIDER_XZ_SHRINK = 0.28;
 const SPACE_DESTRUCTIBLE_HEALTH_MIN = 3;
 const SPACE_DESTRUCTIBLE_HEALTH_MAX = 6;
 const AS_GROUP_HEALTH_MIN = 5;
 const AS_GROUP_HEALTH_MAX = 7;
+const S_IMAGE_DESTRUCTIBLE_HEALTH = 5;
+const S_IMAGE_BRIGHTNESS = 0.55;
+const IMAGE_1783259518580_BRIGHTNESS = 1.38;
+const WALL_BACKLIGHT_BRIGHTNESS = 1.72;
+const WALL_BACKLIGHT_EMISSIVE_INTENSITY = 1.45;
+const CH_ARTWORK_COLOR_CORRECTION = new THREE.Color(0.58, 0.78, 0.7);
+const CH_FRAME_COLOR_CORRECTION = new THREE.Color(0.38, 0.46, 0.42);
 const GALLERY_SHOOT_THROUGH_NAMES = new Set([
   "box001",
   "box002",
   "box001.001",
 ]);
 const SPACE_DESTRUCTIBLE_NAMES = new Set([
+  "ss",
+  "s__28524548",
+  "s__28524548.002",
   "as01",
   "as02",
   "as03",
@@ -136,6 +147,13 @@ const SPACE_DESTRUCTIBLE_NAMES = new Set([
   "mo03",
   "mo04",
 ]);
+const CAR_LADDER_DESTRUCTIBLE_NAMES = new Set([
+  "car01",
+  "car01.001",
+  "ladder.001",
+  "ladder.002",
+  "ladder.003",
+]);
 const SPACE_DESTRUCTIBLE_DAMAGE_LINKS = new Map([
   ["as02", "as01"],
   ["as03", "as01"],
@@ -143,7 +161,17 @@ const SPACE_DESTRUCTIBLE_DAMAGE_LINKS = new Map([
   ["nv2", "n02"],
   ["nv3", "n03"],
   ["nv4", "n04"],
+  ["fv01", "md01"],
+  ["fv02", "md02"],
 ]);
+const VISITOR_HIDE_SPOTS = [
+  new THREE.Vector3(-9.3, WORLD_FLOOR_Y, -13.8),
+  new THREE.Vector3(9.3, WORLD_FLOOR_Y, -13.8),
+  new THREE.Vector3(-9.3, WORLD_FLOOR_Y, 13.8),
+  new THREE.Vector3(9.3, WORLD_FLOOR_Y, 13.8),
+  new THREE.Vector3(-8.8, WORLD_FLOOR_Y, 0.4),
+  new THREE.Vector3(8.8, WORLD_FLOOR_Y, -0.4),
+];
 const galleryDestructibleByObject = new Map();
 const galleryDestructibleById = new Map();
 const pendingLinkedDestructibleMeshes = new Map();
@@ -158,7 +186,6 @@ let recoilYawVelocity = 0;
 let recoilPitchVelocity = 0;
 let aimRecoilOffset = new THREE.Vector2();
 let aimRecoilVelocity = new THREE.Vector2();
-let ammo = Infinity;
 let isPlaying = false;
 let isPointerLocked = false;
 let shotCooldown = 0;
@@ -192,6 +219,8 @@ let entrance;
 let visitorSpawnCooldown = 2.2;
 let spawnedVisitorCount = 0;
 let currentVisionBlur = 5;
+let systemTickerTimer = 0;
+const DEFAULT_TICKER_TEXT = "NO GLASSES EQUIPPED - NEAR OBJECTS MAY NOT FOCUS - LOCATE THE GLASSES TO CLEAR YOUR VISION";
 
 init();
 animate();
@@ -284,7 +313,6 @@ function init() {
   makeEmptyHand();
   makeWeaponPickup();
   updateTargetHud();
-  ammoEl.textContent = "—";
   updateLoadingProgress();
   playGalleryVideos();
 
@@ -350,9 +378,9 @@ function loadPlayerModel(modelPath) {
       model.visible = false;
       player.model = model;
       player.group.add(model);
-      addDialogue("系統", "玩家 GLB 已載入");
+      addDialogue("System", "Player GLB loaded.");
     },
-    () => addDialogue("系統", "玩家 GLB 載入失敗，使用第一人稱替代設定")
+    () => addDialogue("System", "Player GLB failed to load; using first-person fallback.")
   );
 }
 
@@ -450,10 +478,10 @@ function playGunshot() {
 }
 
 function makeLights() {
-  scene.add(new THREE.AmbientLight(0xffffff, 2.15));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xdedede, 1.25));
+  scene.add(new THREE.AmbientLight(0xfff8ef, 1.7));
+  scene.add(new THREE.HemisphereLight(0xfffbf5, 0xe8e4dd, 0.95));
 
-  const fill = new THREE.DirectionalLight(0xffffff, 0.65);
+  const fill = new THREE.DirectionalLight(0xfff3e3, 0.42);
   fill.position.set(0, 8, 0);
   fill.castShadow = true;
   fill.shadow.mapSize.set(2048, 2048);
@@ -471,7 +499,7 @@ function makeLights() {
     [6, 4.2, 8],
   ];
   positions.forEach(([x, y, z]) => {
-    const light = new THREE.PointLight(0xffffff, 1.25, 12, 1.85);
+    const light = new THREE.PointLight(0xffffff, 0.82, 13.5, 2.15);
     light.position.set(x, y, z);
     scene.add(light);
   });
@@ -560,6 +588,10 @@ function tuneGalleryMaterials(model, parser = null) {
   model.traverse((child) => {
     if (!child.isMesh) return;
     const nodeName = child.name?.trim();
+    tuneSImageMaterial(child);
+    tuneImage1783259518580Material(child, nodeName);
+    tuneWallBacklightMaterial(child, nodeName);
+    tuneChArtworkMaterial(child, nodeName);
     const videoConfig = galleryVideoByNode.get(nodeName?.toLowerCase());
     if (videoConfig) {
       applyGalleryVideoMaterial(child, videoConfig, parser);
@@ -613,6 +645,86 @@ function tuneGalleryMaterials(model, parser = null) {
   });
 }
 
+function tuneSImageMaterial(mesh) {
+  const hasSImageMaterial = normalizeMaterialArray(mesh.material).some((material) => {
+    const name = material?.name?.trim().toLowerCase();
+    return name === "s__28524548";
+  });
+  if (!hasSImageMaterial) return;
+
+  mesh.material = normalizeMaterialArray(mesh.material).map((material) => {
+    if (material?.name?.trim().toLowerCase() !== "s__28524548") return material;
+    const tuned = material.clone();
+    tuned.color?.setScalar(S_IMAGE_BRIGHTNESS);
+    tuned.emissive?.set(0x000000);
+    tuned.emissiveIntensity = 0;
+    tuned.metalness = 0;
+    tuned.roughness = Math.max(tuned.roughness ?? 0.5, 0.68);
+    tuned.envMapIntensity = 0.45;
+    tuned.needsUpdate = true;
+    return tuned;
+  });
+  if (mesh.material.length === 1) mesh.material = mesh.material[0];
+}
+
+function tuneImage1783259518580Material(mesh, nodeName = "") {
+  if (nodeName?.toLowerCase() !== "box002") return;
+
+  mesh.material = normalizeMaterialArray(mesh.material).map((material) => {
+    if (!material) return material;
+    const tuned = material.clone();
+    tuned.color?.setScalar(IMAGE_1783259518580_BRIGHTNESS);
+    tuned.emissive?.set(0x000000);
+    tuned.emissiveIntensity = 0;
+    tuned.metalness = 0;
+    tuned.roughness = Math.max(tuned.roughness ?? 0.5, 0.58);
+    tuned.envMapIntensity = 0.38;
+    tuned.needsUpdate = true;
+    return tuned;
+  });
+  if (mesh.material.length === 1) mesh.material = mesh.material[0];
+}
+
+function tuneWallBacklightMaterial(mesh, nodeName = "") {
+  if (nodeName?.toLowerCase() !== "box001.001") return;
+
+  mesh.material = normalizeMaterialArray(mesh.material).map((material) => {
+    if (!material) return material;
+    const tuned = material.clone();
+    tuned.color?.setScalar(WALL_BACKLIGHT_BRIGHTNESS);
+    tuned.emissive?.set(0xffe6c4);
+    tuned.emissiveIntensity = WALL_BACKLIGHT_EMISSIVE_INTENSITY;
+    tuned.metalness = 0;
+    tuned.roughness = Math.max(tuned.roughness ?? 0.5, 0.42);
+    tuned.envMapIntensity = 0.18;
+    tuned.toneMapped = true;
+    tuned.needsUpdate = true;
+    return tuned;
+  });
+  if (mesh.material.length === 1) mesh.material = mesh.material[0];
+}
+
+function tuneChArtworkMaterial(mesh, nodeName = "") {
+  if (!/^ch0[1-6]$/i.test(nodeName)) return;
+
+  mesh.material = normalizeMaterialArray(mesh.material).map((material) => {
+    if (!material) return material;
+    const tuned = material.clone();
+    const materialName = tuned.name?.trim().toLowerCase() ?? "";
+    const isFrame = materialName === "材質.010";
+    tuned.color?.copy(isFrame ? CH_FRAME_COLOR_CORRECTION : CH_ARTWORK_COLOR_CORRECTION);
+    tuned.emissive?.set(0x000000);
+    tuned.emissiveIntensity = 0;
+    tuned.metalness = 0;
+    tuned.roughness = isFrame ? 0.92 : 0.86;
+    tuned.envMapIntensity = isFrame ? 0.08 : 0.12;
+    tuned.toneMapped = true;
+    tuned.needsUpdate = true;
+    return tuned;
+  });
+  if (mesh.material.length === 1) mesh.material = mesh.material[0];
+}
+
 function applyGalleryVideoMaterial(mesh, config, parser) {
   if (mesh.userData.galleryVideo) return;
   mesh.userData.galleryVideo = { video: null, texture: null, config };
@@ -622,13 +734,13 @@ function applyGalleryVideoMaterial(mesh, config, parser) {
       resolveEmbeddedGalleryVideoUrl(parser, config.nodeName)
         .then((videoUrl) => {
           if (!videoUrl) {
-            addDialogue("系統", `${config.nodeName} 影片未找到：${config.videoPath}`);
+            addDialogue("System", `${config.nodeName} video not found: ${config.videoPath}`);
             return;
           }
           attachGalleryVideo(mesh, config, videoUrl);
         })
         .catch(() => {
-          addDialogue("系統", `${config.nodeName} 影片讀取失敗`);
+          addDialogue("System", `${config.nodeName} video failed to load.`);
         });
     });
     return;
@@ -637,13 +749,13 @@ function applyGalleryVideoMaterial(mesh, config, parser) {
   resolveEmbeddedGalleryVideoUrl(parser, config.nodeName)
     .then((videoUrl) => {
       if (!videoUrl) {
-        addDialogue("系統", `${config.nodeName} 在 GLB 中沒有內嵌影片資料`);
+        addDialogue("System", `${config.nodeName} has no embedded video data in the GLB.`);
         return;
       }
       attachGalleryVideo(mesh, config, videoUrl);
     })
     .catch(() => {
-      addDialogue("系統", `${config.nodeName} 內嵌影片讀取失敗`);
+      addDialogue("System", `${config.nodeName} embedded video failed to load.`);
     });
 }
 
@@ -857,7 +969,7 @@ function registerGalleryDestructible(mesh, model) {
 
   let target = galleryDestructibleByObject.get(object);
   if (!target) {
-    const targetId = object.name?.trim() || mesh.name?.trim() || "space-object";
+    const targetId = getSpaceDestructibleTargetId(object, mesh);
     const maxHealth = getSpaceDestructibleMaxHealth(targetId);
     target = {
       id: targetId,
@@ -885,8 +997,12 @@ function registerGalleryDestructible(mesh, model) {
 }
 
 function getSpaceDestructibleMaxHealth(id) {
-  if (id?.toLowerCase() === "as01") {
+  const normalizedId = id?.toLowerCase();
+  if (normalizedId === "as01") {
     return THREE.MathUtils.randInt(AS_GROUP_HEALTH_MIN, AS_GROUP_HEALTH_MAX);
+  }
+  if (normalizedId === "ss" || normalizedId === "s__28524548" || normalizedId === "s__28524548.002") {
+    return S_IMAGE_DESTRUCTIBLE_HEALTH;
   }
   return THREE.MathUtils.randInt(SPACE_DESTRUCTIBLE_HEALTH_MIN, SPACE_DESTRUCTIBLE_HEALTH_MAX);
 }
@@ -901,7 +1017,7 @@ function configureDestructibleGoalTarget(target) {
     getMaxHealth: () => target.maxHealth,
   };
   updateTargetHud();
-  addDialogue("系統", "終局目標 as01 已設定");
+  addDialogue("System", "Final target as01 configured.");
 }
 
 function registerLinkedGalleryDestructibleMesh(mesh, linkedId) {
@@ -955,7 +1071,7 @@ function registerGalleryMorphAnimation(target, mesh) {
     holdLowDuration: 20,
     holdHighDuration: 15,
   });
-  addDialogue("系統", "as01 形變動畫已啟動");
+  addDialogue("System", "as01 morph animation enabled.");
 }
 
 function findSpaceDestructibleObject(mesh, model) {
@@ -964,10 +1080,29 @@ function findSpaceDestructibleObject(mesh, model) {
   while (node && node !== model.parent) {
     const name = node.name?.trim().toLowerCase();
     if (SPACE_DESTRUCTIBLE_NAMES.has(name)) matched = node;
+    if (node === mesh && hasSpaceDestructibleMaterial(mesh)) matched = node;
     if (node === model) break;
     node = node.parent;
   }
   return matched;
+}
+
+function getSpaceDestructibleTargetId(object, mesh) {
+  const materialName = getSpaceDestructibleMaterialName(mesh);
+  if (materialName) return materialName;
+  return object.name?.trim() || mesh.name?.trim() || "space-object";
+}
+
+function hasSpaceDestructibleMaterial(mesh) {
+  return Boolean(getSpaceDestructibleMaterialName(mesh));
+}
+
+function getSpaceDestructibleMaterialName(mesh) {
+  const material = normalizeMaterialArray(mesh.material).find((item) => {
+    const name = item?.name?.trim().toLowerCase();
+    return SPACE_DESTRUCTIBLE_NAMES.has(name);
+  });
+  return material?.name?.trim() ?? "";
 }
 
 function findLinkedSpaceDestructibleId(mesh, model) {
@@ -1022,7 +1157,7 @@ function registerGalleryGoalTarget(mesh) {
   };
   registerShootTarget(mesh, "gallery-target", target);
   updateTargetHud();
-  addDialogue("系統", "指定目標 as.008 已設定");
+  addDialogue("System", "Target as.008 configured.");
   return true;
 }
 
@@ -1068,6 +1203,7 @@ function updateColliderBox(collider) {
 function getColliderShrinkAmount(collider) {
   const id = collider.owner?.id?.toLowerCase();
   if (id === "md01" || id === "md02") return MD_COLLIDER_XZ_SHRINK;
+  if (CAR_LADDER_DESTRUCTIBLE_NAMES.has(id)) return CAR_LADDER_COLLIDER_XZ_SHRINK;
   return collider.owner ? DESTRUCTIBLE_COLLIDER_XZ_SHRINK : GALLERY_COLLIDER_XZ_SHRINK;
 }
 
@@ -1089,7 +1225,7 @@ function makeGallery() {
     loadGalleryModel(GALLERY_MODEL);
     return;
   }
-  addDialogue("系統", "使用程式生成展場");
+  addDialogue("System", "Using generated gallery fallback.");
   makeFallbackGallery();
 }
 
@@ -1162,10 +1298,10 @@ function loadGalleryModel(config) {
       model.scale.setScalar(config.scale ?? 1);
       registerGalleryModel(model, gltf.parser);
       scene.add(model);
-      addDialogue("系統", `${config.label ?? "展場 GLB"} 已載入`);
+      addDialogue("System", `${config.label ?? "Gallery GLB"} loaded.`);
     },
     () => {
-      addDialogue("系統", `${config.label ?? "展場 GLB"} 載入失敗`);
+      addDialogue("System", `${config.label ?? "Gallery GLB"} failed to load.`);
       makeFallbackGallery();
     }
   );
@@ -1257,6 +1393,15 @@ function registerPickupTarget(group, type, radius = 0.85) {
   return group;
 }
 
+function settlePickupOnFloor(group, clearance = 0.015) {
+  group.updateMatrixWorld(true);
+  pickupFloorBox.makeEmpty();
+  pickupFloorBox.setFromObject(group);
+  if (pickupFloorBox.isEmpty()) return;
+  group.position.y += WORLD_FLOOR_Y + clearance - pickupFloorBox.min.y;
+  group.userData.groundY = group.position.y;
+}
+
 function makeVisitorEntrance() {
   if (!VISITOR_ENTRY_POSITION) return;
   entrance = new THREE.Group();
@@ -1299,15 +1444,15 @@ function makeGlassesPickup() {
   const group = new THREE.Group();
   const pickupScale = 0.8;
   const spots = [
-    [0.7, WORLD_FLOOR_Y + 0.72, 9.4],
-    [-8.3, WORLD_FLOOR_Y + 0.78, 11.7],
-    [8.1, WORLD_FLOOR_Y + 0.78, 11.5],
-    [-7.8, WORLD_FLOOR_Y + 0.78, -11.8],
-    [7.5, WORLD_FLOOR_Y + 0.78, -12.2],
-    [1.6, WORLD_FLOOR_Y + 0.72, -2.4],
+    [0.7, WORLD_FLOOR_Y, 9.4],
+    [-8.3, WORLD_FLOOR_Y, 11.7],
+    [8.1, WORLD_FLOOR_Y, 11.5],
+    [-7.8, WORLD_FLOOR_Y, -11.8],
+    [7.5, WORLD_FLOOR_Y, -12.2],
+    [1.6, WORLD_FLOOR_Y, -2.4],
   ];
   group.position.set(...spots[Math.floor(Math.random() * spots.length)]);
-  group.rotation.set(-0.35, 0.4, 0.08);
+  group.rotation.set(-Math.PI / 2, 0.4, 0.08);
   group.scale.setScalar(pickupScale);
 
   const lensMaterial = new THREE.MeshStandardMaterial({
@@ -1343,8 +1488,9 @@ function makeGlassesPickup() {
   }
 
   const glow = new THREE.PointLight(0xeffcff, 1.1, 2.4, 2);
-  glow.position.set(0, 0.18, 0);
+  glow.position.set(0, 0.28, 0);
   group.add(glow);
+  settlePickupOnFloor(group, 0.012);
   registerPickupTarget(group, "glasses", 1.05 * pickupScale);
   glassesPickup = group;
   scene.add(group);
@@ -1369,6 +1515,8 @@ function createVisitor(config, index) {
     coverPartIndexes: [],
     state: "calm",
     behavior: config.behavior ?? "coward",
+    role: config.role ?? "visitor",
+    gender: config.gender ?? (index % 2 === 0 ? "male" : "female"),
     species: config.species ?? "human",
     hp: 1,
     downDamage: 0,
@@ -1382,10 +1530,17 @@ function createVisitor(config, index) {
     velocity: new THREE.Vector3(),
     home: new THREE.Vector3(config.position[0], WORLD_FLOOR_Y, config.position[2]),
     wanderTarget: new THREE.Vector3(config.position[0], WORLD_FLOOR_Y, config.position[2]),
+    hideTarget: new THREE.Vector3(config.position[0], WORLD_FLOOR_Y, config.position[2]),
     wanderPause: Math.random() * 1.4,
     patrolPoints: (config.patrolPoints ?? []).map((point) => new THREE.Vector3(point[0], WORLD_FLOOR_Y, point[2])),
     patrolTargetIndex: 1,
     patrolPause: 0,
+    busyPhase: Math.random() * Math.PI * 2,
+    busyTimer: 1.6 + Math.random() * 2.8,
+    busyPose: ["inspect", "crouch", "clipboard"][index % 3],
+    isMovingToWork: false,
+    busyTarget: new THREE.Vector3(config.position[0], WORLD_FLOOR_Y, config.position[2]),
+    workRadius: config.workRadius ?? 1.2,
     animationMixer: null,
     animationActions: [],
     bones: {},
@@ -1397,9 +1552,11 @@ function createVisitor(config, index) {
   const skin = new THREE.MeshStandardMaterial({ color: 0xb77b55, roughness: 0.62 });
   const jacket = new THREE.MeshStandardMaterial({ color: config.jacket, roughness: 0.78 });
   const pants = new THREE.MeshStandardMaterial({ color: config.pants, roughness: 0.74 });
-  const hair = new THREE.MeshStandardMaterial({ color: 0x17120f, roughness: 0.7 });
+  const hair = new THREE.MeshStandardMaterial({ color: config.hair ?? 0x17120f, roughness: 0.7 });
 
-  if (visitor.species === "tall-being") {
+  if (config.style === "voxel") {
+    addVoxelVisitorParts(visitor, { skin, jacket, pants, hair });
+  } else if (visitor.species === "tall-being") {
     addVisitorPart(visitor, new THREE.CapsuleGeometry(0.16, 1.05, 8, 14), jacket, [0, 1.42, 0], [0, 0, 0], [0.82, 1.2, 0.62]);
     addVisitorPart(visitor, new THREE.CapsuleGeometry(0.08, 0.52, 7, 12), skin, [0, 2.22, 0], [0, 0, 0], [0.72, 1, 0.72]);
     addVisitorPart(visitor, new THREE.SphereGeometry(0.16, 18, 12), skin, [0, 2.57, 0], [0, 0, 0], [1, 1.15, 1]);
@@ -1424,11 +1581,190 @@ function createVisitor(config, index) {
     visitor.coverPartIndexes = [3, 4];
   }
 
-  if (config.modelPath) {
+  if (visitor.role === "staff") {
+    addStaffUniformDetails(visitor);
+  }
+
+  if (config.modelPath && config.style !== "voxel") {
     loadVisitorModel(config, visitor);
   }
 
   return visitor;
+}
+
+function addVoxelVisitorParts(visitor, materials) {
+  const { skin, jacket, pants, hair } = materials;
+  const isTall = visitor.species === "tall-being";
+  const isRound = visitor.species === "round-being";
+  const isFemale = visitor.gender === "female";
+  const heightBoost = isTall ? 1.12 : isRound ? 0.88 : 1;
+  const widthBoost = (isRound ? 1.14 : 1) * (isFemale ? 0.92 : 1.04);
+  const torsoHeight = isFemale ? 0.68 : 0.72;
+  const headWidth = isFemale ? 0.4 : 0.42;
+
+  addVisitorPart(
+    visitor,
+    new THREE.BoxGeometry(0.48, torsoHeight, 0.26),
+    jacket,
+    [0, 1.3 * heightBoost, 0],
+    [0, 0, 0],
+    [widthBoost, heightBoost, 1]
+  );
+  addVisitorPart(
+    visitor,
+    new THREE.BoxGeometry(headWidth, 0.42, 0.42),
+    skin,
+    [0, 1.92 * heightBoost, 0],
+    [0, 0, 0],
+    [widthBoost, 1, 1]
+  );
+  addVisitorPart(
+    visitor,
+    new THREE.BoxGeometry(isFemale ? 0.44 : 0.46, isFemale ? 0.24 : 0.18, 0.44),
+    hair,
+    [0, (isFemale ? 2.11 : 2.15) * heightBoost, -0.01],
+    [0, 0, 0],
+    [widthBoost, 1, 1]
+  );
+  if (isFemale) {
+    const backHair = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.34, 0.14), hair);
+    backHair.position.set(0, -0.1, -0.27);
+    backHair.scale.set(widthBoost, 1, 1);
+    backHair.castShadow = true;
+    visitor.parts[1]?.add(backHair);
+  }
+  addVisitorPart(
+    visitor,
+    new THREE.BoxGeometry(0.16, 0.66, 0.18),
+    jacket,
+    [-0.35 * widthBoost, 1.24 * heightBoost, 0],
+    [0.08, 0, -0.12],
+    [1, heightBoost, 1]
+  );
+  addVisitorPart(
+    visitor,
+    new THREE.BoxGeometry(0.16, 0.66, 0.18),
+    jacket,
+    [0.35 * widthBoost, 1.24 * heightBoost, 0],
+    [0.08, 0, 0.12],
+    [1, heightBoost, 1]
+  );
+  addVisitorPart(
+    visitor,
+    new THREE.BoxGeometry(0.18, 0.7, 0.2),
+    pants,
+    [-0.13 * widthBoost, 0.62 * heightBoost, 0],
+    [0, 0, 0.04],
+    [1, heightBoost, 1]
+  );
+  addVisitorPart(
+    visitor,
+    new THREE.BoxGeometry(0.18, 0.7, 0.2),
+    pants,
+    [0.13 * widthBoost, 0.62 * heightBoost, 0],
+    [0, 0, -0.04],
+    [1, heightBoost, 1]
+  );
+  addVoxelFace(visitor);
+  visitor.coverPartIndexes = [3, 4];
+}
+
+function addVoxelFace(visitor) {
+  const head = visitor.parts[1];
+  if (!head) return;
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x2d2a3f });
+  const mouthMaterial = new THREE.MeshBasicMaterial({ color: 0x6f3428 });
+  for (const x of [-0.09, 0.09]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.012), eyeMaterial);
+    eye.position.set(x, 0.045, 0.217);
+    head.add(eye);
+  }
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.035, 0.012), mouthMaterial);
+  mouth.position.set(0, -0.09, 0.218);
+  head.add(mouth);
+}
+
+function addStaffUniformDetails(visitor) {
+  const badgeTexture = makeStaffBadgeTexture();
+  const badge = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.14),
+    new THREE.MeshBasicMaterial({ map: badgeTexture, transparent: true, side: THREE.DoubleSide })
+  );
+  badge.position.set(0, 0.07, 0.205);
+  badge.rotation.set(0, 0, 0);
+  const torso = visitor.parts[0];
+  if (torso) {
+    torso.add(badge);
+  } else {
+    badge.position.set(0, 1.54 * visitor.visualScale, 0.18 * visitor.visualScale);
+    visitor.group.add(badge);
+  }
+
+  const capMaterial = new THREE.MeshStandardMaterial({ color: 0x153b5c, roughness: 0.72 });
+  const head = visitor.parts[1];
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.3), capMaterial);
+  cap.position.set(0, 0.18, 0);
+  cap.castShadow = true;
+  cap.userData.originalPosition = cap.position.clone();
+  cap.userData.originalRotation = cap.rotation.clone();
+  cap.userData.originalScale = cap.scale.clone();
+
+  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.035, 0.18), capMaterial);
+  brim.position.set(0, 0.13, 0.18);
+  brim.castShadow = true;
+  brim.userData.originalPosition = brim.position.clone();
+  brim.userData.originalRotation = brim.rotation.clone();
+  brim.userData.originalScale = brim.scale.clone();
+  if (head) {
+    head.add(cap);
+    head.add(brim);
+  } else {
+    cap.position.set(0, 2.08 * visitor.visualScale, 0);
+    brim.position.set(0, 2.05 * visitor.visualScale, 0.21 * visitor.visualScale);
+    cap.scale.setScalar(visitor.visualScale);
+    brim.scale.setScalar(visitor.visualScale);
+    visitor.group.add(cap);
+    visitor.group.add(brim);
+  }
+
+  const clipboardMaterial = new THREE.MeshStandardMaterial({ color: 0xd8d1bd, roughness: 0.66 });
+  const clipboard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.3, 0.025), clipboardMaterial);
+  clipboard.position.set(0, -0.08, 0.14);
+  clipboard.rotation.set(0.28, -0.18, -0.12);
+  clipboard.castShadow = true;
+  clipboard.userData.originalPosition = clipboard.position.clone();
+  clipboard.userData.originalRotation = clipboard.rotation.clone();
+  clipboard.userData.originalScale = clipboard.scale.clone();
+  const clipboardArm = visitor.parts[3];
+  if (clipboardArm) {
+    clipboardArm.add(clipboard);
+  } else {
+    clipboard.position.set(-0.34 * visitor.visualScale, 1.34 * visitor.visualScale, 0.16 * visitor.visualScale);
+    clipboard.rotation.set(0.5, -0.35, -0.3);
+    clipboard.scale.setScalar(visitor.visualScale);
+    visitor.group.add(clipboard);
+  }
+}
+
+function makeStaffBadgeTexture() {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 192;
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = "#f6f2dc";
+  ctx.fillRect(16, 28, c.width - 32, c.height - 56);
+  ctx.strokeStyle = "#111827";
+  ctx.lineWidth = 12;
+  ctx.strokeRect(16, 28, c.width - 32, c.height - 56);
+  ctx.fillStyle = "#111827";
+  ctx.font = "900 92px Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("stuff", c.width / 2, c.height / 2 + 4);
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return pixelTexture(texture);
 }
 
 function loadVisitorModel(config, visitor) {
@@ -1454,9 +1790,9 @@ function loadVisitorModel(config, visitor) {
       visitor.group.add(model);
       prepareVisitorSkeletonAnimation(gltf, model, visitor, config);
       alignVisitorModelToFloor(visitor);
-      addDialogue("系統", `${config.id} GLB 已載入`);
+      addDialogue("System", `${config.id} GLB loaded.`);
     },
-    () => addDialogue("系統", `${config.id} GLB 載入失敗，使用替代觀眾`)
+    () => addDialogue("System", `${config.id} GLB failed to load; using fallback visitor.`)
   );
 }
 
@@ -1468,6 +1804,35 @@ function chooseVisitorWanderTarget(visitor) {
     WORLD_FLOOR_Y,
     THREE.MathUtils.clamp(visitor.home.z + Math.sin(angle) * radius, player.bounds.minZ + 0.8, player.bounds.maxZ - 0.8)
   );
+}
+
+function chooseStaffBusyTarget(visitor) {
+  const radius = visitor.workRadius * (0.35 + Math.random() * 0.65);
+  const angle = Math.random() * Math.PI * 2;
+  visitor.busyTarget.set(
+    THREE.MathUtils.clamp(visitor.home.x + Math.cos(angle) * radius, player.bounds.minX + 0.8, player.bounds.maxX - 0.8),
+    WORLD_FLOOR_Y,
+    THREE.MathUtils.clamp(visitor.home.z + Math.sin(angle) * radius, player.bounds.minZ + 0.8, player.bounds.maxZ - 0.8)
+  );
+  const poses = ["inspect", "crouch", "clipboard", "adjust"];
+  visitor.busyPose = poses[Math.floor(Math.random() * poses.length)];
+}
+
+function chooseVisitorHideTarget(visitor, threatPosition) {
+  let bestSpot = VISITOR_HIDE_SPOTS[0];
+  let bestScore = -Infinity;
+  VISITOR_HIDE_SPOTS.forEach((spot) => {
+    const distanceFromThreat = spot.distanceTo(threatPosition);
+    const distanceFromVisitor = spot.distanceTo(visitor.group.position);
+    const score = distanceFromThreat * 1.35 - distanceFromVisitor * 0.38 + Math.random() * 0.45;
+    if (score > bestScore) {
+      bestScore = score;
+      bestSpot = spot;
+    }
+  });
+  visitor.hideTarget.copy(bestSpot);
+  visitor.hideTarget.x = THREE.MathUtils.clamp(visitor.hideTarget.x, player.bounds.minX + 0.55, player.bounds.maxX - 0.55);
+  visitor.hideTarget.z = THREE.MathUtils.clamp(visitor.hideTarget.z, player.bounds.minZ + 0.55, player.bounds.maxZ - 0.55);
 }
 
 function alignVisitorModelToFloor(visitor) {
@@ -1505,7 +1870,7 @@ function prepareVisitorSkeletonAnimation(gltf, model, visitor, config) {
 
   const boneCount = Object.keys(visitor.bones).length;
   if (!gltf.animations || gltf.animations.length === 0) {
-    addDialogue("系統", `${config.id} 骨架 ${boneCount} 個節點，沒有內建動畫`);
+    addDialogue("System", `${config.id} skeleton has ${boneCount} bones and no embedded animation.`);
     return;
   }
 
@@ -1520,7 +1885,7 @@ function prepareVisitorSkeletonAnimation(gltf, model, visitor, config) {
   action.play();
   visitor.animationActions.push(action);
   visitor.usesSkeletonAnimation = true;
-  addDialogue("系統", `${config.id} 骨架 ${boneCount} 個節點，播放 ${walkClip.name || "walk"} 動畫`);
+  addDialogue("System", `${config.id} skeleton has ${boneCount} bones; playing ${walkClip.name || "walk"}.`);
 }
 
 function addVisitorPart(visitor, geometry, material, position, rotation, scale) {
@@ -1675,15 +2040,15 @@ function makeWeaponPickup() {
   weaponPickup = new THREE.Group();
   const pickupScale = WEAPON.scale ?? 1;
   const spots = [
-    [-4.8, WORLD_FLOOR_Y + 0.62, 10.6],
-    [4.6, WORLD_FLOOR_Y + 0.62, 9.2],
-    [-5.2, WORLD_FLOOR_Y + 0.62, 4.6],
-    [5.0, WORLD_FLOOR_Y + 0.62, 3.8],
-    [0.8, WORLD_FLOOR_Y + 0.62, -1.4],
-    [-2.8, WORLD_FLOOR_Y + 0.62, -3.8],
+    [-4.8, WORLD_FLOOR_Y, 10.6],
+    [4.6, WORLD_FLOOR_Y, 9.2],
+    [-5.2, WORLD_FLOOR_Y, 4.6],
+    [5.0, WORLD_FLOOR_Y, 3.8],
+    [0.8, WORLD_FLOOR_Y, -1.4],
+    [-2.8, WORLD_FLOOR_Y, -3.8],
   ];
   weaponPickup.position.set(...spots[Math.floor(Math.random() * spots.length)]);
-  weaponPickup.rotation.set(-0.15, 0.72, 0.08);
+  weaponPickup.rotation.set(-Math.PI / 2, 0.72, 0.08);
   weaponPickup.scale.setScalar(pickupScale);
 
   const dark = new THREE.MeshStandardMaterial({ color: 0x30362f, metalness: 0.36, roughness: 0.42 });
@@ -1702,10 +2067,11 @@ function makeWeaponPickup() {
   handle.castShadow = true;
   weaponPickup.add(handle);
   const glow = new THREE.PointLight(0xffdc7a, 0.85, 2.4, 2);
-  glow.position.y = 0.25;
+  glow.position.y = 0.35;
   weaponPickup.add(glow);
 
-  registerPickupTarget(weaponPickup, "weapon", 1.15 * pickupScale);
+  settlePickupOnFloor(weaponPickup, 0.018);
+  registerPickupTarget(weaponPickup, "weapon", 1.35 * pickupScale);
   scene.add(weaponPickup);
 }
 
@@ -1731,9 +2097,9 @@ function loadWeaponModel(fallbackParts) {
       model.position.add(new THREE.Vector3(...(WEAPON.position ?? [0, 0, 0])));
       model.rotation.set(...(WEAPON.rotation ?? [0, 0, 0]));
       weapon.add(model);
-      addDialogue("系統", "武器 GLB 已載入");
+      addDialogue("System", "Weapon GLB loaded.");
     },
-    () => addDialogue("系統", "武器 GLB 載入失敗，使用替代武器")
+    () => addDialogue("System", "Weapon GLB failed to load; using fallback weapon.")
   );
 }
 
@@ -1755,10 +2121,10 @@ function shoot() {
   if (shotCooldown > 0) return;
   shotCooldown = 0.12;
   playGunshot();
-  ammoEl.textContent = "∞";
   muzzleFlash.material.opacity = 1;
   muzzleLight.intensity = 18;
   applyWeaponRecoil();
+  alertVisitors(camera.position, { radius: 22, heardGunshot: true });
 
   const shotPointer = getShotPointer();
   raycaster.setFromCamera(shotPointer, camera);
@@ -1840,7 +2206,7 @@ function updateWeaponPhysics(delta) {
 
 function raiseEmptyHand() {
   emptyHandLiftVelocity += 8.8;
-  addDialogue("系統", "你還沒有武器");
+  addDialogue("System", "You do not have a weapon yet.");
 }
 
 function updateEmptyHand(delta) {
@@ -1896,7 +2262,7 @@ function damageGalleryDestructible(target, point, normal) {
   if (target.id?.toLowerCase() === "as01") updateTargetHud();
 
   if (target.health > 0) {
-    addDialogue("系統", `${target.id} 受損 ${target.maxHealth - target.health}/${target.maxHealth}`);
+    addDialogue("System", `${target.id} damaged ${target.maxHealth - target.health}/${target.maxHealth}.`);
     return;
   }
 
@@ -1909,7 +2275,7 @@ function damageGalleryDestructible(target, point, normal) {
   unregisterGalleryColliders(target);
   spawnGalleryDestructibleBreakup(target, point);
   target.object.visible = false;
-  addDialogue("系統", `${target.id} 已完全損壞`);
+  addDialogue("System", `${target.id} fully destroyed.`);
   if (target.id?.toLowerCase() === "as01") finishGame();
 }
 
@@ -2008,14 +2374,14 @@ function damageGalleryTarget(target, point, normal) {
   });
 
   if (target.health > 0) {
-    addDialogue("系統", `as.008 受損`);
+    addDialogue("System", "as.008 damaged.");
     return;
   }
 
   target.destroyed = true;
   unregisterShootTarget(target.mesh);
   target.mesh.visible = false;
-  addDialogue("系統", "as.008 已擊毀");
+  addDialogue("System", "as.008 destroyed.");
 }
 
 function spawnGalleryDestructibleBreakup(target, point) {
@@ -2108,7 +2474,7 @@ function destroyVisitor(visitor, point) {
     unregisterShootTarget(part);
     part.visible = false;
   });
-  addDialogue("系統", "倒地角色已被摧毀");
+  addDialogue("System", "Downed figure destroyed.");
 }
 
 function unregisterShootTarget(mesh) {
@@ -2148,28 +2514,41 @@ function downVisitor(visitor, point) {
     part.rotation.x = originalRotation.x + (index % 2 === 0 ? 0.2 : -0.15);
     part.rotation.z = originalRotation.z + visitor.downTilt * 0.16;
   });
-  addDialogue("觀眾", "有人倒下了！");
+  addDialogue("Visitor", "Someone is down!");
 }
 
-function alertVisitors(origin) {
+function alertVisitors(origin, options = {}) {
+  const radius = options.radius ?? 9;
+  const heardGunshot = options.heardGunshot ?? false;
   visitors.forEach((other) => {
     if (other.state === "down" || other.state === "destroyed") return;
     const distance = other.group.position.distanceTo(origin);
-    if (distance > 9) return;
+    if (distance > radius) return;
     const towardPlayer = camera.position.clone().sub(other.group.position);
     towardPlayer.y = 0;
     if (other.behavior === "aggressive") {
       other.velocity.copy(towardPlayer.normalize().multiplyScalar(1.35));
       other.state = "hostile";
-      other.panic = 4.2;
+      other.panic = heardGunshot ? 7.2 : 4.2;
       other.wobble = 0.45;
     } else {
-      const away = towardPlayer.multiplyScalar(-1);
-      if (away.lengthSq() < 0.01) away.set(Math.random() - 0.5, 0, Math.random() - 0.5);
-      other.velocity.copy(away.normalize().multiplyScalar(3.0));
-      other.state = "flee";
-      other.panic = 3.6;
-      other.wobble = 0.55;
+      if (heardGunshot) {
+        chooseVisitorHideTarget(other, origin);
+        const toHide = other.hideTarget.clone().sub(other.group.position);
+        toHide.y = 0;
+        if (toHide.lengthSq() < 0.01) toHide.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+        other.velocity.copy(toHide.normalize().multiplyScalar(2.85));
+        other.state = "hide";
+        other.panic = 7.5;
+        other.wobble = 0.62;
+      } else {
+        const away = towardPlayer.multiplyScalar(-1);
+        if (away.lengthSq() < 0.01) away.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+        other.velocity.copy(away.normalize().multiplyScalar(3.0));
+        other.state = "flee";
+        other.panic = 3.6;
+        other.wobble = 0.55;
+      }
     }
   });
 }
@@ -2195,15 +2574,13 @@ function makeVisitorAttack(visitor) {
   visitor.attackCooldown = 0.8;
   visitor.wobble = 0.55;
   damagePlayer(9);
-  addDialogue("觀眾", "退後！");
+  addDialogue("Visitor", "Step back!");
 }
 
 function damagePlayer(amount) {
   const armorBlock = Math.min(playerArmor, Math.ceil(amount * 0.55));
   playerArmor -= armorBlock;
   playerHp = Math.max(0, playerHp - (amount - armorBlock));
-  hpEl.textContent = String(Math.ceil(playerHp));
-  armorEl.textContent = String(Math.ceil(playerArmor));
   damageOverlay.classList.add("damageOverlay--show");
   setTimeout(() => damageOverlay.classList.remove("damageOverlay--show"), 140);
   if (playerHp <= 0) {
@@ -2213,20 +2590,43 @@ function damagePlayer(amount) {
 
 function gameOver() {
   document.exitPointerLock?.();
-  endTitle.textContent = "玩家倒下了";
-  endMessage.textContent = "HP 歸零。按重新開始回到展場。";
+  endTitle.textContent = "Player down";
+  endMessage.textContent = "You were forced out of the gallery.";
   endPanel.classList.remove("panel--hidden");
 }
 
+function setTickerText(text) {
+  visionTickerLines.forEach((line) => {
+    line.textContent = text;
+  });
+}
+
+function restoreDefaultTicker() {
+  visionTicker?.classList.remove("statusBar--system");
+  setTickerText(DEFAULT_TICKER_TEXT);
+}
+
+function showSystemTicker(text) {
+  if (!visionTicker) return;
+  window.clearTimeout(systemTickerTimer);
+  visionTicker.classList.add("statusBar--system");
+  setTickerText(`SYSTEM - ${text}`);
+  systemTickerTimer = window.setTimeout(restoreDefaultTicker, 7000);
+}
+
 function addDialogue(speaker, text) {
+  if (speaker === "System") {
+    showSystemTicker(text);
+    return;
+  }
   const line = document.createElement("div");
   line.className = "dialogueLog__line";
   line.textContent = `${speaker}: ${text}`;
   dialogueLog.append(line);
-  while (dialogueLog.children.length > 3) {
+  while (dialogueLog.children.length > 5) {
     dialogueLog.firstElementChild?.remove();
   }
-  setTimeout(() => line.remove(), 4200);
+  window.setTimeout(() => line.remove(), 9000);
 }
 
 function maybeVisitorTalk(delta) {
@@ -2235,13 +2635,27 @@ function maybeVisitorTalk(delta) {
   const calm = visitors.filter((visitor) => visitor.state === "calm" && !visitor.destroyed);
   if (calm.length < 2) return;
   chatterCooldown = 3.5 + Math.random() * 3.5;
-  const lines = [
-    "這件作品的顏色很不安。",
-    "你有聽到什麼聲音嗎？",
-    "那邊的雕塑好像在動。",
-    "我們先去下一個展間看看。",
+  const staffNearby = calm.filter((visitor) => visitor.role === "staff");
+  if (staffNearby.length > 0 && Math.random() < 0.46) {
+    const staffLines = [
+      "Check the sightline from the entrance before we lock the plinth.",
+      "The label height is fighting the sculpture; lower it by two centimeters.",
+      "Keep the cable run invisible, but leave access for the media player.",
+      "This work needs more negative space, otherwise the provocation gets muddy.",
+      "Light spill on the floor is too loud. Flag it before opening.",
+    ];
+    addDialogue("stuff", staffLines[Math.floor(Math.random() * staffLines.length)]);
+    return;
+  }
+  const visitorLines = [
+    "I kind of like it, but I can see why a pro-China politician would hate it.",
+    "Is the work mocking nationalism, or just letting it embarrass itself?",
+    "This is provocative in a very specific direction.",
+    "The pink tone feels cute until the politics catches up.",
+    "I came in amused, then realized the joke has teeth.",
+    "Someone very loyal to Beijing would probably call this disrespectful.",
   ];
-  addDialogue("觀眾", lines[Math.floor(Math.random() * lines.length)]);
+  addDialogue("Visitor", visitorLines[Math.floor(Math.random() * visitorLines.length)]);
 }
 
 function spawnVisitorHitCue(point, normal) {
@@ -2272,8 +2686,8 @@ function getHitNormal(hit) {
 
 function finishGame() {
   document.exitPointerLock?.();
-  endTitle.textContent = "指定作品已損毀";
-  endMessage.textContent = "瀏覽器若阻擋自動關閉，請直接關閉此視窗或分頁。";
+  endTitle.textContent = "Target work destroyed";
+  endMessage.textContent = "If the browser blocks auto-close, close this tab manually.";
   endPanel.classList.remove("panel--hidden");
   setTimeout(() => {
     window.close();
@@ -2441,13 +2855,13 @@ function showHitMarker() {
 
 function updateTargetHud() {
   if (!targetEntity) {
-    targetNameEl.textContent = "未指定";
-    targetHealthEl.textContent = "完整度 --";
+    targetNameEl.textContent = "Unassigned";
+    targetHealthEl.textContent = "Integrity --";
     return;
   }
   targetNameEl.textContent = targetEntity.name;
   const percent = Math.round((targetEntity.getHealth() / targetEntity.getMaxHealth()) * 100);
-  targetHealthEl.textContent = `完整度 ${percent}%`;
+  targetHealthEl.textContent = `Integrity ${percent}%`;
 }
 
 function onMouseMove(event) {
@@ -2547,9 +2961,10 @@ function resolvePlayerWallCollisions() {
 function updatePickups(delta) {
   for (let i = pickupTargets.length - 1; i >= 0; i -= 1) {
     const pickup = pickupTargets[i];
-    pickup.rotation.y += delta * 1.8;
-    pickup.position.y += Math.sin(clock.elapsedTime * 3.2) * delta * 0.035;
-    const distance = pickup.position.distanceTo(camera.position);
+    if (Number.isFinite(pickup.userData.groundY)) {
+      pickup.position.y = pickup.userData.groundY;
+    }
+    const distance = Math.hypot(pickup.position.x - camera.position.x, pickup.position.z - camera.position.z);
     if (distance > pickup.userData.radius) continue;
     if (pickup.userData.pickupType === "glasses") {
       collectGlasses(pickup);
@@ -2567,17 +2982,13 @@ function collectWeapon(pickup) {
   hasWeapon = true;
   weapon.visible = true;
   emptyHand.visible = false;
-  ammoEl.textContent = "∞";
-  pickupNotice.textContent = "你撿起武器";
-  pickupNotice.classList.remove("pickupNotice--hidden");
-  setTimeout(() => pickupNotice.classList.add("pickupNotice--hidden"), 1600);
   scene.remove(pickup);
   if (weaponPickup === pickup) weaponPickup = null;
   pickup.traverse((child) => {
     child.geometry?.dispose();
     child.material?.dispose();
   });
-  addDialogue("系統", "武器已取得");
+  addDialogue("System", "Weapon acquired.");
 }
 
 function collectGlasses(pickup) {
@@ -2585,15 +2996,13 @@ function collectGlasses(pickup) {
   hasGlasses = true;
   gameEl.classList.add("vision-clear");
   gameEl.classList.remove("no-glasses");
-  pickupNotice.textContent = "你戴上眼鏡，視線清楚了";
-  setTimeout(() => pickupNotice.classList.add("pickupNotice--hidden"), 1600);
   scene.remove(pickup);
   if (glassesPickup === pickup) glassesPickup = null;
   pickup.traverse((child) => {
     child.geometry?.dispose();
     child.material?.dispose();
   });
-  addDialogue("系統", "眼鏡已取得");
+  addDialogue("System", "Glasses acquired.");
 }
 
 function updateRadar() {
@@ -2628,7 +3037,7 @@ function updateRadarDot(dot, target, visible = true) {
 
 function updateVisitorSpawner(delta) {
   if (!entrance) return;
-  const activeCount = visitors.filter((visitor) => visitor.state !== "down" && !visitor.destroyed).length;
+  const activeCount = visitors.filter((visitor) => visitor.role !== "staff" && visitor.state !== "down" && !visitor.destroyed).length;
   if (activeCount >= 9) return;
   visitorSpawnCooldown -= delta;
   if (visitorSpawnCooldown > 0) return;
@@ -2640,16 +3049,18 @@ function spawnVisitorFromEntrance() {
   if (!VISITOR_ENTRY_POSITION) return;
   const species = ["human", "tall-being", "round-being"][Math.floor(Math.random() * 3)];
   const behavior = Math.random() < 0.42 ? "aggressive" : "coward";
+  const gender = spawnedVisitorCount % 2 === 0 ? "male" : "female";
   const palette = [
-    [0x455a64, 0x222831],
-    [0x7b5d3a, 0x2f2a24],
-    [0x4f6b58, 0x263238],
-    [0x8a6f9d, 0x333028],
-    [0x6d4c41, 0x20242a],
+    [0x5f756f, 0x3f4656, 0x3a2c24],
+    [0x7b8064, 0x5d4a42, 0x6d4a35],
+    [0x66705a, 0x30383c, 0x332820],
+    [0x7a6371, 0x3b353c, 0x2d211c],
+    [0x8a8065, 0x342f2c, 0x3f2a1f],
   ][spawnedVisitorCount % 5];
   const config = {
     id: `spawned-${spawnedVisitorCount}`,
-    modelPath: VISITORS[spawnedVisitorCount % VISITORS.length]?.modelPath,
+    style: "voxel",
+    gender,
     species,
     behavior,
     position: [
@@ -2660,6 +3071,7 @@ function spawnVisitorFromEntrance() {
     rotationY: Math.PI,
     jacket: palette[0],
     pants: palette[1],
+    hair: palette[2],
   };
   spawnedVisitorCount += 1;
   const visitor = createVisitor(config, visitors.length);
@@ -2668,7 +3080,7 @@ function spawnVisitorFromEntrance() {
   visitor.velocity.set((Math.random() - 0.5) * 0.45, 0, -1.05);
   visitors.push(visitor);
   scene.add(visitor.group);
-  addDialogue("入口", behavior === "aggressive" ? "有新的觀眾進場，神情緊繃。" : "有新的觀眾匆忙走進展場。");
+  addDialogue("Entrance", behavior === "aggressive" ? "A tense visitor enters the gallery." : "A hurried visitor enters the gallery.");
 }
 
 function animate() {
@@ -2757,6 +3169,11 @@ function updateMorphHoldCycle(animation, delta) {
   return animation.value;
 }
 
+function lerpAngle(from, to, alpha) {
+  const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  return from + delta * alpha;
+}
+
 function updateVisitors(delta) {
   visitors.forEach((visitor, index) => {
     visitor.animationMixer?.update(delta);
@@ -2812,6 +3229,58 @@ function updateVisitors(delta) {
       }
       visitor.velocity.multiplyScalar(Math.pow(0.55, delta));
       if (visitor.panic <= 0) visitor.state = "calm";
+    } else if (visitor.state === "hide") {
+      visitor.panic = Math.max(0, visitor.panic - delta * 0.38);
+      visitor.wobble = Math.max(0.12, visitor.wobble - delta * 0.7);
+      const toHide = visitor.hideTarget.clone().sub(visitor.group.position);
+      toHide.y = 0;
+      const distance = toHide.length();
+      if (distance > 0.38) {
+        const hideSpeed = visitor.role === "staff" ? 2.35 : 2.75;
+        visitor.velocity.lerp(toHide.normalize().multiplyScalar(hideSpeed), 5.5 * delta);
+        visitor.group.position.addScaledVector(visitor.velocity, delta);
+        visitor.group.rotation.y = Math.atan2(visitor.velocity.x, visitor.velocity.z);
+      } else {
+        visitor.velocity.multiplyScalar(Math.pow(0.1, delta));
+        const lookAway = visitor.group.position.clone().sub(camera.position);
+        lookAway.y = 0;
+        if (lookAway.lengthSq() > 0.01) {
+          visitor.group.rotation.y = lerpAngle(visitor.group.rotation.y, Math.atan2(lookAway.x, lookAway.z), 1 - Math.exp(-6 * delta));
+        }
+      }
+      visitor.group.position.y = WORLD_FLOOR_Y;
+      visitor.group.position.x = THREE.MathUtils.clamp(visitor.group.position.x, player.bounds.minX, player.bounds.maxX);
+      visitor.group.position.z = THREE.MathUtils.clamp(visitor.group.position.z, player.bounds.minZ, player.bounds.maxZ);
+      if (visitor.panic <= 0) visitor.state = "calm";
+    } else if (visitor.role === "staff") {
+      visitor.busyTimer -= delta;
+      const toTarget = visitor.busyTarget.clone().sub(visitor.group.position);
+      toTarget.y = 0;
+      const distance = toTarget.length();
+      if (visitor.busyTimer <= 0 || distance < 0.22) {
+        chooseStaffBusyTarget(visitor);
+        visitor.busyTimer = 2.4 + Math.random() * 4.2;
+      }
+      if (distance > 0.22) {
+        visitor.isMovingToWork = true;
+        const direction = toTarget.normalize();
+        visitor.velocity.lerp(direction.multiplyScalar(0.32), 3.2 * delta);
+        visitor.group.position.addScaledVector(visitor.velocity, delta);
+        visitor.group.rotation.y = Math.atan2(visitor.velocity.x, visitor.velocity.z);
+      } else {
+        visitor.isMovingToWork = false;
+        visitor.velocity.multiplyScalar(Math.pow(0.18, delta));
+        const lookAtWork = visitor.home.clone().sub(visitor.group.position);
+        lookAtWork.y = 0;
+        if (lookAtWork.lengthSq() > 0.01) {
+          const targetRotation = Math.atan2(lookAtWork.x, lookAtWork.z);
+          visitor.group.rotation.y = lerpAngle(visitor.group.rotation.y, targetRotation, 1 - Math.exp(-3.8 * delta));
+        }
+      }
+      visitor.wobble = THREE.MathUtils.lerp(visitor.wobble, 0.045, 5 * delta);
+      visitor.group.position.y = WORLD_FLOOR_Y;
+      visitor.group.position.x = THREE.MathUtils.clamp(visitor.group.position.x, player.bounds.minX, player.bounds.maxX);
+      visitor.group.position.z = THREE.MathUtils.clamp(visitor.group.position.z, player.bounds.minZ, player.bounds.maxZ);
     } else if (visitor.behavior === "patrol" && visitor.patrolPoints.length > 1) {
       visitor.patrolPause = Math.max(0, visitor.patrolPause - delta);
       const target = visitor.patrolPoints[visitor.patrolTargetIndex];
@@ -2859,28 +3328,67 @@ function updateVisitors(delta) {
       visitor.group.position.z = THREE.MathUtils.clamp(visitor.group.position.z, player.bounds.minZ, player.bounds.maxZ);
     }
 
-    const crouch = visitor.state === "flee" ? 0.86 : 1;
+    const crouch = visitor.state === "hide" ? 0.72 : visitor.state === "flee" ? 0.86 : 1;
     const attackLean = visitor.state === "hostile" ? 0.18 : 0;
-    const coverHead = visitor.state === "flee";
+    const coverHead = visitor.state === "flee" || visitor.state === "hide";
     const panicWave = Math.sin(clock.elapsedTime * 16 + index) * visitor.wobble;
+    const isWorkingStaff = visitor.role === "staff" && visitor.state === "calm";
+    const workWave = Math.sin(clock.elapsedTime * 2.1 + visitor.busyPhase);
     if (visitor.usesSkeletonAnimation) return;
     visitor.parts.forEach((part, partIndex) => {
       const originalPosition = part.userData.originalPosition;
       const originalRotation = part.userData.originalRotation;
       const originalScale = part.userData.originalScale;
-      part.position.x = originalPosition.x + panicWave * 0.025 * (partIndex % 2 === 0 ? 1 : -1);
-      part.position.y = originalPosition.y * (0.82 + crouch * 0.18) + Math.abs(panicWave) * 0.015;
-      part.rotation.x = originalRotation.x + panicWave * 0.08 + attackLean;
-      part.rotation.z = originalRotation.z + panicWave * 0.18;
+      if (isWorkingStaff) {
+        applyStaffWorkPose(visitor, part, partIndex, originalPosition, originalRotation, originalScale, workWave);
+      } else {
+        part.position.x = originalPosition.x + panicWave * 0.025 * (partIndex % 2 === 0 ? 1 : -1);
+        part.position.y = originalPosition.y * (0.82 + crouch * 0.18) + Math.abs(panicWave) * 0.015;
+        part.rotation.x = originalRotation.x + panicWave * 0.08 + attackLean;
+        part.rotation.z = originalRotation.z + panicWave * 0.18;
+        part.scale.y = originalScale.y * (0.82 + crouch * 0.18);
+      }
       if (coverHead && visitor.coverPartIndexes.includes(partIndex)) {
         part.position.y = originalPosition.y + 0.42 + Math.abs(panicWave) * 0.02;
         part.position.x = originalPosition.x * 0.42;
         part.rotation.x = -1.05 + panicWave * 0.04;
         part.rotation.z = partIndex === 3 ? 0.95 : -0.95;
       }
-      part.scale.y = originalScale.y * (0.82 + crouch * 0.18);
     });
   });
+}
+
+function applyStaffWorkPose(visitor, part, partIndex, originalPosition, originalRotation, originalScale, workWave) {
+  const pose = visitor.isMovingToWork ? "walk" : visitor.busyPose ?? "inspect";
+  const isCrouching = pose === "crouch" || pose === "adjust";
+  const crouchDrop = isCrouching ? 0.28 : 0;
+  const lean = pose === "inspect" ? 0.16 : pose === "adjust" ? 0.28 : pose === "clipboard" ? 0.05 : 0.1;
+
+  const walkSwing = pose === "walk" ? Math.sin(clock.elapsedTime * 7.2 + visitor.busyPhase) : workWave;
+  part.position.x = originalPosition.x + workWave * 0.004 * (partIndex % 2 === 0 ? 1 : -1);
+  part.position.y = originalPosition.y - crouchDrop + Math.abs(workWave) * 0.004;
+  part.rotation.x = originalRotation.x + lean;
+  part.rotation.z = originalRotation.z;
+  part.scale.copy(originalScale);
+
+  if (partIndex === 0) {
+    part.rotation.x = originalRotation.x + lean * 0.72;
+  } else if (partIndex === 1 || partIndex === 2) {
+    part.rotation.x = originalRotation.x + lean * 0.45;
+  } else if (partIndex === 3) {
+    part.rotation.x = pose === "walk" ? originalRotation.x + walkSwing * 0.28 : pose === "clipboard" ? -0.72 : pose === "adjust" ? -0.95 : -0.35;
+    part.rotation.z = originalRotation.z - (pose === "clipboard" ? 0.2 : 0.42);
+    part.position.y = originalPosition.y - crouchDrop * 0.72 + Math.max(0, workWave) * 0.02;
+  } else if (partIndex === 4) {
+    part.rotation.x = pose === "walk" ? originalRotation.x - walkSwing * 0.28 : pose === "inspect" ? -0.28 : pose === "adjust" ? -1.05 : -0.48;
+    part.rotation.z = originalRotation.z + (pose === "clipboard" ? 0.18 : 0.42);
+    part.position.y = originalPosition.y - crouchDrop * 0.72 + Math.max(0, -workWave) * 0.02;
+  } else if (partIndex === 5 || partIndex === 6) {
+    part.position.y = originalPosition.y - crouchDrop * 0.55;
+    part.rotation.x = originalRotation.x + (pose === "walk" ? (partIndex === 5 ? -walkSwing : walkSwing) * 0.22 : isCrouching ? 0.5 : 0.04 * workWave);
+    part.rotation.z = originalRotation.z + (partIndex === 5 ? -0.08 : 0.08) * (isCrouching ? 1 : 0.25);
+    part.scale.y = originalScale.y * (isCrouching ? 0.82 : 1);
+  }
 }
 
 function updateParticles(delta) {
@@ -3044,7 +3552,7 @@ function makeEntranceSignTexture() {
   ctx.textAlign = "center";
   ctx.fillText("ENTRANCE", c.width / 2, 55);
   ctx.font = "700 30px sans-serif";
-  ctx.fillText("入口", c.width / 2, 94);
+  ctx.fillText("GALLERY ACCESS", c.width / 2, 94);
   const texture = new THREE.CanvasTexture(c);
   texture.colorSpace = THREE.SRGBColorSpace;
   return pixelTexture(texture);

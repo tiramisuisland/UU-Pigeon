@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Truth Popup Launcher</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f6f2ea;
+      --muted: #b9b2a7;
+      --edge: #d8c27a;
+      --accent: #c9503a;
+      --teal: #3d8e8a;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .48);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(201, 80, 58, .18), transparent 30%),
+        radial-gradient(circle at 85% 74%, rgba(61, 142, 138, .16), transparent 34%),
+        linear-gradient(135deg, #121316, #1a1715 48%, #101113);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Segoe UI", sans-serif;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .stage {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      isolation: isolate;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .03) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .92), rgba(0, 0, 0, .54));
+    }
+
+    .launcher {
+      width: min(300px, 76vw);
+      aspect-ratio: 1;
+      border: 1px solid rgba(216, 194, 122, .58);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      gap: 12px;
+      padding: 32px;
+      color: var(--ink);
+      background: rgba(20, 20, 20, .72);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform .2s ease, border-color .2s ease, background .2s ease;
+    }
+
+    .launcher:disabled {
+      cursor: wait;
+      opacity: .68;
+    }
+
+    .launcher:hover,
+    .launcher:focus-visible {
+      transform: translateY(-2px) scale(1.02);
+      border-color: var(--edge);
+      outline: none;
+      background: rgba(31, 30, 27, .88);
+    }
+
+    .launcher svg {
+      width: 82px;
+      height: 82px;
+      color: var(--edge);
+    }
+
+    .launcher span {
+      max-width: 16ch;
+      font-size: clamp(1.05rem, 4vw, 1.45rem);
+      font-weight: 700;
+      line-height: 1.25;
+      text-align: center;
+      letter-spacing: 0;
+    }
+
+    .status {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      width: min(560px, calc(100vw - 32px));
+      padding: 12px 14px;
+      border: 1px solid rgba(216, 194, 122, .44);
+      border-radius: 6px;
+      background: rgba(18, 19, 22, .88);
+      color: var(--muted);
+      text-align: center;
+      font-size: .95rem;
+      line-height: 1.45;
+      transform: translateX(-50%);
+      box-shadow: 0 16px 44px rgba(0, 0, 0, .36);
+      backdrop-filter: blur(8px);
+    }
+
+    .status strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <button class="launcher" id="launcher" type="button" aria-label="開啟有聲 popup 影片" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <span id="launcherText">讀取影片尺寸</span>
+    </button>
+
+    <p class="status" id="status">
+      正在讀取影片像素，完成後第一個 popup 固定是 <strong>M1</strong>。
+    </p>
+  </main>
+
+  <script>
+    const autoStart = new URLSearchParams(window.location.search).get("autostart") === "1";
+    const baseSequence = [
+      { id: "M1", src: "M1.mp4", delay: 0, sound: 1 },
+      { id: "V1", src: "V1.mp4", delay: 900, sound: 0 },
+      { id: "S1", src: "S1.mp4", delay: 1550, sound: 0 },
+      { id: "V2", src: "V2.mp4", delay: 2200, sound: 0 },
+      { id: "S2", src: "S2.mp4", delay: 2850, sound: 0 }
+    ];
+
+    const launcher = document.querySelector("#launcher");
+    const launcherText = document.querySelector("#launcherText");
+    const status = document.querySelector("#status");
+
+    if (autoStart) {
+      launcher.hidden = true;
+      status.hidden = true;
+    }
+    const popupChromeHeight = 0;
+    const fallbackSize = { width: 640, height: 360 };
+    let started = false;
+    let sequence = [];
+    let primaryWindow = null;
+    let closeMonitor = null;
+    let popupTimers = [];
+    let primaryAudio = null;
+    const openedPopups = new Set();
+
+    function preloadVideoSize(item) {
+      return new Promise((resolve) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.muted = true;
+        video.playsInline = true;
+        video.src = item.src;
+
+        video.addEventListener("loadedmetadata", () => {
+          resolve({
+            ...item,
+            width: video.videoWidth || fallbackSize.width,
+            height: video.videoHeight || fallbackSize.height
+          });
+        }, { once: true });
+
+        video.addEventListener("error", () => {
+          resolve({ ...item, ...fallbackSize });
+        }, { once: true });
+      });
+    }
+
+    function shuffle(items) {
+      return [...items].sort(() => Math.random() - .5);
+    }
+
+    function slotsAreAdjacent(a, b) {
+      const distance = Math.abs(a - b);
+      return distance === 1 || distance === 7;
+    }
+
+    function randomSlotPlan() {
+      const ids = ["V1", "S1", "V2", "S2"];
+
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        const slots = shuffle([0, 1, 2, 3, 4, 5, 6, 7]).slice(0, ids.length);
+        const plan = Object.fromEntries(ids.map((id, index) => [id, slots[index]]));
+
+        if (!slotsAreAdjacent(plan.S1, plan.S2) && !slotsAreAdjacent(plan.V1, plan.V2)) {
+          return plan;
+        }
+      }
+
+      return { V1: 0, S1: 2, V2: 4, S2: 6 };
+    }
+
+    function clamp(value, min, max) {
+      if (max < min) return min;
+      return Math.max(min, Math.min(value, max));
+    }
+
+    function slotPosition(slot, item, m1, screenBox) {
+      const gap = 28;
+      const centerX = screenBox.left + screenBox.width / 2;
+      const centerY = screenBox.top + screenBox.height / 2;
+      const mLeft = centerX - m1.width / 2;
+      const mTop = centerY - (m1.height + popupChromeHeight) / 2;
+      const mRight = mLeft + m1.width;
+      const mBottom = mTop + m1.height + popupChromeHeight;
+      const popupHeight = item.height + popupChromeHeight;
+
+      const positions = [
+        [mLeft - item.width - gap, mTop - popupHeight - gap],
+        [centerX - item.width / 2, mTop - popupHeight - gap],
+        [mRight + gap, mTop - popupHeight - gap],
+        [mRight + gap, centerY - popupHeight / 2],
+        [mRight + gap, mBottom + gap],
+        [centerX - item.width / 2, mBottom + gap],
+        [mLeft - item.width - gap, mBottom + gap],
+        [mLeft - item.width - gap, centerY - popupHeight / 2]
+      ];
+
+      return {
+        left: Math.round(clamp(positions[slot][0], screenBox.left, screenBox.left + screenBox.width - item.width)),
+        top: Math.round(clamp(positions[slot][1], screenBox.top, screenBox.top + screenBox.height - popupHeight))
+      };
+    }
+
+    function screenBox() {
+      return {
+        left: window.screen.availLeft || 0,
+        top: window.screen.availTop || 0,
+        width: window.screen.availWidth || window.innerWidth,
+        height: window.screen.availHeight || window.innerHeight
+      };
+    }
+
+    function buildArrangedSequence(items) {
+      const m1 = items.find((item) => item.id === "M1");
+      const slots = randomSlotPlan();
+      const box = screenBox();
+      const centerLeft = box.left + (box.width - m1.width) / 2;
+      const centerTop = box.top + (box.height - (m1.height + popupChromeHeight)) / 2;
+
+      return items.map((item) => {
+        if (item.id === "M1") {
+          return {
+            ...item,
+            left: Math.round(centerLeft),
+            top: Math.round(centerTop)
+          };
+        }
+
+        return {
+          ...item,
+          ...slotPosition(slots[item.id], item, m1, box)
+        };
+      });
+    }
+
+    function popupUrl(item) {
+      const params = new URLSearchParams({
+        id: item.id,
+        src: item.src,
+        sound: String(item.popupSound ?? item.sound),
+        w: String(item.width),
+        h: String(item.height)
+      });
+
+      return `popup-video.html?${params.toString()}`;
+    }
+
+    function windowFeatures(item) {
+      return [
+        `popup=yes`,
+        `width=${item.width}`,
+        `height=${item.height + popupChromeHeight}`,
+        `left=${item.left}`,
+        `top=${item.top}`,
+        `menubar=no`,
+        `toolbar=no`,
+        `location=no`,
+        `status=no`,
+        `resizable=yes`,
+        `scrollbars=no`
+      ].join(",");
+    }
+
+    function closeCompanionPopups() {
+      popupTimers.forEach((timer) => window.clearTimeout(timer));
+      popupTimers = [];
+
+      openedPopups.forEach((win) => {
+        if (win && !win.closed && win !== primaryWindow) {
+          win.close();
+        }
+      });
+
+      if (closeMonitor) {
+        window.clearInterval(closeMonitor);
+        closeMonitor = null;
+      }
+
+      if (primaryAudio) {
+        primaryAudio.pause();
+        primaryAudio.removeAttribute("src");
+        primaryAudio.load();
+        primaryAudio = null;
+      }
+    }
+
+    window.closeCompanionPopups = closeCompanionPopups;
+
+    function immediateSoundPopupHtml(item) {
+      const src = new URL(item.src, window.location.href).href;
+      const title = item.id.replace(/[<>&"]/g, "");
+
+      return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" src="${src}" playsinline autoplay muted loop preload="auto"></video>
+
+  <script>
+    const video = document.querySelector("#video");
+    let closingByPrimary = false;
+
+    function setMuted(nextMuted) {
+      video.muted = nextMuted;
+      video.volume = nextMuted ? 0 : 1;
+    }
+
+    function resizeToVideoPixels() {
+      if (!video.videoWidth || !video.videoHeight) return;
+      window.resizeBy(video.videoWidth - window.innerWidth, video.videoHeight - window.innerHeight);
+    }
+
+    async function playVideo() {
+      setMuted(true);
+      try {
+        await video.play();
+      } catch (error) {}
+    }
+
+    window.forcePlay = playVideo;
+
+    window.addEventListener("beforeunload", () => {
+      if (closingByPrimary) return;
+
+      try {
+        if (window.opener && typeof window.opener.closeCompanionPopups === "function") {
+          window.opener.closeCompanionPopups();
+        }
+      } catch (error) {}
+    });
+
+    video.addEventListener("loadedmetadata", () => {
+      resizeToVideoPixels();
+      video.currentTime = 0;
+      playVideo();
+    }, { once: true });
+
+    setMuted(true);
+    playVideo();
+  <\/script>
+</body>
+</html>`;
+    }
+
+    function openImmediateSoundPopup(item) {
+      const win = window.open("about:blank", `truth_${item.id}`, windowFeatures(item));
+
+      if (!win) {
+        status.innerHTML = "瀏覽器阻擋了 M1 popup，請允許此頁面的彈出式視窗後重新整理。";
+        closeCompanionPopups();
+        return;
+      }
+
+      win.document.open();
+      win.document.write(immediateSoundPopupHtml(item));
+      win.document.close();
+      win.focus();
+
+      const video = win.document.querySelector("#video");
+      if (video) {
+        video.muted = true;
+        video.volume = 0;
+
+        if (typeof win.forcePlay === "function") {
+          win.forcePlay();
+        }
+      }
+
+      primaryWindow = win;
+      openedPopups.add(win);
+    }
+
+    function startPrimaryAudio(item) {
+      primaryAudio = new Audio(item.src);
+      primaryAudio.loop = true;
+      primaryAudio.preload = "auto";
+      primaryAudio.volume = 1;
+      primaryAudio.muted = false;
+
+      const playback = primaryAudio.play();
+      if (playback) {
+        playback.catch(() => {
+          status.innerHTML = "瀏覽器封鎖了聲音，請確認分頁沒有靜音，並允許此網站播放音訊。";
+        });
+      }
+    }
+
+    function openPopup(item) {
+      if (item.sound === 1) {
+        openImmediateSoundPopup(item);
+        return;
+      }
+
+      if (primaryWindow && primaryWindow.closed) {
+        closeCompanionPopups();
+        return;
+      }
+
+      const win = window.open(popupUrl(item), `truth_${item.id}`, windowFeatures(item));
+
+      if (!win) {
+        status.innerHTML = "瀏覽器阻擋了 popup，請允許此頁面的彈出式視窗後重新整理。";
+        return;
+      }
+
+      win.focus();
+      openedPopups.add(win);
+    }
+
+    function launchPopups() {
+      if (started) return;
+      started = true;
+      launcher.disabled = true;
+      status.innerHTML = "popup 已開啟。若瀏覽器有阻擋，請允許此頁面的彈出式視窗。";
+
+      sequence = buildArrangedSequence(sequence);
+      startPrimaryAudio(sequence[0]);
+      openPopup(sequence[0]);
+
+      closeMonitor = window.setInterval(() => {
+        if (primaryWindow && primaryWindow.closed) {
+          closeCompanionPopups();
+        }
+      }, 250);
+
+      sequence.slice(1).forEach((item) => {
+        const timer = window.setTimeout(() => openPopup(item), item.delay);
+        popupTimers.push(timer);
+      });
+    }
+
+    launcher.addEventListener("click", launchPopups);
+
+    Promise.all(baseSequence.map(preloadVideoSize)).then((items) => {
+      sequence = items;
+      if (autoStart) {
+        launchPopups();
+        return;
+      }
+      launcher.disabled = false;
+      launcherText.textContent = "點擊開啟 popup 影片";
+      status.innerHTML = "第一個 popup 固定是 <strong>M1</strong> 並置中，聲音會在這一下點擊中開啟。";
+    });
+  </script>
+</body>
+</html>

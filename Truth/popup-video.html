@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Popup Video</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" playsinline autoplay loop preload="auto"></video>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id") || "VIDEO";
+    const src = params.get("src") || "";
+    const wantsSound = params.get("sound") === "1";
+    const requestedWidth = Number(params.get("w")) || 0;
+    const requestedHeight = Number(params.get("h")) || 0;
+    const video = document.querySelector("#video");
+
+    document.title = id;
+    video.src = src;
+
+    function resizeToVideoPixels() {
+      const width = requestedWidth || video.videoWidth;
+      const height = requestedHeight || video.videoHeight;
+
+      if (!width || !height) return;
+
+      const targetInnerWidth = Math.round(width);
+      const targetInnerHeight = Math.round(height);
+      window.resizeBy(targetInnerWidth - window.innerWidth, targetInnerHeight - window.innerHeight);
+    }
+
+    function setMuted(nextMuted) {
+      video.muted = nextMuted;
+      video.volume = nextMuted ? 0 : 1;
+    }
+
+    async function startPlayback() {
+      setMuted(!wantsSound);
+
+      try {
+        await video.play();
+      } catch (error) {
+        if (!video.muted) {
+          setMuted(true);
+          try {
+            await video.play();
+          } catch (mutedError) {}
+        }
+      }
+    }
+
+    video.addEventListener("click", async () => {
+      if (video.paused) {
+        await video.play();
+      }
+    });
+
+    video.addEventListener("loadedmetadata", resizeToVideoPixels, { once: true });
+    startPlayback();
+  </script>
+</body>
+</html>

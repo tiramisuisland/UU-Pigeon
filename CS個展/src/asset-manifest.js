@@ -69,10 +69,13 @@ export const PLAYER_ASSETS = {
 export const VISITOR_ASSETS = {
   entryPosition: [-4.6344, 0, 11.9535],
   visitors: [
-    { id: "visitor-01", category: "visitor", modelPath: `${ASSET_ROOTS.visitors}visitor-01.glb`, species: "human", behavior: "coward", position: [-2.6, 0, 9.2], rotationY: 2.6, scale: 0.56, jacket: 0x3b4d5f, pants: 0x1d2430 },
-    { id: "visitor-02", category: "visitor", modelPath: `${ASSET_ROOTS.visitors}visitor-02.glb`, species: "human", behavior: "aggressive", position: [2.8, 0, 8.4], rotationY: -2.55, scale: 0.56, jacket: 0x7a4d39, pants: 0x25251f },
-    { id: "visitor-03", category: "visitor", modelPath: `${ASSET_ROOTS.visitors}visitor-03.glb`, species: "tall-being", behavior: "coward", position: [-3.4, 0, 5.6], rotationY: 1.35, scale: 0.56, jacket: 0x546b48, pants: 0x293238 },
-    { id: "visitor-04", category: "visitor", modelPath: `${ASSET_ROOTS.visitors}visitor-04.glb`, species: "round-being", behavior: "aggressive", position: [3.8, 0, 5.8], rotationY: -1.55, scale: 0.56, jacket: 0xb9a36f, pants: 0x302a26 },
+    { id: "visitor-01", category: "visitor", style: "voxel", gender: "male", species: "human", behavior: "coward", position: [-2.6, 0, 9.2], rotationY: 2.6, scale: 0.56, jacket: 0x5f756f, pants: 0x3f4656, hair: 0x3a2c24 },
+    { id: "visitor-02", category: "visitor", style: "voxel", gender: "female", species: "human", behavior: "aggressive", position: [2.8, 0, 8.4], rotationY: -2.55, scale: 0.56, jacket: 0x7b8064, pants: 0x5d4a42, hair: 0x6d4a35 },
+    { id: "visitor-03", category: "visitor", style: "voxel", gender: "female", species: "tall-being", behavior: "coward", position: [-3.4, 0, 5.6], rotationY: 1.35, scale: 0.56, jacket: 0x66705a, pants: 0x30383c, hair: 0x332820 },
+    { id: "visitor-04", category: "visitor", style: "voxel", gender: "male", species: "round-being", behavior: "aggressive", position: [3.8, 0, 5.8], rotationY: -1.55, scale: 0.56, jacket: 0x8a8065, pants: 0x342f2c, hair: 0x1f1814 },
+    { id: "staff-01", category: "visitor", style: "voxel", gender: "male", role: "staff", species: "human", behavior: "staff", position: [-1.25, 0, -1.85], rotationY: 0.45, scale: 0.58, jacket: 0x3f5e6a, pants: 0x1f2730, hair: 0x2f2118, workRadius: 1.15 },
+    { id: "staff-02", category: "visitor", style: "voxel", gender: "female", role: "staff", species: "human", behavior: "staff", position: [2.65, 0, -3.35], rotationY: -0.9, scale: 0.58, jacket: 0x3f5e6a, pants: 0x1f2730, hair: 0x4a3528, workRadius: 1.25 },
+    { id: "staff-03", category: "visitor", style: "voxel", gender: "female", role: "staff", species: "human", behavior: "staff", position: [-4.15, 0, 2.35], rotationY: 1.65, scale: 0.58, jacket: 0x3f5e6a, pants: 0x1f2730, hair: 0x3a251b, workRadius: 1.05 },
   ],
 };
 

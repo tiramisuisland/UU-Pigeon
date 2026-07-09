@@ -1,5 +1,7 @@
 :root {
   color-scheme: dark;
+  --hud-amber: #e7d89a;
+  --hud-dark: rgba(7, 9, 6, 0.72);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC",
     "Segoe UI", sans-serif;
@@ -372,26 +374,33 @@ button:hover {
 
 .statusBar {
   position: absolute;
-  right: 22px;
+  right: 0;
   bottom: 18px;
-  left: 22px;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  left: 0;
+  overflow: hidden;
   color: var(--hud-amber);
-  font-size: clamp(1rem, 3vw, 1.8rem);
+  font-size: clamp(0.88rem, 2.2vw, 1.22rem);
   font-weight: 900;
   border-top: 2px solid rgba(245, 230, 180, 0.45);
-  padding-top: 6px;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.38), transparent 45%, rgba(0, 0, 0, 0.38));
+  border-bottom: 2px solid rgba(245, 230, 180, 0.32);
+  padding: 7px 0;
+  background: rgba(0, 0, 0, 0.62);
 }
 
-.statusBar span {
-  min-width: 72px;
+.statusBar__marquee {
+  display: flex;
+  width: max-content;
+  animation: statusTicker 18s linear infinite;
+}
+
+.statusBar__marquee span {
+  display: inline-block;
+  padding-right: 48px;
   white-space: nowrap;
-  background: var(--hud-dark);
-  border: 1px solid rgba(216, 166, 83, 0.35);
-  padding: 2px 8px;
+}
+
+#game.vision-clear .statusBar:not(.statusBar--system) {
+  display: none;
 }
 
 .hitMarker {
@@ -451,6 +460,8 @@ button:hover {
   display: grid;
   gap: 6px;
   max-width: min(360px, calc(100vw - 44px));
+  max-height: min(42vh, 260px);
+  overflow: hidden;
   color: #f5ecd4;
   font-size: 0.86rem;
   line-height: 1.35;
@@ -487,6 +498,12 @@ button:hover {
   }
 }
 
+@keyframes statusTicker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @media (max-width: 680px) {
   .targetCard {
     top: auto;
@@ -497,9 +514,7 @@ button:hover {
   }
 
   .statusBar {
-    left: 14px;
-    right: 14px;
-    gap: 10px;
+    bottom: 12px;
   }
 
   .dialogueLog {
