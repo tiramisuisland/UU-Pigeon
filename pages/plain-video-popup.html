@@ -36,6 +36,7 @@
         const videoSrc = params.get("video");
         const popupTitle = params.get("label");
         const initialVolume = Number(params.get("volume"));
+        const shouldLoop = params.get("loop") === "1";
 
         if (popupTitle) {
             document.title = popupTitle;
@@ -44,6 +45,7 @@
         video.volume = Number.isFinite(initialVolume)
             ? Math.max(0, Math.min(1, initialVolume))
             : 1;
+        video.loop = shouldLoop;
 
         function playVideo() {
             video.muted = false;

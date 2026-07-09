@@ -1195,11 +1195,13 @@
             }]
         ]);
         const shownAliveBirdPrompts = new Set();
+        const pageOnlineStartedAt = Date.now();
         const marqueeStats = {
             alive: "0",
             currentKills: "0",
             kills: "Loading",
-            pageviews: "Loading"
+            pageviews: "Loading",
+            onlineTime: "00:00"
         };
         const videoBackgroundFiles = [
             "./assets/videos/video1.mp4",
@@ -1958,7 +1960,7 @@
 
         function renderMarqueeStats() {
             const marqueeText =
-                `Alive: ${marqueeStats.alive} / Current kills: ${marqueeStats.currentKills} / Global kills: ${marqueeStats.kills} / Visitors: ${marqueeStats.pageviews}`;
+                `Alive: ${marqueeStats.alive} / Current kills: ${marqueeStats.currentKills} / Global kills: ${marqueeStats.kills} / Visitors: ${marqueeStats.pageviews} / Online time: ${marqueeStats.onlineTime}`;
             aliveMarqueeText.textContent =
                 `${marqueeText}     ${marqueeText}     ${marqueeText}`;
         }
@@ -1966,6 +1968,28 @@
         function setMarqueeStat(name, value) {
             marqueeStats[name] = String(value ?? "0");
             renderMarqueeStats();
+        }
+
+        function formatOnlineDuration(totalSeconds) {
+            const seconds = Math.max(0, Math.floor(totalSeconds));
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const remainingSeconds = seconds % 60;
+            const paddedMinutes = String(minutes).padStart(2, "0");
+            const paddedSeconds = String(remainingSeconds).padStart(2, "0");
+
+            if (hours > 0) {
+                return `${hours}:${paddedMinutes}:${paddedSeconds}`;
+            }
+
+            return `${paddedMinutes}:${paddedSeconds}`;
+        }
+
+        function updateOnlineTimeMarqueeStat() {
+            setMarqueeStat(
+                "onlineTime",
+                formatOnlineDuration((Date.now() - pageOnlineStartedAt) / 1000)
+            );
         }
 
         function getAliveBirdCount() {
@@ -2543,6 +2567,9 @@
                     new URL(options.videoSrc, window.location.href).href
                 );
             }
+            if (options.videoLoop) {
+                popupUrl.searchParams.set("loop", "1");
+            }
             if (options.videoPlaylist?.length) {
                 popupUrl.searchParams.set(
                     "playlist",
@@ -2608,6 +2635,7 @@
             openButtonModelPopup({
                 videoSrc,
                 label: `擊殺第 ${knockedDownBirdCount} 隻鴿子`,
+                videoLoop: true,
                 forceNew: true,
                 popupPage: "./pages/plain-video-popup.html",
                 windowName: `dictator_deflation_${knockedDownBirdCount}`
@@ -3820,10 +3848,12 @@
         startPointCounters();
         renderVolumeSlot();
         applyGlobalVolume();
+        updateOnlineTimeMarqueeStat();
         renderMarqueeStats();
         fetchGlobalKillCountOnce();
         recordPageviewOnce();
         window.setTimeout(fetchPageviewsOnce, 700);
+        window.setInterval(updateOnlineTimeMarqueeStat, 1000);
 
         volumeSlot.addEventListener("pointerdown", (event) => {
             event.stopPropagation();
