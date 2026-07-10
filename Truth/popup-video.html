@@ -72,10 +72,7 @@
         await video.play();
       } catch (error) {
         if (!video.muted) {
-          setMuted(true);
-          try {
-            await video.play();
-          } catch (mutedError) {}
+          video.setAttribute("controls", "");
         }
       }
     }

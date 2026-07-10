@@ -14,6 +14,9 @@
   ];
 
   const overlay = document.getElementById("entrance-overlay");
+  const permissionGate = document.getElementById("permission-gate");
+  const permissionButton = document.getElementById("permission-button");
+  const permissionStatus = document.getElementById("permission-status");
   const mainPage = document.getElementById("main-page");
   const loadingValue = document.getElementById("loading-value");
   const pullCue = document.getElementById("pull-cue");
@@ -31,6 +34,8 @@
   let nextAttentionNumberTick = 0;
   let loadingTipTimer = 0;
   let loadingTipVisible = false;
+  let entranceStarted = false;
+  let entranceAudioContext = null;
 
   function setProgress(value, min = AUTO_START, max = COMPLETE) {
     progress = clamp(value, min, max);
@@ -48,6 +53,8 @@
   }
 
   function startFakeAutoLoad() {
+    if (entranceStarted) return;
+    entranceStarted = true;
     const startedAt = performance.now();
     let lastTime = startedAt;
     let lastProgress = AUTO_START;
@@ -93,6 +100,95 @@
     }
 
     autoFrame = window.requestAnimationFrame(tick);
+  }
+
+  function startEntranceLoading() {
+    permissionGate?.classList.add("is-hidden");
+    window.setTimeout(startFakeAutoLoad, EMPTY_HOLD);
+    preloadMedia(mediaToPreload);
+  }
+
+  function unlockEntranceSound() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return Promise.resolve(true);
+    }
+
+    entranceAudioContext ||= new AudioContextClass();
+    const oscillator = entranceAudioContext.createOscillator();
+    const gain = entranceAudioContext.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.value = 440;
+    gain.gain.setValueAtTime(0.001, entranceAudioContext.currentTime);
+    oscillator.connect(gain);
+    gain.connect(entranceAudioContext.destination);
+    oscillator.start();
+    oscillator.stop(entranceAudioContext.currentTime + 0.035);
+
+    return entranceAudioContext.resume().then(() => entranceAudioContext.state === "running");
+  }
+
+  function checkPopupPermission() {
+    const popup = window.open(
+      "",
+      `front_page_permission_${Date.now()}`,
+      "popup=yes,width=120,height=90,left=16,top=16,resizable=no,scrollbars=no"
+    );
+
+    if (!popup) {
+      return false;
+    }
+
+    try {
+      popup.document.open();
+      popup.document.write("<!doctype html><title>OK</title><body style='margin:0;background:#000;color:#fff;font:700 14px sans-serif;display:grid;place-items:center;height:100vh'>OK</body>");
+      popup.document.close();
+      window.setTimeout(() => {
+        try {
+          popup.close();
+        } catch (error) {}
+      }, 220);
+    } catch (error) {}
+
+    return true;
+  }
+
+  async function requestEntrancePermissions() {
+    if (!permissionButton || !permissionStatus) {
+      startEntranceLoading();
+      return;
+    }
+
+    permissionButton.disabled = true;
+    permissionButton.textContent = "CHECKING";
+    permissionStatus.textContent = "Checking popup and sound permission...";
+
+    const popupAllowed = checkPopupPermission();
+    let soundUnlocked = false;
+
+    try {
+      soundUnlocked = await unlockEntranceSound();
+    } catch (error) {
+      soundUnlocked = false;
+    }
+
+    if (!popupAllowed) {
+      permissionStatus.textContent = "Popup is blocked. Allow Pop-ups and redirects for this site, then press ENABLE again.";
+      permissionButton.disabled = false;
+      permissionButton.textContent = "ENABLE";
+      return;
+    }
+
+    if (!soundUnlocked) {
+      permissionStatus.textContent = "Sound is blocked. Allow Sound for this site, then press ENABLE again.";
+      permissionButton.disabled = false;
+      permissionButton.textContent = "ENABLE";
+      return;
+    }
+
+    permissionStatus.textContent = "Ready.";
+    permissionButton.textContent = "OK";
+    window.setTimeout(startEntranceLoading, 180);
   }
 
   function revealHandle() {
@@ -460,11 +556,13 @@
     hideLoadingTip();
     setProgress(event.key === "End" ? COMPLETE : progress + 3, AUTO_END, COMPLETE);
   });
+  permissionButton?.addEventListener("click", requestEntrancePermissions);
 
   createJitterLetters();
   createFxSlices();
   setProgress(0, 0, AUTO_END);
   updateScrollCue();
-  window.setTimeout(startFakeAutoLoad, EMPTY_HOLD);
-  preloadMedia(mediaToPreload);
+  if (!permissionGate || !permissionButton) {
+    startEntranceLoading();
+  }
 })();

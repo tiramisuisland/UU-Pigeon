@@ -372,7 +372,7 @@
   </style>
 </head>
 <body>
-  <video id="video" src="${src}" playsinline autoplay muted loop preload="auto"></video>
+  <video id="video" src="${src}" playsinline autoplay loop preload="auto"></video>
 
   <script>
     const video = document.querySelector("#video");
@@ -389,10 +389,12 @@
     }
 
     async function playVideo() {
-      setMuted(true);
+      setMuted(false);
       try {
         await video.play();
-      } catch (error) {}
+      } catch (error) {
+        video.setAttribute("controls", "");
+      }
     }
 
     window.forcePlay = playVideo;
@@ -413,7 +415,7 @@
       playVideo();
     }, { once: true });
 
-    setMuted(true);
+    setMuted(false);
     playVideo();
   <\/script>
 </body>
@@ -436,8 +438,8 @@
 
       const video = win.document.querySelector("#video");
       if (video) {
-        video.muted = true;
-        video.volume = 0;
+        video.muted = false;
+        video.volume = 1;
 
         if (typeof win.forcePlay === "function") {
           win.forcePlay();

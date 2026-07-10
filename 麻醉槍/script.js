@@ -27,10 +27,8 @@ function playVideo(video) {
 
   if (playRequest) {
     playRequest.catch(() => {
-      video.muted = true;
-      video.play().catch(() => {
-        video.setAttribute("controls", "");
-      });
+      video.muted = false;
+      video.setAttribute("controls", "");
     });
   }
 }

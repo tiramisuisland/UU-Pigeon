@@ -148,7 +148,7 @@
 </head>
 <body>
   <main class="stage" aria-label="影片播放區">
-    <video class="video-layer" id="video" src="explo1.mp4" playsinline loop preload="auto" autoplay muted></video>
+    <video class="video-layer" id="video" src="explo1.mp4" playsinline loop preload="auto" autoplay></video>
   </main>
 
   <button class="start" id="start" type="button" aria-label="開始播放">▶</button>
@@ -178,7 +178,7 @@
 
     let rateIndex = 0;
     let started = false;
-    let isMuted = true;
+    let isMuted = false;
 
     function applySettings() {
       const nextVolume = Number(volume.value);
@@ -213,20 +213,14 @@
       if (started) return;
       started = true;
       start.classList.remove("is-visible");
-      isMuted = !preferAudio || localStorage.getItem("exploAudioEnabled") !== "1";
+      isMuted = false;
       applySettings();
 
       try {
         await playVideo();
       } catch (error) {
-        try {
-          isMuted = true;
-          applySettings();
-          await playVideo();
-        } catch (mutedError) {
-          started = false;
-          start.classList.add("is-visible");
-        }
+        started = false;
+        start.classList.add("is-visible");
       }
     }
 

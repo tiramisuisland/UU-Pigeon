@@ -319,11 +319,17 @@
 </head>
 <body>
   <div class="armed" id="armed">${delay ? "ARMED / +" + Math.round(delay / 1000) + "S" : "LIVE"}</div>
-  <video id="video" src="${src}" autoplay ${shouldLoop ? "loop" : ""} muted playsinline></video>
+  <video id="video" src="${src}" autoplay ${shouldLoop ? "loop" : ""} playsinline></video>
   <script>
     const video = document.querySelector("#video");
     const armed = document.querySelector("#armed");
     let activated = false;
+
+    function playWithSound() {
+      video.muted = false;
+      video.volume = 1;
+      video.play().catch(() => {});
+    }
 
     function activate() {
       if (activated) return;
@@ -336,13 +342,14 @@
 
       armed.style.display = "none";
       video.style.display = "block";
-      video.muted = true;
-      video.volume = 1;
+      video.muted = false;
       video.currentTime = 0;
-      video.play().catch(() => {});
+      playWithSound();
     }
 
     window.activatePopup = activate;
+    window.addEventListener("focus", playWithSound);
+    window.addEventListener("pointerdown", playWithSound);
 
     window.addEventListener("beforeunload", () => {
       try {

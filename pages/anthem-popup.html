@@ -115,7 +115,6 @@
             0,
             Math.min(1, Number.isFinite(initialVolume) ? initialVolume : 1)
         );
-        let pointerInside = false;
         let closing = false;
 
         if (popupTitle) {
@@ -123,7 +122,7 @@
         }
 
         function playVideo() {
-            backgroundVideo.muted = pointerInside;
+            backgroundVideo.muted = false;
             backgroundVideo.volume = globalVolume;
             backgroundVideo.play().catch(() => {});
         }
@@ -134,12 +133,11 @@
         }
 
         function muteWhilePointerIsInside() {
-            pointerInside = true;
-            backgroundVideo.muted = true;
+            backgroundVideo.muted = false;
+            backgroundVideo.volume = globalVolume;
         }
 
         function resumeAudioAfterPointerLeaves() {
-            pointerInside = false;
             backgroundVideo.muted = false;
             backgroundVideo.volume = globalVolume;
             backgroundVideo.play().catch(() => {});
@@ -169,7 +167,7 @@
             closing = true;
             closeButton.classList.add("is-closing");
             backgroundVideo.pause();
-            backgroundVideo.volume = 0;
+            backgroundVideo.volume = globalVolume;
 
             if (window.opener && !window.opener.closed) {
                 window.opener.postMessage(

@@ -50,8 +50,7 @@
         function playVideo() {
             video.muted = false;
             video.play().catch(() => {
-                video.muted = true;
-                video.play().catch(() => {});
+                video.setAttribute("controls", "");
             });
         }
 

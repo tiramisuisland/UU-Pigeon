@@ -71,11 +71,9 @@ function startVideo(video) {
 
   if (playRequest) {
     playRequest.catch(() => {
-      video.muted = true;
-      video.volume = 0;
-      video.play().catch(() => {
-        video.setAttribute("controls", "");
-      });
+      video.muted = false;
+      video.volume = 1;
+      video.setAttribute("controls", "");
     });
   }
 }

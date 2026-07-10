@@ -524,7 +524,7 @@
   </style>
 </head>
 <body>
-  <video src="${source}" autoplay loop playsinline ${muted ? "muted" : ""}></video>
+  <video src="${source}" autoplay loop playsinline></video>
   <script>
     const video = document.querySelector("video");
     const fitToVideo = () => {
@@ -546,9 +546,10 @@
       }
       lastTime = video.currentTime;
     });
+    video.muted = false;
+    video.volume = 1;
     video.play().catch(() => {
-      video.muted = true;
-      video.play().catch(() => {});
+      video.controls = true;
     });
   <\/script>
 </body>
