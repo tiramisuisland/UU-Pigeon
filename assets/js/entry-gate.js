@@ -1,5 +1,27 @@
 const explosionPopupStorageKey = "explosionPopupAccessReady";
 const explosionCloseSignalKey = "uuPigeonExplosionCloseMain";
+let mainPageAudioContext = null;
+
+window.unlockUUPigeonSound = async function unlockUUPigeonSound() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+        return true;
+    }
+
+    mainPageAudioContext ||= new AudioContextClass();
+    const oscillator = mainPageAudioContext.createOscillator();
+    const gain = mainPageAudioContext.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.value = 440;
+    gain.gain.setValueAtTime(0.001, mainPageAudioContext.currentTime);
+    oscillator.connect(gain);
+    gain.connect(mainPageAudioContext.destination);
+    oscillator.start();
+    oscillator.stop(mainPageAudioContext.currentTime + 0.035);
+
+    await mainPageAudioContext.resume();
+    return mainPageAudioContext.state === "running";
+};
 
 window.completeExplosionPermission = function completeExplosionPermission() {
     const permissionFrame = document.querySelector(".popup-permission-frame");
@@ -14,10 +36,6 @@ window.completeExplosionPermission = function completeExplosionPermission() {
         frontPageFrame.src = frontPageFrame.dataset.src;
     }
 };
-
-if (localStorage.getItem(explosionPopupStorageKey) === "true") {
-    window.completeExplosionPermission();
-}
 
 window.closeUUPigeonMainPageAfterExplosion = function closeUUPigeonMainPageAfterExplosion() {
     document.body.innerHTML = "";

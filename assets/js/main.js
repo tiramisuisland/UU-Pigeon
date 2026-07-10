@@ -2305,6 +2305,92 @@ function openTruthVideos() {
         { id: "V2", file: "V2.mp4", width: 240, height: 384, delay: 2200, sound: 0, x: 0.08, y: 0.82 },
         { id: "S2", file: "S2.mp4", width: 720, height: 200, delay: 2850, sound: 0, x: 0.72, y: 0.82 }
     ];
+    let truthM1BackupAudio = null;
+
+    window.playTruthM1BackupAudio = function playTruthM1BackupAudio() {
+        if (truthM1BackupAudio) {
+            return;
+        }
+
+        truthM1BackupAudio = new Audio("./Truth/M1.mp4");
+        truthM1BackupAudio.loop = true;
+        truthM1BackupAudio.preload = "auto";
+        truthM1BackupAudio.volume = 1;
+        truthM1BackupAudio.muted = false;
+        truthM1BackupAudio.play().catch(() => {
+            truthM1BackupAudio = null;
+        });
+    };
+
+    window.stopTruthM1BackupAudio = function stopTruthM1BackupAudio() {
+        if (!truthM1BackupAudio) {
+            return;
+        }
+
+        truthM1BackupAudio.pause();
+        truthM1BackupAudio.removeAttribute("src");
+        truthM1BackupAudio.load();
+        truthM1BackupAudio = null;
+    };
+
+    function writeImmediateSoundVideoPopup(popupWindow, item, videoSrc) {
+        window.playTruthM1BackupAudio();
+        popupWindow.document.open();
+        popupWindow.document.write(`<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>${item.id}</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" src="${videoSrc}" autoplay muted loop playsinline preload="auto"></video>
+  <script>
+    const video = document.querySelector("#video");
+
+    function playMutedVideo() {
+      video.muted = true;
+      video.volume = 0;
+      video.play().catch(() => {
+        video.setAttribute("controls", "");
+      });
+    }
+
+    window.addEventListener("beforeunload", () => {
+      try {
+        window.opener?.stopTruthM1BackupAudio?.();
+      } catch (error) {}
+    });
+    video.addEventListener("loadedmetadata", () => {
+      window.resizeBy(${item.width} - window.innerWidth, ${item.height} - window.innerHeight);
+    }, { once: true });
+    video.addEventListener("loadeddata", playMutedVideo, { once: true });
+    video.addEventListener("canplay", playMutedVideo, { once: true });
+    window.addEventListener("focus", playMutedVideo);
+    window.addEventListener("pointerdown", playMutedVideo);
+    window.addEventListener("pageshow", playMutedVideo);
+    playMutedVideo();
+  <\/script>
+</body>
+</html>`);
+        popupWindow.document.close();
+    }
 
     truthVideos.forEach((item) => {
         const left = Math.round(screenLeft + THREE.MathUtils.clamp(
@@ -2335,16 +2421,26 @@ function openTruthVideos() {
         popupUrl.searchParams.set("sound", String(item.sound));
         popupUrl.searchParams.set("w", String(item.width));
         popupUrl.searchParams.set("h", String(item.height));
-        popupUrl.searchParams.set("volume", String(getGlobalVolumeRatio()));
+        popupUrl.searchParams.set("volume", String(item.sound === 1 ? 1 : getGlobalVolumeRatio()));
 
         const beginPlayback = () => {
-            if (!popupWindow.closed && popupWindow.location.href === "about:blank") {
+            if (popupWindow.closed || popupWindow.location.href !== "about:blank") {
+                return;
+            }
+
+            if (item.sound === 1) {
+                writeImmediateSoundVideoPopup(
+                    popupWindow,
+                    item,
+                    new URL(`./Truth/${item.file}`, window.location.href).href
+                );
+            } else {
                 popupWindow.location.replace(popupUrl.href);
             }
         };
 
         if (item.delay === 0) {
-            popupWindow.location.replace(popupUrl.href);
+            beginPlayback();
         } else {
             window.setTimeout(beginPlayback, item.delay);
         }
@@ -2368,6 +2464,36 @@ const lookAtThemClips = [
 let lookAtThemPopupWindows = [];
 let lookAtThemMonitorTimer = 0;
 let lookAtThemClosingAll = false;
+let lookAtThemC1Audio = null;
+
+function playLookAtThemC1Audio() {
+    if (lookAtThemC1Audio) {
+        return;
+    }
+
+    lookAtThemC1Audio = new Audio("./look_at_them/C1.mp4");
+    lookAtThemC1Audio.loop = false;
+    lookAtThemC1Audio.preload = "auto";
+    lookAtThemC1Audio.volume = 1;
+    lookAtThemC1Audio.muted = false;
+    lookAtThemC1Audio.play().catch(() => {
+        lookAtThemC1Audio = null;
+    });
+}
+
+function stopLookAtThemC1Audio() {
+    if (!lookAtThemC1Audio) {
+        return;
+    }
+
+    lookAtThemC1Audio.pause();
+    lookAtThemC1Audio.removeAttribute("src");
+    lookAtThemC1Audio.load();
+    lookAtThemC1Audio = null;
+}
+
+window.playLookAtThemC1Audio = playLookAtThemC1Audio;
+window.stopLookAtThemC1Audio = stopLookAtThemC1Audio;
 
 function closeLookAtThemPopups() {
     if (lookAtThemClosingAll) {
@@ -2377,6 +2503,7 @@ function closeLookAtThemPopups() {
     lookAtThemClosingAll = true;
     window.clearInterval(lookAtThemMonitorTimer);
     lookAtThemMonitorTimer = 0;
+    stopLookAtThemC1Audio();
     lookAtThemPopupWindows.forEach((popupWindow) => {
         try {
             if (popupWindow && !popupWindow.closed) {
@@ -2441,6 +2568,7 @@ function getLookAtThemTopRightRect(size, margin = 18) {
 }
 
 function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
+    const useOpenerAudio = label === "C1";
     return `<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -2463,14 +2591,15 @@ function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
 </head>
 <body>
   <div class="armed" id="armed">${delay ? "ARMED / +" + Math.round(delay / 1000) + "S" : "LIVE"}</div>
-  <video id="video" src="${src}" autoplay ${shouldLoop ? "loop" : ""} playsinline></video>
+  <video id="video" src="${src}" autoplay ${useOpenerAudio ? "muted" : ""} ${shouldLoop ? "loop" : ""} playsinline></video>
   <script>
     const video = document.querySelector("#video");
     const armed = document.querySelector("#armed");
+    const useOpenerAudio = ${useOpenerAudio ? "true" : "false"};
     let activated = false;
     async function playWithSound() {
-      video.muted = false;
-      video.volume = 1;
+      video.muted = useOpenerAudio;
+      video.volume = useOpenerAudio ? 0 : 1;
       try {
         await video.play();
       } catch (error) {
@@ -2488,8 +2617,13 @@ window.resizeTo(${rect.width}, ${rect.height});
       } catch (error) {}
       armed.style.display = "none";
       video.style.display = "block";
-      video.muted = false;
+      video.muted = useOpenerAudio;
       video.currentTime = 0;
+      if (useOpenerAudio) {
+        try {
+window.opener?.playLookAtThemC1Audio?.();
+        } catch (error) {}
+      }
       playWithSound();
     }
     window.activatePopup = activate;
@@ -2497,6 +2631,9 @@ window.resizeTo(${rect.width}, ${rect.height});
     window.addEventListener("pointerdown", playWithSound);
     window.addEventListener("beforeunload", () => {
       try {
+if (useOpenerAudio) {
+  window.opener?.stopLookAtThemC1Audio?.();
+}
 window.opener.postMessage({ type: "look-at-them-popup-closed" }, "*");
       } catch (error) {}
     });
@@ -3523,8 +3660,8 @@ function updateAliveThresholdStorm(elapsed) {
 
 function scheduleNextSpawn(elapsed) {
     const aliveCount = getAliveBirdCount();
-    const minSeconds = aliveCount >= 20 ? 3 : 10;
-    const maxSeconds = aliveCount >= 20 ? 8 : 15;
+    const minSeconds = aliveCount <= 20 ? 5 : 8;
+    const maxSeconds = aliveCount <= 20 ? 7 : 15;
     nextSpawnAt = elapsed + THREE.MathUtils.randFloat(minSeconds, maxSeconds);
     return { minSeconds, maxSeconds };
 }

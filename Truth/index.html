@@ -372,37 +372,29 @@
   </style>
 </head>
 <body>
-  <video id="video" src="${src}" playsinline autoplay loop preload="auto"></video>
+  <video id="video" src="${src}" playsinline autoplay muted loop preload="auto"></video>
 
   <script>
     const video = document.querySelector("#video");
     let closingByPrimary = false;
-
-    function setMuted(nextMuted) {
-      video.muted = nextMuted;
-      video.volume = nextMuted ? 0 : 1;
-    }
 
     function resizeToVideoPixels() {
       if (!video.videoWidth || !video.videoHeight) return;
       window.resizeBy(video.videoWidth - window.innerWidth, video.videoHeight - window.innerHeight);
     }
 
-    async function playVideo() {
-      setMuted(false);
-      try {
-        await video.play();
-      } catch (error) {
-        setMuted(true);
-        await video.play().catch(() => {
-          video.setAttribute("controls", "");
-        });
-      }
+    function playVideo() {
+      video.muted = true;
+      video.volume = 0;
+      video.play().catch(() => {
+        video.setAttribute("controls", "");
+      });
     }
 
     window.forcePlay = playVideo;
     window.addEventListener("focus", playVideo);
     window.addEventListener("pointerdown", playVideo);
+    window.addEventListener("pageshow", playVideo);
 
     window.addEventListener("beforeunload", () => {
       if (closingByPrimary) return;
@@ -419,8 +411,9 @@
       video.currentTime = 0;
       playVideo();
     }, { once: true });
+    video.addEventListener("loadeddata", playVideo, { once: true });
+    video.addEventListener("canplay", playVideo, { once: true });
 
-    setMuted(false);
     playVideo();
   <\/script>
 </body>

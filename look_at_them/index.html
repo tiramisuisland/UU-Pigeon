@@ -160,10 +160,36 @@
     let monitorTimer = null;
     let closingAll = false;
     let launching = false;
+    let c1Audio = null;
 
     function setStatus(text) {
       statusText.textContent = text;
     }
+
+    function playC1Audio() {
+      if (c1Audio) return;
+
+      c1Audio = new Audio("C1.mp4");
+      c1Audio.loop = false;
+      c1Audio.preload = "auto";
+      c1Audio.volume = 1;
+      c1Audio.muted = false;
+      c1Audio.play().catch(() => {
+        c1Audio = null;
+      });
+    }
+
+    function stopC1Audio() {
+      if (!c1Audio) return;
+
+      c1Audio.pause();
+      c1Audio.removeAttribute("src");
+      c1Audio.load();
+      c1Audio = null;
+    }
+
+    window.playC1Audio = playC1Audio;
+    window.stopC1Audio = stopC1Audio;
 
     function closeAllPopups() {
       if (closingAll) return;
@@ -171,6 +197,7 @@
 
       window.clearInterval(monitorTimer);
       monitorTimer = null;
+      stopC1Audio();
 
       popupWindows.forEach((popup) => {
         try {
@@ -263,6 +290,7 @@
     }
 
     function popupHtml(src, label, sourceSize, delay, rect, shouldLoop) {
+      const useOpenerAudio = label === "C1";
       return `<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -319,15 +347,16 @@
 </head>
 <body>
   <div class="armed" id="armed">${delay ? "ARMED / +" + Math.round(delay / 1000) + "S" : "LIVE"}</div>
-  <video id="video" src="${src}" autoplay ${shouldLoop ? "loop" : ""} playsinline></video>
+  <video id="video" src="${src}" autoplay ${useOpenerAudio ? "muted" : ""} ${shouldLoop ? "loop" : ""} playsinline></video>
   <script>
     const video = document.querySelector("#video");
     const armed = document.querySelector("#armed");
+    const useOpenerAudio = ${useOpenerAudio ? "true" : "false"};
     let activated = false;
 
     async function playWithSound() {
-      video.muted = false;
-      video.volume = 1;
+      video.muted = useOpenerAudio;
+      video.volume = useOpenerAudio ? 0 : 1;
       try {
         await video.play();
       } catch (error) {
@@ -348,8 +377,13 @@
 
       armed.style.display = "none";
       video.style.display = "block";
-      video.muted = false;
+      video.muted = useOpenerAudio;
       video.currentTime = 0;
+      if (useOpenerAudio) {
+        try {
+          window.opener?.playC1Audio?.();
+        } catch (error) {}
+      }
       playWithSound();
     }
 
@@ -359,6 +393,9 @@
 
     window.addEventListener("beforeunload", () => {
       try {
+        if (useOpenerAudio) {
+          window.opener?.stopC1Audio?.();
+        }
         window.opener.postMessage({ type: "popup-window-closed" }, "*");
       } catch (error) {}
     });
