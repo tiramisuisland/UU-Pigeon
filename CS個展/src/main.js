@@ -972,6 +972,9 @@ function requestGalleryVideoPlay(video) {
   const playPromise = video.play();
   if (!playPromise) return;
   playPromise.catch(() => {
+    video.muted = true;
+    video.volume = 0;
+    video.play().catch(() => {});
     setTimeout(() => {
       if (galleryVideosStarted && video.paused) video.play().catch(() => {});
     }, 350);

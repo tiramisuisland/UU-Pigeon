@@ -47,11 +47,25 @@
             : 1;
         video.loop = shouldLoop;
 
-        function playVideo() {
-            video.muted = false;
-            video.play().catch(() => {
-                video.setAttribute("controls", "");
-            });
+        async function ensureVideoPlayback({ withSound = true } = {}) {
+            video.volume = Number.isFinite(initialVolume)
+                ? Math.max(0, Math.min(1, initialVolume))
+                : 1;
+            video.muted = !withSound || video.volume === 0;
+
+            try {
+                await video.play();
+            } catch (error) {
+                video.muted = true;
+                video.volume = 0;
+                await video.play().catch(() => {
+                    video.setAttribute("controls", "");
+                });
+            }
+        }
+
+        function unlockSoundAndPlay() {
+            ensureVideoPlayback({ withSound: true });
         }
 
         function fitWindowToVideo() {
@@ -83,13 +97,13 @@
             }
         });
 
-        window.addEventListener("pointerdown", playVideo);
-        window.addEventListener("focus", playVideo);
+        window.addEventListener("pointerdown", unlockSoundAndPlay);
+        window.addEventListener("focus", unlockSoundAndPlay);
         video.addEventListener("loadedmetadata", fitWindowToVideo, { once: true });
 
         if (videoSrc) {
             video.src = videoSrc;
-            playVideo();
+            ensureVideoPlayback({ withSound: true });
         }
     </script>
 </body>

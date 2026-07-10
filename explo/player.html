@@ -197,7 +197,13 @@
     async function playVideo() {
       video.currentTime = 0;
       video.classList.add("is-visible");
-      await video.play();
+      try {
+        await video.play();
+      } catch (error) {
+        isMuted = true;
+        applySettings();
+        await video.play();
+      }
     }
 
     function resizeToVideoPixels() {

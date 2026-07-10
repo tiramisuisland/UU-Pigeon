@@ -23,14 +23,25 @@ function broadcastUnlock() {
 
 function playVideo(video) {
   video.currentTime = 0;
+  video.muted = false;
+  video.volume = 1;
   const playRequest = video.play();
 
   if (playRequest) {
     playRequest.catch(() => {
-      video.muted = false;
-      video.setAttribute("controls", "");
+      video.muted = true;
+      video.volume = 0;
+      video.play().catch(() => {
+        video.setAttribute("controls", "");
+      });
     });
   }
+}
+
+function autoplayMutedVideo(video) {
+  video.muted = true;
+  video.volume = 0;
+  video.play().catch(() => {});
 }
 
 function unlockPopup({ broadcast = true } = {}) {
@@ -58,6 +69,8 @@ function setupPopupPage() {
 
   document.title = item.title;
   video.src = item.file;
+  video.addEventListener("loadeddata", () => autoplayMutedVideo(video), { once: true });
+  autoplayMutedVideo(video);
   if (!lockPlacement) {
     video.addEventListener("loadedmetadata", () => syncPopupToVideo(index, video, run));
     window.addEventListener("resize", () => syncPopupToVideo(index, video, run));

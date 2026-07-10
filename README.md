@@ -80,7 +80,7 @@ index.html                         正式主頁，Three.js 飛鳥互動場景
 
 ## 正式主頁：`index.html`
 
-根目錄 `index.html` 是正式入口。它建立 3D 飛鳥場景、HUD、聊天室、音量控制、投票與多個 popup 觸發流程。
+根目錄 `index.html` 是正式入口，只保留頁面骨架與必要載入順序。主頁樣式放在 `assets/css/main.css`，入口權限流程放在 `assets/js/entry-gate.js`，主要 Three.js 互動邏輯放在 `assets/js/main.js`。
 
 主要功能：
 
@@ -125,7 +125,9 @@ index.html                         正式主頁，Three.js 飛鳥互動場景
 
 ## 主要資料夾
 
-- `assets/`：正式主頁使用的模型、影片、音效、圖片、數字圖、HDR 環境貼圖。
+- `assets/`：正式主頁使用的 CSS、JS、模型、影片、音效、圖片、數字圖、HDR 環境貼圖。
+- `assets/css/`：主頁樣式。
+- `assets/js/`：主頁入口權限流程與 Three.js 互動邏輯。
 - `pages/`：由主頁開啟的 popup 頁面。
 - `scripts/`：共用元件，目前主要是按壓式音量控制。
 - `front_page/`：黑白警告入口與拖曳 loading bar。
@@ -249,13 +251,17 @@ python3 -m http.server 8088
 - `assets/digits/0.bmp` 到 `9.bmp`：票數數字顯示。
 - `assets/audio/翅膀拍動的聲音2.mp3`：翅膀音效。
 - `assets/audio/鴿子的叫聲.mp3`：鴿子叫聲。
+- `assets/audio/Gun4.mp3`：主頁射擊音效。
 - `assets/videos/video1.mp4`、`video2.mp4`、`video3.mp4`：投票 popup 輪播影片。
 - `assets/videos/唱國歌.mp4`：唱國歌 popup。
+- `assets/videos/national-joint.mp4`：擊落觸發影片 popup。
 - `assets/videos/大偶90.mp4` / `大偶90.mov`：UU 模型影片材質。
+- `assets/images/asian-futurism.png`：擊落觸發圖片 popup。
 - `assets/images/X.png`：自訂游標。
 - `assets/images/shut_up.png`：唱國歌 popup 關閉圖。
 - `assets/images/元首聊天室.svg`：聊天室外框。
 - `assets/images/like.png` / `dislike.png`：聊天室反應圖示。
+- `assets/images/chat-avatars/`：聊天室人物頭像。
 
 ## 維護備註
 

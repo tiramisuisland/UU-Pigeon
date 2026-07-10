@@ -548,9 +548,20 @@
     });
     video.muted = false;
     video.volume = 1;
-    video.play().catch(() => {
-      video.controls = true;
-    });
+    function playWithFallback() {
+      video.muted = false;
+      video.volume = 1;
+      video.play().catch(() => {
+        video.muted = true;
+        video.volume = 0;
+        video.play().catch(() => {
+          video.controls = true;
+        });
+      });
+    }
+    window.addEventListener("focus", playWithFallback);
+    window.addEventListener("pointerdown", playWithFallback);
+    playWithFallback();
   <\/script>
 </body>
 </html>`;
@@ -655,7 +666,7 @@
   </style>
 </head>
 <body>
-  <video src="${source}" loop playsinline></video>
+  <video src="${source}" autoplay loop playsinline></video>
   <section class="ending-question" aria-modal="true" role="dialog">
     <div class="ending-inner">
       <h1><span>Once you in !</span><span>No way back !!</span></h1>
@@ -681,11 +692,19 @@
         window.opener.closeAllAfterEndingWindowClosed();
       }
     });
+    video.muted = true;
+    video.volume = 0;
+    video.play().catch(() => {});
     document.querySelector("#yesButton").addEventListener("click", () => {
       prompt.style.display = "none";
       video.muted = false;
+      video.volume = 1;
       video.play().catch(() => {
-        video.controls = true;
+        video.muted = true;
+        video.volume = 0;
+        video.play().catch(() => {
+          video.controls = true;
+        });
       });
     });
     document.querySelector("#noButton").addEventListener("click", () => {

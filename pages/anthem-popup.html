@@ -122,10 +122,16 @@
             document.title = popupTitle;
         }
 
-        function playVideo() {
+        async function playVideo() {
             backgroundVideo.muted = pointerInside;
             backgroundVideo.volume = pointerInside ? 0 : globalVolume;
-            backgroundVideo.play().catch(() => {});
+            try {
+                await backgroundVideo.play();
+            } catch (error) {
+                backgroundVideo.muted = true;
+                backgroundVideo.volume = 0;
+                await backgroundVideo.play().catch(() => {});
+            }
         }
 
         function setGlobalVolume(volume) {
@@ -143,7 +149,7 @@
             pointerInside = false;
             backgroundVideo.muted = false;
             backgroundVideo.volume = globalVolume;
-            backgroundVideo.play().catch(() => {});
+            playVideo();
         }
 
         function fitPopupToVideo() {

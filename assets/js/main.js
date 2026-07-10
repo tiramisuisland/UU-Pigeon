@@ -1,0 +1,4439 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+import { clone } from "three/addons/utils/SkeletonUtils.js";
+
+const hud = document.querySelector(".hud");
+const stormWeather = document.querySelector(".storm-weather");
+const stormFlash = document.querySelector(".storm-flash");
+const audioGate = document.querySelector(".audio-gate");
+const agreeCounterElement = document.querySelector("#agreeCounter");
+const disagreeCounterElement = document.querySelector("#disagreeCounter");
+const gameCursor = document.querySelector(".game-cursor");
+const volumeSlot = document.querySelector(".volume-slot");
+const globalVolumeControl = document.querySelector("#globalVolumeControl");
+const aliveMarqueeText = document.querySelector("#aliveMarqueeText");
+const chatToggle = document.querySelector("#chatToggle");
+const chatPanel = document.querySelector("#chatPanel");
+const chatMessages = document.querySelector("#chatMessages");
+const chatTitle = document.querySelector("#chatTitle");
+const chatStatus = document.querySelector("#chatStatus");
+const chatActionMenu = document.querySelector("#chatActionMenu");
+const chatDragHandle = chatPanel.querySelector(".chat-drag-handle");
+const appViewport = {
+    width: 320,
+    height: 480,
+    aspect: 320 / 480,
+    layoutScale: 1,
+    sceneScale: 1
+};
+
+const designViewport = {
+    width: 1440,
+    height: 900
+};
+
+function clampScale(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function computeLayoutScale(width, height) {
+    const proportionalScale = Math.min(
+        width / designViewport.width,
+        height / designViewport.height
+    );
+
+    return clampScale(proportionalScale, 0.42, 1.18);
+}
+
+function readViewportSize() {
+    const visualViewport = window.visualViewport;
+    const width = Math.max(
+        320,
+        Math.round(visualViewport?.width || window.innerWidth || 320)
+    );
+    const height = Math.max(
+        320,
+        Math.round(visualViewport?.height || window.innerHeight || 480)
+    );
+
+    const layoutScale = computeLayoutScale(width, height);
+
+    return {
+        width,
+        height,
+        aspect: width / height,
+        layoutScale,
+        sceneScale: layoutScale
+    };
+}
+
+function refreshViewportMetrics() {
+    const nextViewport = readViewportSize();
+    appViewport.width = nextViewport.width;
+    appViewport.height = nextViewport.height;
+    appViewport.aspect = nextViewport.aspect;
+    appViewport.layoutScale = nextViewport.layoutScale;
+    appViewport.sceneScale = nextViewport.sceneScale;
+    document.documentElement.style.setProperty("--app-height", `${appViewport.height}px`);
+    document.documentElement.style.setProperty("--layout-scale", appViewport.layoutScale.toFixed(3));
+    globalVolumeControl.style.setProperty(
+        "--pvc-ui-scale",
+        (0.5 * appViewport.layoutScale).toFixed(3)
+    );
+    return appViewport;
+}
+
+refreshViewportMetrics();
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xd99870, 34, 128);
+
+const skyCanvas = document.createElement("canvas");
+skyCanvas.width = 1024;
+skyCanvas.height = 1024;
+const skyContext = skyCanvas.getContext("2d");
+let currentStormSkyIntensity = -1;
+const clearSkyStops = ["#5fa8ff", "#88c4ff", "#c88da1", "#d96f72"];
+const stormSkyStops = ["#17263d", "#253952", "#384355", "#242735"];
+const clearFogColor = new THREE.Color(0xd99870);
+const stormFogColor = new THREE.Color(0x202b38);
+const mixedFogColor = new THREE.Color();
+const clearCloudColor = new THREE.Color(0xcfe8bf);
+const stormCloudColor = new THREE.Color(0x48596d);
+const clearCloudEmissive = new THREE.Color(0xb9d9ab);
+const stormCloudEmissive = new THREE.Color(0x1d2733);
+
+function mixCssColor(clearColor, stormColor, intensity) {
+    return new THREE.Color(clearColor).lerp(new THREE.Color(stormColor), intensity).getStyle();
+}
+
+function drawSkyTexture(stormIntensity = 0) {
+    const clampedStormIntensity = THREE.MathUtils.clamp(stormIntensity, 0, 1);
+    skyContext.clearRect(0, 0, skyCanvas.width, skyCanvas.height);
+
+    const skyGradient = skyContext.createLinearGradient(0, 0, 0, skyCanvas.height);
+    skyGradient.addColorStop(0, mixCssColor(clearSkyStops[0], stormSkyStops[0], clampedStormIntensity));
+    skyGradient.addColorStop(0.3, mixCssColor(clearSkyStops[1], stormSkyStops[1], clampedStormIntensity));
+    skyGradient.addColorStop(0.68, mixCssColor(clearSkyStops[2], stormSkyStops[2], clampedStormIntensity));
+    skyGradient.addColorStop(1, mixCssColor(clearSkyStops[3], stormSkyStops[3], clampedStormIntensity));
+    skyContext.fillStyle = skyGradient;
+    skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+
+    skyContext.save();
+    skyContext.globalAlpha = clampedStormIntensity;
+    for (let layer = 0; layer < 6; layer += 1) {
+        const y = 80 + layer * 82;
+        const gradient = skyContext.createRadialGradient(
+            skyCanvas.width * (0.18 + layer * 0.14),
+            y,
+            16,
+            skyCanvas.width * (0.18 + layer * 0.14),
+            y,
+            280 + layer * 24
+        );
+        gradient.addColorStop(0, "rgba(20, 29, 42, 0.42)");
+        gradient.addColorStop(1, "rgba(20, 29, 42, 0)");
+        skyContext.fillStyle = gradient;
+        skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+    }
+    skyContext.restore();
+
+    const sunsetGlow = skyContext.createRadialGradient(
+        skyCanvas.width * 0.5,
+        skyCanvas.height * 0.78,
+        0,
+        skyCanvas.width * 0.5,
+        skyCanvas.height * 0.78,
+        skyCanvas.width * 0.24
+    );
+    sunsetGlow.addColorStop(0, `rgba(255, 170, 120, ${0.22 * (1 - clampedStormIntensity)})`);
+    sunsetGlow.addColorStop(1, "rgba(255, 170, 120, 0)");
+    skyContext.fillStyle = sunsetGlow;
+    skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+}
+
+drawSkyTexture();
+
+const skyTexture = new THREE.CanvasTexture(skyCanvas);
+skyTexture.colorSpace = THREE.SRGBColorSpace;
+scene.background = skyTexture;
+
+const camera = new THREE.PerspectiveCamera(
+    60,
+    appViewport.aspect,
+    0.1,
+    300
+);
+camera.position.set(0, 9, 26);
+camera.lookAt(0, 12, -18);
+const audioListener = new THREE.AudioListener();
+camera.add(audioListener);
+scene.add(camera);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(appViewport.width, appViewport.height);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.3;
+renderer.autoClear = false;
+document.body.appendChild(renderer.domElement);
+
+const overlayScene = new THREE.Scene();
+const overlayCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
+overlayCamera.position.set(0, 0, 10);
+overlayCamera.lookAt(0, 0, 0);
+updateOverlayCamera();
+
+const overlayHemisphereLight = new THREE.HemisphereLight(0xffd2b0, 0xc77b4f, 1.9);
+overlayScene.add(overlayHemisphereLight);
+
+const overlaySunLight = new THREE.DirectionalLight(0xffc38b, 2.8);
+overlaySunLight.position.set(-22, 16, 18);
+overlayScene.add(overlaySunLight);
+
+let hdrEnvironmentMap = null;
+
+const hemisphereLight = new THREE.HemisphereLight(0xffd2b0, 0xc77b4f, 1.9);
+scene.add(hemisphereLight);
+
+const sunLight = new THREE.DirectionalLight(0xffc38b, 2.8);
+sunLight.position.set(-22, 16, 18);
+scene.add(sunLight);
+
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+pmremGenerator.compileEquirectangularShader();
+
+new RGBELoader().load(
+    "./assets/environment/belfast_sunset_2k.hdr",
+    (texture) => {
+        const environmentMap = pmremGenerator.fromEquirectangular(texture).texture;
+        hdrEnvironmentMap = environmentMap;
+        scene.environment = environmentMap;
+        overlayScene.environment = environmentMap;
+        applyReadManEnvironment();
+        texture.dispose();
+        pmremGenerator.dispose();
+    },
+    undefined,
+    (error) => {
+        console.error(error);
+        hud.innerHTML = "HDR 環境光載入失敗<br>請確認 <code>assets/environment/belfast_sunset_2k.hdr</code> 存在";
+    }
+);
+
+const groundCanvas = document.createElement("canvas");
+groundCanvas.width = 512;
+groundCanvas.height = 512;
+const groundCtx = groundCanvas.getContext("2d");
+
+function drawGroundTexture(elapsed = 0) {
+    const groundGradient = groundCtx.createLinearGradient(0, 0, 0, groundCanvas.height);
+    groundGradient.addColorStop(0, "#b77079");
+    groundGradient.addColorStop(0.48, "#d48a69");
+    groundGradient.addColorStop(1, "#f29a3d");
+    groundCtx.fillStyle = groundGradient;
+    groundCtx.fillRect(0, 0, groundCanvas.width, groundCanvas.height);
+
+    groundCtx.save();
+    groundCtx.globalCompositeOperation = "screen";
+    for (let row = 0; row < 14; row += 1) {
+        const y = 82 + row * 28;
+        groundCtx.beginPath();
+        for (let x = -20; x <= groundCanvas.width + 20; x += 8) {
+            const wave =
+                Math.sin(x * 0.025 + elapsed * 1.8 + row * 0.7) * 5 +
+                Math.sin(x * 0.055 - elapsed * 1.15 + row) * 2;
+            if (x === -20) {
+                groundCtx.moveTo(x, y + wave);
+            } else {
+                groundCtx.lineTo(x, y + wave);
+            }
+        }
+        groundCtx.strokeStyle = `rgba(255, 232, 178, ${0.08 + row * 0.006})`;
+        groundCtx.lineWidth = 2;
+        groundCtx.stroke();
+    }
+
+    const shine = groundCtx.createRadialGradient(
+        320 + Math.sin(elapsed * 0.7) * 28,
+        340 + Math.cos(elapsed * 0.5) * 18,
+        20,
+        320,
+        340,
+        230
+    );
+    shine.addColorStop(0, "rgba(255, 245, 200, 0.22)");
+    shine.addColorStop(0.45, "rgba(170, 220, 210, 0.08)");
+    shine.addColorStop(1, "rgba(255, 255, 255, 0)");
+    groundCtx.fillStyle = shine;
+    groundCtx.fillRect(0, 0, groundCanvas.width, groundCanvas.height);
+    groundCtx.restore();
+}
+
+drawGroundTexture();
+
+const groundTexture = new THREE.CanvasTexture(groundCanvas);
+groundTexture.colorSpace = THREE.SRGBColorSpace;
+
+const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(48, 64),
+    new THREE.MeshStandardMaterial({
+        map: groundTexture,
+        transparent: true,
+        opacity: 0.9
+    })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.set(0, 0, -18);
+scene.add(ground);
+
+const cloudGroup = new THREE.Group();
+scene.add(cloudGroup);
+
+function createCloud(x, y, z, scale) {
+    const cloud = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xcfe8bf,
+        emissive: 0xb9d9ab,
+        emissiveIntensity: 0.18,
+        transparent: true,
+        opacity: 0.76,
+        roughness: 1
+    });
+
+    const puffs = [
+        { x: 0, y: 0, s: 1.2 },
+        { x: 1.6, y: 0.2, s: 1.0 },
+        { x: -1.5, y: 0.1, s: 0.9 },
+        { x: 0.4, y: 0.7, s: 0.95 }
+    ];
+
+    for (const puff of puffs) {
+        const mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(puff.s, 24, 24),
+            material
+        );
+        mesh.position.set(puff.x, puff.y, 0);
+        cloud.add(mesh);
+    }
+
+    cloud.position.set(x, y, z);
+    cloud.scale.setScalar(scale);
+    cloudGroup.add(cloud);
+}
+
+createCloud(-18, 10, -24, 1.8);
+createCloud(12, 16, -36, 2.2);
+createCloud(28, 9, -50, 2.8);
+createCloud(-30, 18, -58, 2.3);
+createCloud(2, 6, -18, 1.3);
+
+const loader = new GLTFLoader();
+const audioLoader = new THREE.AudioLoader();
+const gunshotAudio = new Audio("./assets/audio/Gun4.mp3");
+gunshotAudio.preload = "auto";
+let birdTemplate = null;
+let birdAnimationClips = [];
+let birdActionLibrary = null;
+let readManAnchor = null;
+let readManModel = null;
+let readManMixer = null;
+let readManActions = [];
+let readManCycleEndAt = -1;
+let readManResumeAt = -1;
+let readManPointerNear = false;
+let pointerClientX = Number.NaN;
+let pointerClientY = Number.NaN;
+let readManVideo = null;
+let readManVideoTexture = null;
+let buttonModelPopupWindow = null;
+let anthemPopupWindow = null;
+let birdCameraPopupWindow = null;
+let asianFuturismPopupWindow = null;
+let buddhaLightPopupWindow = null;
+let explosionPopupWindow = null;
+const popupWindows = new Set();
+let videoPlaylistPopupOpened = false;
+let anthemPopupOpened = false;
+let birdCameraPopupOpened = false;
+let asianFuturismPopupOpened = false;
+let anesthesiaGunVideosOpened = false;
+let buddhaLightShown = false;
+let buddhaLightPromptShown = false;
+let buddhaLightPromptState = null;
+const aliveBirdPromptStates = new Map();
+let explosionShown = false;
+let explosionPromptShown = false;
+let explosionPromptState = null;
+let birdCameraTargetBird = null;
+let lastBirdCameraFrameAt = -1;
+let birdCameraCloseAt = -1;
+let knockedDownBirdCount = 0;
+let globalVolume = 100;
+let lastAliveBirdCount = -1;
+const pageSearchParams = new URLSearchParams(window.location.search);
+const testAliveValue = pageSearchParams.get("testAlive");
+const testKillsMode = pageSearchParams.has("testKillsMode");
+const parsedTestAliveCount = Number.parseInt(testAliveValue ?? "", 10);
+const testAliveCount = testAliveValue === null
+    ? null
+    : THREE.MathUtils.clamp(Number.isFinite(parsedTestAliveCount) ? parsedTestAliveCount : 0, 0, 100);
+const buddhaLightAliveThreshold = 28;
+const explosionAliveThreshold = 88;
+const aliveBirdPromptThresholds = [6, 7, 9, 10, 13, 15, 17, 20, 26, 33, 35, 48, 50, 58, 60, 64, 77, 81];
+const aliveBirdPromptExperiences = new Map([
+    [13, {
+        url: "./NoJ/index.html",
+        windowName: "noj_experience",
+        label: "NoJ",
+        width: 400,
+        height: 300
+    }]
+]);
+const shownAliveBirdPrompts = new Set();
+const pageOnlineStartedAt = Date.now();
+const marqueeStats = {
+    alive: "0",
+    currentKills: "0",
+    kills: "Loading",
+    pageviews: "Loading",
+    averageStayingTime: "--",
+    onlineTime: "00:00"
+};
+const videoBackgroundFiles = [
+    "./assets/videos/video1.mp4",
+    "./assets/videos/video2.mp4",
+    "./assets/videos/video3.mp4"
+];
+const anthemVideoFile = "./assets/videos/唱國歌.mp4";
+const nationalJointVideoFile = "./assets/videos/national-joint.mp4";
+const asianFuturismImageFile = "./assets/images/asian-futurism.png";
+const dictatorDeflationKillVideos = new Map([
+    [5, "./獨裁者洩氣/5.mp4"],
+    [6, "./獨裁者洩氣/6.mp4"],
+    [7, "./獨裁者洩氣/7.mp4"],
+    [8, "./獨裁者洩氣/8.mp4"],
+    [9, "./獨裁者洩氣/9.mp4"],
+    [10, "./獨裁者洩氣/10.mp4"]
+]);
+const readManPlacement = {
+    displaySize: 0.70,
+    rightMarginPx: 28,
+    bottomMarginPx: 200,
+    mobileRightMarginPx: 18,
+    mobileBottomMarginPx: 46,
+    sinkOffset: 0.32,
+    fadeStart: -0.36,
+    fadeEnd: 0.08,
+    fadeColor: new THREE.Color(0xf29a3d),
+    fadeMinOpacity: 0.03,
+    floatAmplitude: 0.01,
+    floatSpeed: 1.45,
+    animationSpeed: 0.5,
+    animationPauseSeconds: 2,
+    pointerRadius: 190,
+    mobilePointerRadius: 145,
+    mirrorX: false,
+    rotationX: THREE.MathUtils.degToRad(20),
+    rotationY: THREE.MathUtils.degToRad(-110),
+    rotationZ: THREE.MathUtils.degToRad(20),
+    mobileScale: 0.78
+};
+const readManVideoSources = [
+    { src: "./assets/videos/大偶90.mp4", type: "video/mp4" },
+    { src: "./assets/videos/大偶90.mov", type: "video/quicktime" }
+];
+const readManVideoVolumeScale = 0.5;
+const readManCounterPlacement = {
+    // === AGREE / DISAGREE 數字位置微調 ===
+    // xRatio: 相對右下人物外框左到右的位置，0 是最左、1 是最右
+    // yRatio: 相對右下人物外框上到下的位置，0 是最上、1 是最下
+    // scale: 整組數字大小
+    // rotation: 角度，負數往左斜、正數往右斜
+    left: { xRatio: 0.3, yRatio: 0.145, scale: 0.78, rotation: 8 },
+    right: { xRatio: 0.805, yRatio: 0.195, scale: 0.78, rotation: 8 },
+    mobileScale: 0.78
+};
+const chatTogglePlacement = {
+    // === 聊天室按鈕位置微調 ===
+    // xRatio：相對右下人物外框左到右的位置，0 是最左、1 是最右
+    // yRatio：相對右下人物外框上到下的位置，0 是最上、1 是最下
+    // 預設值是 agree 與 disagree 的正中間
+    xRatio: 0.56,
+    yRatio: 0.1
+};
+const pointEndpoints = {
+    agree: "https://macn8n.tiramisu-island.com/webhook/get_agree",
+    disagree: "https://macn8n.tiramisu-island.com/webhook/get_disagree"
+};
+const killPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/kill_pigeon";
+const getKillPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_kill_pigeon";
+const pageviewEndpoint = "https://macn8n.tiramisu-island.com/webhook/pageviews";
+const getPageviewsEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_pageviews";
+const chatMessagesEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_u_chatting";
+const chatTitleEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_chatting_title";
+const chatReactionEndpoints = {
+    like: "https://macn8n.tiramisu-island.com/webhook/chatting_like_count",
+    dislike: "https://macn8n.tiramisu-island.com/webhook/chatting_dislike_count"
+};
+const chatAvatarImages = new Map([
+    ["川普", "./assets/images/chat-avatars/T.png"],
+    ["Trump", "./assets/images/chat-avatars/T.png"],
+    ["賴清德", "./assets/images/chat-avatars/W.png"],
+    ["習近平", "./assets/images/chat-avatars/X.png"],
+    ["习近平", "./assets/images/chat-avatars/X.png"],
+]);
+const digitPath = "./assets/digits/";
+const digitSprites = new Map();
+const pointCounters = {
+    agree: {
+        value: "00000",
+        element: agreeCounterElement
+    },
+    disagree: {
+        value: "00000",
+        element: disagreeCounterElement
+    }
+};
+const poopModelTemplates = [];
+const poopModelPaths = [
+    "./assets/models/signs/文字.glb",
+    "./assets/models/signs/文字_001.glb",
+    "./assets/models/signs/文字_002.glb",
+    "./assets/models/signs/文字_003.glb",
+    "./assets/models/signs/文字_004.glb",
+    "./assets/models/signs/文字_005.glb",
+    "./assets/models/signs/文字_006.glb",
+    "./assets/models/signs/文字_007.glb",
+    "./assets/models/signs/文字_008.glb",
+    "./assets/models/signs/文字_009.glb",
+    "./assets/models/signs/文字_010.glb",
+    "./assets/models/signs/文字_011.glb",
+    "./assets/models/signs/文字_012.glb",
+    "./assets/models/signs/文字_013.glb",
+    "./assets/models/signs/文字_014.glb",
+    "./assets/models/signs/文字_015.glb",
+    "./assets/models/signs/文字_016.glb",
+    "./assets/models/signs/文字_017.glb",
+    "./assets/models/signs/文字_018.glb",
+    "./assets/models/signs/文字_019.glb",
+    "./assets/models/signs/文字_020.glb",
+    "./assets/models/signs/文字_021.glb"
+];
+let wingAudioBuffer = null;
+let cooAudioBuffer = null;
+let nextBirdId = 1;
+let nextSpawnAt = 0;
+
+const clock = new THREE.Clock();
+const pointer = new THREE.Vector2(0, 0);
+const raycaster = new THREE.Raycaster();
+const clickPointer = new THREE.Vector2();
+const birdCameraResolution = 360;
+const birdCamera = new THREE.PerspectiveCamera(72, 1, 0.1, 220);
+const birdCameraRenderTarget = new THREE.WebGLRenderTarget(
+    birdCameraResolution,
+    birdCameraResolution
+);
+birdCameraRenderTarget.texture.colorSpace = THREE.SRGBColorSpace;
+const birdCameraPixels = new Uint8Array(birdCameraResolution * birdCameraResolution * 4);
+const birdCameraFrame = new Uint8ClampedArray(
+    birdCameraResolution * birdCameraResolution * 4
+);
+const birdCameraPosition = new THREE.Vector3();
+const birdCameraLookAt = new THREE.Vector3();
+const birdCameraForward = new THREE.Vector3();
+const birdCameraFrameInterval = 1 / 12;
+const birdCameraCloseDelay = 20;
+const birdCameraExposure = 0.16;
+const birdCameraClearColor = new THREE.Color(0x5fa8ff);
+const previousRendererClearColor = new THREE.Color();
+const birds = [];
+const droppedSigns = [];
+const lightningBolts = [];
+const stormAliveThreshold = 85;
+const stormDurationSeconds = 20;
+const stormStrikeDelaySeconds = 5;
+const stormReflightSeconds = 3;
+const stormReviveDelaySeconds = 8;
+const stormEvent = {
+    triggered: false,
+    active: false,
+    startedAt: -1,
+    strikeStartAt: -1,
+    strikeEndAt: -1,
+    clearAt: -1,
+    reviveAt: -1,
+    targets: [],
+    struckBirds: new Set(),
+    strikeSequenceStarted: false,
+    strikeIndex: 0,
+    nextStrikeAt: -1
+};
+const flightArea = {
+    width: 34,
+    height: 18,
+    depth: 22,
+    centerY: 14,
+    centerZ: -18
+};
+const tauntPhrases = [
+    "點個贊呀！！！",
+    "我先走嘍 ~ 掰掰",
+    "贊助一下呀",
+    "投票一下拉"
+];
+const groundY = 1.2;
+let lastPointerMoveAt = -999;
+const pointerWorld = new THREE.Vector3();
+const pointerRepel = new THREE.Vector3();
+const pointerToBird = new THREE.Vector3();
+const lightningStartPosition = new THREE.Vector3();
+const lightningEndPosition = new THREE.Vector3();
+let audioUnlocked = false;
+
+function updateFlightArea() {
+    const aspect = appViewport.aspect;
+    flightArea.width = 28 + aspect * 10;
+    flightArea.height = 18 + Math.max(0, (1 / aspect) * 4);
+    flightArea.depth = 22 + aspect * 6;
+}
+
+function updateOverlayCamera() {
+    overlayCamera.left = -appViewport.aspect;
+    overlayCamera.right = appViewport.aspect;
+    overlayCamera.top = 1;
+    overlayCamera.bottom = -1;
+    overlayCamera.updateProjectionMatrix();
+}
+
+function screenPxToOverlayX(px) {
+    return (px / appViewport.width) * (overlayCamera.right - overlayCamera.left);
+}
+
+function screenPxToOverlayY(px) {
+    return (px / appViewport.height) * (overlayCamera.top - overlayCamera.bottom);
+}
+
+function applyScaledModelSize(model, baseScale) {
+    if (!model || !Number.isFinite(baseScale)) {
+        return;
+    }
+
+    model.scale.setScalar(baseScale * appViewport.sceneScale);
+}
+
+function updateScaledSceneObjects() {
+    if (birdTemplate?.userData.baseScale) {
+        applyScaledModelSize(birdTemplate, birdTemplate.userData.baseScale);
+    }
+
+    birds.forEach((bird) => {
+        if (bird.visual?.userData.baseScale) {
+            applyScaledModelSize(bird.visual, bird.visual.userData.baseScale);
+        }
+    });
+
+    poopModelTemplates.forEach((template) => {
+        if (template.userData.baseScale) {
+            applyScaledModelSize(template, template.userData.baseScale);
+        }
+    });
+
+    droppedSigns.forEach((sign) => {
+        if (sign.object?.userData.baseScale) {
+            applyScaledModelSize(sign.object, sign.object.userData.baseScale);
+        }
+    });
+}
+
+const projectedBoundsBox = new THREE.Box3();
+const projectedBoundsMin = new THREE.Vector3();
+const projectedBoundsMax = new THREE.Vector3();
+const projectedBoundsPoint = new THREE.Vector3();
+const projectedBoundsCorners = [
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3()
+];
+
+function getProjectedScreenBounds(object, projectionCamera) {
+    if (!object) {
+        return null;
+    }
+
+    object.updateWorldMatrix(true, true);
+    projectedBoundsBox.setFromObject(object);
+
+    if (projectedBoundsBox.isEmpty()) {
+        return null;
+    }
+
+    projectedBoundsMin.copy(projectedBoundsBox.min);
+    projectedBoundsMax.copy(projectedBoundsBox.max);
+    projectedBoundsCorners[0].set(projectedBoundsMin.x, projectedBoundsMin.y, projectedBoundsMin.z);
+    projectedBoundsCorners[1].set(projectedBoundsMin.x, projectedBoundsMin.y, projectedBoundsMax.z);
+    projectedBoundsCorners[2].set(projectedBoundsMin.x, projectedBoundsMax.y, projectedBoundsMin.z);
+    projectedBoundsCorners[3].set(projectedBoundsMin.x, projectedBoundsMax.y, projectedBoundsMax.z);
+    projectedBoundsCorners[4].set(projectedBoundsMax.x, projectedBoundsMin.y, projectedBoundsMin.z);
+    projectedBoundsCorners[5].set(projectedBoundsMax.x, projectedBoundsMin.y, projectedBoundsMax.z);
+    projectedBoundsCorners[6].set(projectedBoundsMax.x, projectedBoundsMax.y, projectedBoundsMin.z);
+    projectedBoundsCorners[7].set(projectedBoundsMax.x, projectedBoundsMax.y, projectedBoundsMax.z);
+
+    let left = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+
+    projectedBoundsCorners.forEach((corner) => {
+        projectedBoundsPoint.copy(corner).project(projectionCamera);
+        const x = (projectedBoundsPoint.x * 0.5 + 0.5) * appViewport.width;
+        const y = (-projectedBoundsPoint.y * 0.5 + 0.5) * appViewport.height;
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+    });
+
+    if (![left, right, top, bottom].every(Number.isFinite)) {
+        return null;
+    }
+
+    return {
+        left,
+        right,
+        top,
+        bottom,
+        width: Math.max(1, right - left),
+        height: Math.max(1, bottom - top),
+        centerX: (left + right) / 2,
+        centerY: (top + bottom) / 2
+    };
+}
+
+function updateReadManPlacement() {
+    if (!readManAnchor || !readManModel) {
+        return;
+    }
+
+    const isCompactViewport = appViewport.width < 720;
+    const responsiveScale = isCompactViewport ? readManPlacement.mobileScale : 1;
+    const finalSize =
+        readManPlacement.displaySize * responsiveScale * appViewport.sceneScale;
+    const rightMargin = screenPxToOverlayX(
+        isCompactViewport
+            ? readManPlacement.mobileRightMarginPx
+            : readManPlacement.rightMarginPx
+    );
+    const bottomMargin = screenPxToOverlayY(
+        (isCompactViewport
+            ? readManPlacement.mobileBottomMarginPx
+            : readManPlacement.bottomMarginPx) + 34
+    );
+
+    readManAnchor.position.set(
+        overlayCamera.right - rightMargin - finalSize / 2,
+        overlayCamera.bottom +
+            bottomMargin +
+            finalSize / 2 -
+            readManPlacement.sinkOffset,
+        0
+    );
+    readManAnchor.userData.baseY = readManAnchor.position.y;
+    const modelScale = readManModel.userData.baseScale * finalSize;
+    readManModel.scale.set(
+        readManPlacement.mirrorX ? -modelScale : modelScale,
+        modelScale,
+        modelScale
+    );
+    readManModel.position
+        .copy(readManModel.userData.center)
+        .multiplyScalar(-modelScale);
+    readManAnchor.rotation.set(
+        readManPlacement.rotationX,
+        readManPlacement.rotationY,
+        readManPlacement.rotationZ
+    );
+    updateReadManFade();
+    updateReadManCounterPlacement();
+}
+
+function updateReadManFade() {
+    if (!readManAnchor || !readManModel) {
+        return;
+    }
+
+    const fadeBottom = readManAnchor.position.y + readManPlacement.fadeStart;
+    const fadeTop = readManAnchor.position.y + readManPlacement.fadeEnd;
+
+    readManModel.traverse((child) => {
+        if (!child.isMesh || !child.material) {
+            return;
+        }
+
+        const materials = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
+        materials.forEach((material) => {
+            const shader = material.userData.readManFadeShader;
+            if (!shader) {
+                return;
+            }
+
+            shader.uniforms.readManFadeBottom.value = fadeBottom;
+            shader.uniforms.readManFadeTop.value = fadeTop;
+            shader.uniforms.readManFadeColor.value.copy(readManPlacement.fadeColor);
+            shader.uniforms.readManFadeMinOpacity.value = readManPlacement.fadeMinOpacity;
+        });
+    });
+}
+
+function addReadManFade(material) {
+    if (material.userData.hasReadManFade) {
+        return;
+    }
+
+    material.userData.hasReadManFade = true;
+    material.transparent = true;
+    material.depthWrite = true;
+    material.depthTest = true;
+    material.forceSinglePass = true;
+    material.onBeforeCompile = (shader) => {
+        shader.uniforms.readManFadeBottom = { value: -1 };
+        shader.uniforms.readManFadeTop = { value: 0 };
+        shader.uniforms.readManFadeColor = { value: readManPlacement.fadeColor };
+        shader.uniforms.readManFadeMinOpacity = {
+            value: readManPlacement.fadeMinOpacity
+        };
+        shader.vertexShader = shader.vertexShader
+            .replace(
+                "#include <common>",
+                "#include <common>\nvarying vec3 vReadManWorldPosition;"
+            )
+            .replace(
+                "#include <worldpos_vertex>",
+                "#include <worldpos_vertex>\nvReadManWorldPosition = worldPosition.xyz;"
+            );
+        shader.fragmentShader = shader.fragmentShader
+            .replace(
+                "#include <common>",
+                "#include <common>\nuniform float readManFadeBottom;\nuniform float readManFadeTop;\nuniform vec3 readManFadeColor;\nuniform float readManFadeMinOpacity;\nvarying vec3 vReadManWorldPosition;"
+            )
+            .replace(
+                "#include <dithering_fragment>",
+                "float readManFade = smoothstep(readManFadeBottom, readManFadeTop, vReadManWorldPosition.y);\nfloat readManBlend = 1.0 - readManFade;\ngl_FragColor.rgb = mix(gl_FragColor.rgb, readManFadeColor, readManBlend * 0.92);\ngl_FragColor.a *= mix(readManFadeMinOpacity, 1.0, readManFade);\n#include <dithering_fragment>"
+            );
+        material.userData.readManFadeShader = shader;
+        updateReadManFade();
+    };
+    material.needsUpdate = true;
+}
+
+function applyReadManEnvironment() {
+    if (!readManModel || !hdrEnvironmentMap) {
+        return;
+    }
+
+    readManModel.traverse((child) => {
+        if (!child.isMesh || !child.material) {
+            return;
+        }
+
+        const materials = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
+        materials.forEach((material) => {
+            addReadManFade(material);
+            if ("envMap" in material) {
+                material.envMap = hdrEnvironmentMap;
+            }
+            if ("envMapIntensity" in material) {
+                material.envMapIntensity = 1.25;
+            }
+            material.needsUpdate = true;
+        });
+    });
+}
+
+function setupReadManVideo() {
+    if (readManVideoTexture) {
+        return;
+    }
+
+    readManVideo = document.createElement("video");
+    readManVideo.loop = true;
+    readManVideo.muted = false;
+    readManVideo.playsInline = true;
+    readManVideo.preload = "auto";
+    readManVideo.volume = getReadManVideoVolume();
+
+    readManVideoSources.forEach(({ src, type }) => {
+        const source = document.createElement("source");
+        source.src = src;
+        source.type = type;
+        readManVideo.appendChild(source);
+    });
+
+    readManVideoTexture = new THREE.VideoTexture(readManVideo);
+    readManVideoTexture.colorSpace = THREE.SRGBColorSpace;
+    readManVideoTexture.repeat.y = -1;
+    readManVideoTexture.offset.y = 1;
+}
+
+function applyReadManVideoTexture() {
+    if (!readManModel || !readManVideoTexture) {
+        return;
+    }
+
+    let applied = false;
+    readManModel.traverse((child) => {
+        if (!child.isMesh) {
+            return;
+        }
+
+        if (child.name === "BoxA") {
+            child.material = new THREE.MeshBasicMaterial({
+                map: readManVideoTexture,
+                side: THREE.DoubleSide,
+                toneMapped: false
+            });
+            applied = true;
+        }
+    });
+
+    if (applied) {
+        return;
+    }
+
+    const fallbackMesh = readManModel.getObjectByProperty("type", "Mesh");
+    if (fallbackMesh) {
+        fallbackMesh.material = new THREE.MeshBasicMaterial({
+            map: readManVideoTexture,
+            side: THREE.DoubleSide,
+            toneMapped: false
+        });
+    }
+}
+
+function playReadManVideo() {
+    if (!readManVideo) {
+        return;
+    }
+
+    readManVideo.play().catch((error) => {
+        console.warn("read man 影片播放被瀏覽器暫停，等待使用者互動", error);
+        readManVideo.muted = true;
+        readManVideo.volume = 0;
+        readManVideo.play().catch(() => {});
+    });
+}
+
+function replayReadManAnimation(elapsed = clock.elapsedTime) {
+    if (!readManMixer || readManActions.length === 0) {
+        return;
+    }
+
+    startReadManAnimationCycle(elapsed);
+}
+
+const readManPointerScreenPosition = new THREE.Vector3();
+
+function isPointerNearReadMan(elapsed = clock.elapsedTime) {
+    if (
+        !readManAnchor ||
+        Number.isNaN(pointerClientX) ||
+        Number.isNaN(pointerClientY) ||
+        elapsed - lastPointerMoveAt > 4
+    ) {
+        return false;
+    }
+
+    readManAnchor.getWorldPosition(readManPointerScreenPosition);
+    readManPointerScreenPosition.project(overlayCamera);
+
+    const readManX = (readManPointerScreenPosition.x * 0.5 + 0.5) * appViewport.width;
+    const readManY = (-readManPointerScreenPosition.y * 0.5 + 0.5) * appViewport.height;
+    const radius = (appViewport.width < 720
+        ? readManPlacement.mobilePointerRadius
+        : readManPlacement.pointerRadius) * appViewport.layoutScale;
+    const distance = Math.hypot(pointerClientX - readManX, pointerClientY - readManY);
+
+    return distance <= radius;
+}
+
+function stopReadManAnimation() {
+    if (!readManMixer || readManActions.length === 0) {
+        return;
+    }
+
+    readManCycleEndAt = -1;
+    readManResumeAt = -1;
+    readManActions.forEach((action) => {
+        action.stop();
+        action.reset();
+    });
+    readManMixer.setTime(0);
+}
+
+function updateReadManPointerAnimation(elapsed = clock.elapsedTime) {
+    const isNear = isPointerNearReadMan(elapsed);
+
+    if (!isNear) {
+        if (readManPointerNear) {
+            stopReadManAnimation();
+        }
+        readManPointerNear = false;
+        return;
+    }
+
+    if (!readManPointerNear || readManCycleEndAt < 0 || elapsed >= readManCycleEndAt) {
+        startReadManAnimationCycle(elapsed);
+    }
+    readManPointerNear = true;
+}
+
+function hitTestReadMan(event) {
+    if (!readManAnchor || !readManModel) {
+        return false;
+    }
+
+    clickPointer.x = (event.clientX / appViewport.width) * 2 - 1;
+    clickPointer.y = -((event.clientY / appViewport.height) * 2 - 1);
+    raycaster.setFromCamera(clickPointer, overlayCamera);
+    return raycaster.intersectObject(readManModel, true).length > 0;
+}
+
+function getPointText(value) {
+    const matchedNumber = String(value ?? "").match(/\d+/);
+    const numberText = matchedNumber ? matchedNumber[0] : "0";
+    return numberText.padStart(5, "0");
+}
+
+function loadDigitSprite(digit) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = `${digitPath}${digit}.bmp`;
+    });
+}
+
+async function prepareDigitSprites() {
+    await Promise.all(
+        Array.from({ length: 10 }, async (_, digit) => {
+            digitSprites.set(String(digit), await loadDigitSprite(digit));
+        })
+    );
+}
+
+function createNeonDigit(digit) {
+    const sprite = digitSprites.get(digit);
+    const canvas = document.createElement("canvas");
+    canvas.className = "readman-digit";
+    canvas.width = 10;
+    canvas.height = 16;
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", digit);
+
+    if (!sprite) {
+        return canvas;
+    }
+
+    const context = canvas.getContext("2d");
+    context.imageSmoothingEnabled = false;
+    context.drawImage(sprite, 0, 0);
+
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+
+    for (let index = 0; index < pixels.length; index += 4) {
+        const lightness = (pixels[index] + pixels[index + 1] + pixels[index + 2]) / 3;
+        const alpha = lightness < 180 ? 255 : 0;
+        pixels[index] = 255;
+        pixels[index + 1] = 232;
+        pixels[index + 2] = 164;
+        pixels[index + 3] = alpha;
+    }
+
+    context.putImageData(imageData, 0, 0);
+    return canvas;
+}
+
+function renderPointCounter(counter) {
+    const digits = getPointText(counter.value);
+    counter.element.replaceChildren(
+        ...Array.from(digits, createNeonDigit)
+    );
+    counter.element.setAttribute("aria-label", `目前數字 ${digits}`);
+}
+
+async function fetchPointCounter(name) {
+    const counter = pointCounters[name];
+    const endpoint = pointEndpoints[name];
+    if (!counter || !endpoint) {
+        return;
+    }
+
+    try {
+        const response = await fetch(endpoint, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        counter.value = data.content;
+        renderPointCounter(counter);
+    } catch (error) {
+        console.error(`${name} point 讀取失敗`, error);
+    }
+}
+
+function triggerWebhook(endpoint, label) {
+    const url = new URL(endpoint);
+    url.searchParams.set("_", String(Date.now()));
+
+    fetch(url.href, {
+        method: "GET",
+        mode: "no-cors",
+        cache: "no-store",
+        keepalive: true
+    }).catch((error) => {
+        console.error(`${label} webhook fetch 執行失敗，改用圖片請求`, error);
+        const fallbackImage = new Image();
+        fallbackImage.src = url.href;
+    });
+}
+
+function recordPigeonKill() {
+    triggerWebhook(killPigeonEndpoint, "擊殺數");
+}
+
+function updateAllPointCounters() {
+    fetchPointCounter("agree");
+    fetchPointCounter("disagree");
+}
+
+function startPointCounters() {
+    prepareDigitSprites()
+        .then(() => {
+            Object.values(pointCounters).forEach(renderPointCounter);
+            updateReadManCounterPlacement();
+            updateAllPointCounters();
+            window.setInterval(updateAllPointCounters, 10000);
+        })
+        .catch((error) => {
+            console.error(error);
+            hud.innerHTML = "數字貼圖載入失敗<br>請確認 <code>數字</code> 資料夾存在";
+        });
+}
+
+const readManScreenPosition = new THREE.Vector3();
+
+function updateReadManCounterPlacement() {
+    if (!readManAnchor) {
+        agreeCounterElement.classList.remove("is-visible");
+        disagreeCounterElement.classList.remove("is-visible");
+        chatToggle.classList.remove("is-positioned");
+        return;
+    }
+
+    const screenBounds = getProjectedScreenBounds(readManModel, overlayCamera);
+    if (!screenBounds) {
+        readManAnchor.getWorldPosition(readManScreenPosition);
+        readManScreenPosition.project(overlayCamera);
+    }
+
+    const fallbackX = (readManScreenPosition.x * 0.5 + 0.5) * appViewport.width;
+    const fallbackY = (-readManScreenPosition.y * 0.5 + 0.5) * appViewport.height;
+    const responsiveScale =
+        appViewport.width < 720 ? readManCounterPlacement.mobileScale : 1;
+    const getAttachedPosition = (placement) => {
+        if (!screenBounds) {
+            return { x: fallbackX, y: fallbackY };
+        }
+
+        return {
+            x: screenBounds.left + placement.xRatio * screenBounds.width,
+            y: screenBounds.top + placement.yRatio * screenBounds.height
+        };
+    };
+
+    [
+        [agreeCounterElement, readManCounterPlacement.left],
+        [disagreeCounterElement, readManCounterPlacement.right]
+    ].forEach(([element, placement]) => {
+        const position = getAttachedPosition(placement);
+        element.style.left = `${position.x}px`;
+        element.style.top = `${position.y}px`;
+        element.style.transform =
+            `translate(-50%, -50%) rotate(${placement.rotation}deg) scale(${placement.scale * responsiveScale})`;
+        element.classList.add("is-visible");
+    });
+
+    const chatPosition = getAttachedPosition(chatTogglePlacement);
+    chatToggle.style.left = `${chatPosition.x}px`;
+    chatToggle.style.top = `${chatPosition.y}px`;
+    chatToggle.classList.add("is-positioned");
+}
+
+function getGlobalVolumeRatio() {
+    return globalVolume / 100;
+}
+
+function getReadManVideoVolume() {
+    return getGlobalVolumeRatio() * readManVideoVolumeScale;
+}
+
+function renderMarqueeStats() {
+    const marqueeText =
+        `Alive : ${marqueeStats.alive}   You killed: ${marqueeStats.currentKills}   Global killed: ${marqueeStats.kills}   Visitors : ${marqueeStats.pageviews}   Average staying time: ${marqueeStats.averageStayingTime}   Time you stay: ${marqueeStats.onlineTime}   Something you should know is watching does not make you neutral`;
+    aliveMarqueeText.textContent = marqueeText;
+}
+
+function setMarqueeStat(name, value) {
+    marqueeStats[name] = String(value ?? "0");
+    renderMarqueeStats();
+}
+
+function formatOnlineDuration(totalSeconds) {
+    const seconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    const paddedMinutes = String(minutes).padStart(2, "0");
+    const paddedSeconds = String(remainingSeconds).padStart(2, "0");
+
+    if (hours > 0) {
+        return `${hours}:${paddedMinutes}:${paddedSeconds}`;
+    }
+
+    return `${paddedMinutes}:${paddedSeconds}`;
+}
+
+function updateOnlineTimeMarqueeStat() {
+    setMarqueeStat(
+        "onlineTime",
+        formatOnlineDuration((Date.now() - pageOnlineStartedAt) / 1000)
+    );
+}
+
+function getAliveBirdCount() {
+    return birds.filter((bird) => bird.isActive && !bird.isGrounded && !bird.isCrashed).length;
+}
+
+function updateAliveMarqueeStat() {
+    const aliveCount = getAliveBirdCount();
+    if (aliveCount === lastAliveBirdCount) {
+        return;
+    }
+
+    lastAliveBirdCount = aliveCount;
+    setMarqueeStat("alive", aliveCount);
+}
+
+function getMetricText(responseText) {
+    const trimmedText = responseText.trim();
+    try {
+        const data = JSON.parse(trimmedText);
+        return data.content ?? data.count ?? data.total ?? data.pageviews ?? data.views ?? trimmedText;
+    } catch (error) {
+        return trimmedText;
+    }
+}
+
+function incrementGlobalKillMarqueeStat() {
+    const currentKills = Number.parseInt(String(marqueeStats.kills).match(/\d+/)?.[0] ?? "", 10);
+    if (Number.isFinite(currentKills)) {
+        setMarqueeStat("kills", currentKills + 1);
+    }
+}
+
+async function fetchGlobalKillCountOnce() {
+    try {
+        const response = await fetch(getKillPigeonEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const responseText = await response.text();
+        setMarqueeStat("kills", getMetricText(responseText) || "0");
+    } catch (error) {
+        console.error("全球擊殺數讀取失敗", error);
+        setMarqueeStat("kills", "Failed");
+    }
+}
+
+function recordPageviewOnce() {
+    triggerWebhook(pageviewEndpoint, "瀏覽次數");
+}
+
+async function fetchPageviewsOnce() {
+    try {
+        const response = await fetch(getPageviewsEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const responseText = await response.text();
+        setMarqueeStat("pageviews", getMetricText(responseText) || "0");
+    } catch (error) {
+        console.error("瀏覽記錄讀取失敗", error);
+        setMarqueeStat("pageviews", "Failed");
+    }
+}
+
+let chatPanelOpen = false;
+let chatRefreshTimer = 0;
+let chatLongPressTimer = 0;
+let chatLongPressStartX = 0;
+let chatLongPressStartY = 0;
+let selectedChatMessageId = null;
+let chatPanelDragState = null;
+
+function setChatStatus(message) {
+    chatStatus.textContent = message;
+}
+
+function clampChatPanelPosition(left, top) {
+    const panelRect = chatPanel.getBoundingClientRect();
+    const margin = 8 * appViewport.layoutScale;
+    const maxLeft = Math.max(margin, appViewport.width - panelRect.width - margin);
+    const maxTop = Math.max(margin, appViewport.height - panelRect.height - margin);
+
+    return {
+        left: THREE.MathUtils.clamp(left, margin, maxLeft),
+        top: THREE.MathUtils.clamp(top, margin, maxTop)
+    };
+}
+
+function setChatPanelPosition(left, top) {
+    const position = clampChatPanelPosition(left, top);
+    chatPanel.style.left = `${position.left}px`;
+    chatPanel.style.top = `${position.top}px`;
+}
+
+function clampCurrentChatPanelPosition() {
+    if (!chatPanel.style.left || !chatPanel.style.top) {
+        return;
+    }
+
+    const panelRect = chatPanel.getBoundingClientRect();
+    setChatPanelPosition(panelRect.left, panelRect.top);
+}
+
+function startChatPanelDrag(event) {
+    if (event.button !== undefined && event.button !== 0) {
+        return;
+    }
+
+    const panelRect = chatPanel.getBoundingClientRect();
+    chatPanelDragState = {
+        pointerId: event.pointerId,
+        offsetX: event.clientX - panelRect.left,
+        offsetY: event.clientY - panelRect.top
+    };
+    chatPanel.classList.add("is-dragging");
+    chatDragHandle.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+    event.stopPropagation();
+}
+
+function moveChatPanelDrag(event) {
+    if (!chatPanelDragState || event.pointerId !== chatPanelDragState.pointerId) {
+        return;
+    }
+
+    setChatPanelPosition(
+        event.clientX - chatPanelDragState.offsetX,
+        event.clientY - chatPanelDragState.offsetY
+    );
+    hideChatActionMenu();
+    event.preventDefault();
+}
+
+function stopChatPanelDrag(event) {
+    if (!chatPanelDragState || event.pointerId !== chatPanelDragState.pointerId) {
+        return;
+    }
+
+    chatDragHandle.releasePointerCapture?.(event.pointerId);
+    chatPanelDragState = null;
+    chatPanel.classList.remove("is-dragging");
+    event.preventDefault();
+}
+
+function renderChatEmpty(message) {
+    const emptyElement = document.createElement("div");
+    emptyElement.className = "chat-empty";
+    emptyElement.textContent = message;
+    chatMessages.replaceChildren(emptyElement);
+}
+
+function clearChatLongPressTimer() {
+    window.clearTimeout(chatLongPressTimer);
+    chatLongPressTimer = 0;
+}
+
+function hideChatActionMenu() {
+    selectedChatMessageId = null;
+    chatActionMenu.classList.remove("is-open");
+    chatActionMenu.setAttribute("aria-hidden", "true");
+}
+
+function showChatActionMenu(messageId, messageElement) {
+    if (!messageId) {
+        return;
+    }
+
+    selectedChatMessageId = messageId;
+    const panelRect = chatPanel.getBoundingClientRect();
+    const messageRect = messageElement.getBoundingClientRect();
+    const menuRect = chatActionMenu.getBoundingClientRect();
+    const edgePadding = 4;
+    const menuLeft = Math.max(
+        edgePadding,
+        Math.min(
+            messageRect.left - panelRect.left + edgePadding,
+            panelRect.width - menuRect.width - edgePadding
+        )
+    );
+    const menuTop = Math.max(
+        edgePadding,
+        Math.min(
+            messageRect.bottom - panelRect.top - menuRect.height - edgePadding,
+            panelRect.height - menuRect.height - edgePadding
+        )
+    );
+    chatActionMenu.style.left = `${menuLeft}px`;
+    chatActionMenu.style.top = `${menuTop}px`;
+    chatActionMenu.classList.add("is-open");
+    chatActionMenu.setAttribute("aria-hidden", "false");
+}
+
+function startChatLongPress(event, chatItem, messageElement) {
+    if (!chatItem.id) {
+        return;
+    }
+
+    clearChatLongPressTimer();
+    chatLongPressStartX = event.clientX;
+    chatLongPressStartY = event.clientY;
+    chatLongPressTimer = window.setTimeout(() => {
+        showChatActionMenu(chatItem.id, messageElement);
+    }, 620);
+}
+
+function cancelChatLongPress(event) {
+    if (!chatLongPressTimer) {
+        return;
+    }
+
+    if (event?.type === "pointermove") {
+        const movedDistance = Math.hypot(
+            event.clientX - chatLongPressStartX,
+            event.clientY - chatLongPressStartY
+        );
+        if (movedDistance < 8) {
+            return;
+        }
+    }
+
+    clearChatLongPressTimer();
+}
+
+function attachChatMessageActions(messageElement, chatItem) {
+    messageElement.addEventListener("pointerdown", (event) => {
+        startChatLongPress(event, chatItem, messageElement);
+    });
+    messageElement.addEventListener("pointermove", cancelChatLongPress);
+    messageElement.addEventListener("pointerup", clearChatLongPressTimer);
+    messageElement.addEventListener("pointerleave", clearChatLongPressTimer);
+    messageElement.addEventListener("pointercancel", clearChatLongPressTimer);
+    messageElement.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        showChatActionMenu(chatItem.id, messageElement);
+    });
+}
+
+function getChatAvatarSrc(senderName) {
+    return chatAvatarImages.get(String(senderName || "").trim()) || "";
+}
+
+async function submitChatReaction(reactionType) {
+    const endpoint = chatReactionEndpoints[reactionType];
+    const messageId = selectedChatMessageId;
+    if (!endpoint || !messageId) {
+        return;
+    }
+
+    hideChatActionMenu();
+    setChatStatus(reactionType === "like" ? "送出喜歡..." : "送出不喜歡...");
+
+    const reactionUrl = new URL(endpoint);
+    reactionUrl.searchParams.set("msg_id", messageId);
+
+    try {
+        await fetch(reactionUrl.href, {
+            method: "GET",
+            mode: "no-cors",
+            cache: "no-store",
+            keepalive: true
+        });
+        setChatStatus("已送出");
+        window.setTimeout(fetchChatMessages, 650);
+    } catch (error) {
+        console.error("聊天反應送出失敗", error);
+        setChatStatus("送出失敗");
+    }
+}
+
+function createChatMessageElement(chatItem) {
+    const messageElement = document.createElement("article");
+    messageElement.className = "chat-message";
+    messageElement.dataset.messageId = chatItem.id || "";
+
+    const avatarElement = document.createElement("div");
+    avatarElement.className = "chat-avatar";
+    avatarElement.setAttribute("aria-hidden", "true");
+    const avatarSrc = getChatAvatarSrc(chatItem.sender_name);
+    if (avatarSrc) {
+        avatarElement.style.backgroundImage = `url("${avatarSrc}")`;
+    }
+
+    const bubbleElement = document.createElement("div");
+    bubbleElement.className = "chat-bubble";
+
+    const nameElement = document.createElement("div");
+    nameElement.className = "chat-name";
+    nameElement.textContent = chatItem.sender_name || "匿名";
+
+    const textElement = document.createElement("div");
+    textElement.className = "chat-text";
+    textElement.textContent = chatItem.message || "";
+
+    const timeElement = document.createElement("div");
+    timeElement.className = "chat-time";
+    timeElement.textContent = chatItem.created_at || "";
+
+    const likeElement = document.createElement("div");
+    likeElement.className = "chat-like";
+    const likeCount = Number.parseInt(chatItem.like_count ?? 0, 10);
+    const likeIcon = document.createElement("img");
+    likeIcon.className = "chat-reaction-icon";
+    likeIcon.src = "./assets/images/like.png";
+    likeIcon.alt = "讚";
+    const likeCountElement = document.createElement("span");
+    likeCountElement.textContent = Number.isFinite(likeCount) ? likeCount : 0;
+    likeElement.append(likeIcon, likeCountElement);
+
+    const dislikeElement = document.createElement("div");
+    dislikeElement.className = "chat-dislike";
+    const dislikeCount = Number.parseInt(chatItem.dislike_count ?? 0, 10);
+    const dislikeIcon = document.createElement("img");
+    dislikeIcon.className = "chat-reaction-icon";
+    dislikeIcon.src = "./assets/images/dislike.png";
+    dislikeIcon.alt = "倒讚";
+    const dislikeCountElement = document.createElement("span");
+    dislikeCountElement.textContent = Number.isFinite(dislikeCount) ? dislikeCount : 0;
+    dislikeElement.append(dislikeIcon, dislikeCountElement);
+
+    const metaElement = document.createElement("div");
+    metaElement.className = "chat-meta";
+    metaElement.append(timeElement, likeElement, dislikeElement);
+
+    bubbleElement.append(nameElement, textElement, metaElement);
+    messageElement.append(avatarElement, bubbleElement);
+    attachChatMessageActions(messageElement, chatItem);
+    return messageElement;
+}
+
+function renderChatMessages(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+        renderChatEmpty("目前還沒有聊天訊息");
+        return;
+    }
+
+    const messageElements = messages.map(createChatMessageElement);
+    const shouldStickToBottom =
+        chatMessages.scrollTop + chatMessages.clientHeight >= chatMessages.scrollHeight - 40;
+    chatMessages.replaceChildren(...messageElements);
+    hideChatActionMenu();
+    if (shouldStickToBottom) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
+
+async function fetchChatMessages() {
+    if (!chatPanelOpen) {
+        return;
+    }
+
+    setChatStatus("載入中...");
+    try {
+        const response = await fetch(chatMessagesEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const messages = await response.json();
+        renderChatMessages(messages);
+        setChatStatus("");
+    } catch (error) {
+        console.error("聊天訊息讀取失敗", error);
+        setChatStatus("讀取失敗");
+        if (chatMessages.children.length === 0) {
+            renderChatEmpty("聊天訊息讀取失敗");
+        }
+    }
+}
+
+async function fetchChatTitle() {
+    if (!chatPanelOpen) {
+        return;
+    }
+
+    try {
+        const response = await fetch(chatTitleEndpoint, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const nextTitle = String(data.content ?? "").trim();
+        if (nextTitle) {
+            chatTitle.textContent = nextTitle;
+        }
+    } catch (error) {
+        console.error("聊天室標題讀取失敗", error);
+    }
+}
+
+function refreshChatContent() {
+    fetchChatMessages();
+    fetchChatTitle();
+}
+
+function startChatRefresh() {
+    window.clearInterval(chatRefreshTimer);
+    refreshChatContent();
+    chatRefreshTimer = window.setInterval(refreshChatContent, 60000);
+}
+
+function stopChatRefresh() {
+    window.clearInterval(chatRefreshTimer);
+    chatRefreshTimer = 0;
+}
+
+function setChatPanelOpen(isOpen) {
+    chatPanelOpen = isOpen;
+    chatPanel.classList.toggle("is-open", isOpen);
+    chatToggle.classList.toggle("is-open", isOpen);
+    chatPanel.setAttribute("aria-hidden", String(!isOpen));
+    chatToggle.setAttribute("aria-expanded", String(isOpen));
+    chatToggle.setAttribute("aria-label", isOpen ? "關閉聊天訊息" : "開啟聊天訊息");
+
+    if (isOpen) {
+        startChatRefresh();
+    } else {
+        hideChatActionMenu();
+        stopChatRefresh();
+        setChatStatus("已關閉");
+    }
+}
+
+function renderVolumeSlot() {
+    const volumeText = String(globalVolume);
+    if (globalVolumeControl.getAttribute("value") !== volumeText) {
+        globalVolumeControl.setAttribute("value", volumeText);
+    }
+    volumeSlot.setAttribute("aria-label", `全域音量 ${globalVolume}%`);
+}
+
+function applyVolumeToBird(bird) {
+    const volumeRatio = getGlobalVolumeRatio();
+
+    if (bird.wingAudio) {
+        bird.wingAudio.setVolume(0.22 * volumeRatio);
+    }
+    if (bird.cooAudio) {
+        bird.cooAudio.setVolume(0.5 * volumeRatio);
+    }
+}
+
+function broadcastVolumeToPopups() {
+    const volumeRatio = getGlobalVolumeRatio();
+    popupWindows.forEach((popupWindow) => {
+        if (!popupWindow || popupWindow.closed) {
+            popupWindows.delete(popupWindow);
+            return;
+        }
+
+        popupWindow.postMessage(
+            { type: "set-global-volume", volume: volumeRatio },
+            window.location.origin
+        );
+    });
+}
+
+function applyGlobalVolume() {
+    const volumeRatio = getGlobalVolumeRatio();
+    birds.forEach(applyVolumeToBird);
+    if (readManVideo) {
+        readManVideo.volume = getReadManVideoVolume();
+    }
+    gunshotAudio.volume = volumeRatio;
+    broadcastVolumeToPopups();
+}
+
+function setGlobalVolume(nextVolume) {
+    globalVolume = THREE.MathUtils.clamp(Math.round(nextVolume), 0, 100);
+    renderVolumeSlot();
+    applyGlobalVolume();
+}
+
+function shuffleList(items) {
+    const shuffled = [...items];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+    return shuffled;
+}
+
+function getVideoMetadata(src) {
+    return new Promise((resolve) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.muted = true;
+        video.src = new URL(src, window.location.href).href;
+        video.addEventListener(
+            "loadedmetadata",
+            () => {
+                resolve({
+                    src,
+                    width: video.videoWidth || 16,
+                    height: video.videoHeight || 9
+                });
+            },
+            { once: true }
+        );
+        video.addEventListener(
+            "error",
+            () => {
+                resolve({
+                    src,
+                    width: 16,
+                    height: 9
+                });
+            },
+            { once: true }
+        );
+    });
+}
+
+function getPopupSizeForVideo(videoInfo) {
+    const aspect = videoInfo.width / videoInfo.height;
+    const maxWidth = Math.min(window.screen.availWidth * 0.72, 960);
+    const maxHeight = Math.min(window.screen.availHeight * 0.72, 720);
+    let width = maxWidth;
+    let height = width / aspect;
+
+    if (height > maxHeight) {
+        height = maxHeight;
+        width = height * aspect;
+    }
+
+    return {
+        width: Math.round(width),
+        height: Math.round(height)
+    };
+}
+
+function openButtonModelPopup(options = {}) {
+    const shouldReuseWindow = (!options.videoSrc || options.videoPlaylist) && !options.forceNew;
+
+    if (
+        shouldReuseWindow &&
+        buttonModelPopupWindow &&
+        !buttonModelPopupWindow.closed
+    ) {
+        buttonModelPopupWindow.focus();
+        popupWindows.add(buttonModelPopupWindow);
+        broadcastVolumeToPopups();
+        return;
+    }
+
+    const videoPopupSize = options.videoInfo
+        ? getPopupSizeForVideo(options.videoInfo)
+        : { width: 720, height: 405 };
+    const popupWidth = options.videoSrc ? videoPopupSize.width : 360;
+    const popupHeight = options.videoSrc ? videoPopupSize.height : 360;
+    const popupLeft = options.videoSrc
+        ? THREE.MathUtils.randInt(0, Math.max(0, window.screen.availWidth - popupWidth))
+        : Math.max(0, window.screenX + window.outerWidth - popupWidth - 24);
+    const popupTop = options.videoSrc
+        ? THREE.MathUtils.randInt(0, Math.max(0, window.screen.availHeight - popupHeight))
+        : Math.max(0, window.screenY + window.outerHeight - popupHeight - 80);
+    const popupFeatures = [
+        "popup=yes",
+        `width=${popupWidth}`,
+        `height=${popupHeight}`,
+        `left=${Math.round(popupLeft)}`,
+        `top=${Math.round(popupTop)}`,
+        "menubar=no",
+        "toolbar=no",
+        "location=no",
+        "status=no",
+        "resizable=yes",
+        "scrollbars=no"
+    ].join(",");
+    const popupUrl = new URL(
+        options.popupPage || "./pages/video-popup.html",
+        window.location.href
+    );
+    if (options.label) {
+        popupUrl.searchParams.set("label", options.label);
+    }
+    popupUrl.searchParams.set("volume", String(getGlobalVolumeRatio()));
+    if (options.videoSrc) {
+        popupUrl.searchParams.set(
+            "video",
+            new URL(options.videoSrc, window.location.href).href
+        );
+    }
+    if (options.videoLoop) {
+        popupUrl.searchParams.set("loop", "1");
+    }
+    if (options.videoPlaylist?.length) {
+        popupUrl.searchParams.set(
+            "playlist",
+            options.videoPlaylist
+                .map((src) => new URL(src, window.location.href).href)
+                .join("|")
+        );
+        popupUrl.searchParams.set("interval", "20");
+    }
+
+    const popupWindow = window.open(
+        popupUrl.href,
+        options.windowName ||
+            (shouldReuseWindow ? "button_model_popup" : `video_model_popup_${Date.now()}`),
+        popupFeatures
+    );
+
+    if (!popupWindow) {
+        hud.innerHTML = "3D 按鈕小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        return null;
+    }
+
+    if (shouldReuseWindow) {
+        buttonModelPopupWindow = popupWindow;
+    }
+
+    popupWindows.add(popupWindow);
+    window.setTimeout(broadcastVolumeToPopups, 250);
+    popupWindow.focus();
+    return popupWindow;
+}
+
+function openVideoPlaylistPopup() {
+    if (videoPlaylistPopupOpened) {
+        return;
+    }
+
+    const shuffledVideos = shuffleList(videoBackgroundFiles);
+
+    const popupWindow = openButtonModelPopup({
+        videoSrc: shuffledVideos[0],
+        videoPlaylist: shuffledVideos,
+        label: "投票影片",
+        windowName: "button_model_popup"
+    });
+    videoPlaylistPopupOpened = Boolean(popupWindow);
+}
+
+function openVideoPlaylistAfterTwentyKillsIfNeeded() {
+    if (knockedDownBirdCount < 20) {
+        return;
+    }
+
+    openVideoPlaylistPopup();
+}
+
+function openKillCountVideoIfNeeded() {
+    const videoSrc = dictatorDeflationKillVideos.get(knockedDownBirdCount);
+    if (!videoSrc) {
+        return;
+    }
+
+    openButtonModelPopup({
+        videoSrc,
+        label: `擊殺第 ${knockedDownBirdCount} 隻鴿子`,
+        videoLoop: true,
+        forceNew: true,
+        popupPage: "./pages/plain-video-popup.html",
+        windowName: `dictator_deflation_${knockedDownBirdCount}`
+    });
+}
+
+function openCsGalleryIfNeeded() {
+    if (knockedDownBirdCount !== 18) {
+        return;
+    }
+
+    const width = Math.min(1200, Math.round(window.screen.availWidth * 0.86));
+    const height = Math.min(800, Math.round(window.screen.availHeight * 0.86));
+    const left = (window.screen.availLeft ?? 0) + Math.round((window.screen.availWidth - width) / 2);
+    const top = (window.screen.availTop ?? 0) + Math.round((window.screen.availHeight - height) / 2);
+    const gameWindow = window.open(
+        new URL("./CS個展/index.html", window.location.href).href,
+        "cs_gallery_game",
+        `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no`
+    );
+
+    if (!gameWindow) {
+        hud.innerHTML = "CS 個展遊戲視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        return;
+    }
+
+    popupWindows.add(gameWindow);
+    gameWindow.focus();
+}
+
+function openAsianFuturismImageIfNeeded() {
+    if (asianFuturismPopupOpened || knockedDownBirdCount !== 23) {
+        return;
+    }
+
+    const width = Math.min(900, Math.round(window.screen.availWidth * 0.72));
+    const height = Math.min(720, Math.round(window.screen.availHeight * 0.72));
+    const left = (window.screen.availLeft ?? 0) + Math.round((window.screen.availWidth - width) / 2);
+    const top = (window.screen.availTop ?? 0) + Math.round((window.screen.availHeight - height) / 2);
+    const popupUrl = new URL("./pages/image-popup.html", window.location.href);
+    popupUrl.searchParams.set("image", new URL(asianFuturismImageFile, window.location.href).href);
+    popupUrl.searchParams.set("label", "亞洲未來主義");
+
+    asianFuturismPopupWindow = window.open(
+        popupUrl.href,
+        "asian_futurism_image_popup",
+        `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no`
+    );
+
+    if (!asianFuturismPopupWindow) {
+        hud.innerHTML = "亞洲未來主義圖片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        return;
+    }
+
+    asianFuturismPopupOpened = true;
+    popupWindows.add(asianFuturismPopupWindow);
+    asianFuturismPopupWindow.focus();
+}
+
+function setTestKillCount(count) {
+    if (!testKillsMode) {
+        return false;
+    }
+
+    knockedDownBirdCount = THREE.MathUtils.clamp(
+        Number.parseInt(count, 10) || 0,
+        0,
+        999
+    );
+    if (knockedDownBirdCount === 20) {
+        if (buttonModelPopupWindow && !buttonModelPopupWindow.closed) {
+            buttonModelPopupWindow.close();
+        }
+        buttonModelPopupWindow = null;
+        videoPlaylistPopupOpened = false;
+    }
+    if (knockedDownBirdCount === 23) {
+        closeBirdCameraPopup();
+    }
+    setMarqueeStat("currentKills", knockedDownBirdCount);
+    openKillCountVideoIfNeeded();
+    openCsGalleryIfNeeded();
+    openAsianFuturismImageIfNeeded();
+    openVideoPlaylistAfterTwentyKillsIfNeeded();
+    openBirdCameraPopupIfNeeded();
+    return true;
+}
+
+window.setTestKillCount = setTestKillCount;
+
+function openAnthemPopup() {
+    if (anthemPopupOpened) {
+        return;
+    }
+
+    anthemPopupWindow = openButtonModelPopup({
+        videoSrc: anthemVideoFile,
+        label: "唱國歌",
+        forceNew: true,
+        popupPage: "./pages/anthem-popup.html",
+        windowName: "anthem_video_popup"
+    });
+    anthemPopupOpened = Boolean(anthemPopupWindow);
+}
+
+function showBuddhaLightFallback() {
+    const existingFallback = document.querySelector(".buddha-light-fallback");
+    if (existingFallback) {
+        return;
+    }
+
+    const fallback = document.createElement("div");
+    const frame = document.createElement("iframe");
+    const closeButton = document.createElement("button");
+
+    fallback.className = "buddha-light-fallback";
+    frame.src = new URL("./佛光砲/popup.html", window.location.href).href;
+    frame.title = "佛光衝擊波";
+    closeButton.className = "buddha-light-close";
+    closeButton.type = "button";
+    closeButton.textContent = "x";
+    closeButton.setAttribute("aria-label", "關閉佛光砲");
+    closeButton.addEventListener("click", () => {
+        fallback.remove();
+    });
+
+    fallback.append(frame, closeButton);
+    document.body.appendChild(fallback);
+    window.setTimeout(() => {
+        fallback.remove();
+    }, 18000);
+}
+
+function openBuddhaLightCannon() {
+    const targetHeight = Math.min(
+        520,
+        Math.max(360, Math.round(window.screen.availHeight * 0.54))
+    );
+    const imageDisplayWidth = Math.round(targetHeight * 1444 / 450);
+    const startWidth = Math.round(imageDisplayWidth / 7);
+    const popupLeft = window.screen.availLeft + window.screen.availWidth - startWidth;
+    const popupTop =
+        window.screen.availTop +
+        Math.max(24, Math.round((window.screen.availHeight - targetHeight) / 2));
+    const popupFeatures = [
+        "popup=yes",
+        `width=${startWidth}`,
+        `height=${targetHeight}`,
+        `left=${popupLeft}`,
+        `top=${popupTop}`,
+        "menubar=no",
+        "toolbar=no",
+        "location=no",
+        "status=no",
+        "scrollbars=no",
+        "resizable=yes"
+    ].join(",");
+    const popupUrl = new URL("./佛光砲/popup.html", window.location.href);
+
+    buddhaLightPopupWindow = window.open(
+        popupUrl.href,
+        "buddha_light_cannon",
+        popupFeatures
+    );
+
+    if (!buddhaLightPopupWindow) {
+        hud.innerHTML = "佛光砲小視窗被瀏覽器擋下<br>改用頁面內顯示";
+        showBuddhaLightFallback();
+        return null;
+    }
+
+    popupWindows.add(buddhaLightPopupWindow);
+    buddhaLightPopupWindow.focus();
+    return buddhaLightPopupWindow;
+}
+
+function getBirdScreenPosition(bird) {
+    if (!bird?.visual) {
+        return null;
+    }
+
+    const bounds = getProjectedScreenBounds(bird.visual, camera);
+    if (
+        !bounds ||
+        bounds.right < 0 ||
+        bounds.left > appViewport.width ||
+        bounds.bottom < 0 ||
+        bounds.top > appViewport.height
+    ) {
+        return null;
+    }
+
+    return {
+        x: bounds.centerX,
+        y: bounds.top + 8 * appViewport.layoutScale
+    };
+}
+
+function positionBuddhaLightPrompt(prompt, bird) {
+    const birdPosition = getBirdScreenPosition(bird);
+    if (!birdPosition) {
+        prompt.classList.remove("is-attached");
+        return false;
+    }
+
+    const x = THREE.MathUtils.clamp(
+        birdPosition.x,
+        118 * appViewport.layoutScale,
+        appViewport.width - 118 * appViewport.layoutScale
+    );
+    const y = THREE.MathUtils.clamp(
+        birdPosition.y,
+        62 * appViewport.layoutScale,
+        appViewport.height - 76 * appViewport.layoutScale
+    );
+
+    prompt.style.left = `${x}px`;
+    prompt.style.top = `${y}px`;
+    prompt.classList.add("is-attached");
+    return true;
+}
+
+function pickUnboundVisiblePromptBird(currentBird = null) {
+    const boundBirds = new Set();
+    aliveBirdPromptStates.forEach((state) => {
+        if (state.bird !== currentBird) {
+            boundBirds.add(state.bird);
+        }
+    });
+    if (buddhaLightPromptState?.bird !== currentBird) {
+        boundBirds.add(buddhaLightPromptState?.bird);
+    }
+    if (explosionPromptState?.bird !== currentBird) {
+        boundBirds.add(explosionPromptState?.bird);
+    }
+
+    return getFlyingBirds().find((bird) => (
+        !boundBirds.has(bird) && getBirdScreenPosition(bird)
+    ));
+}
+
+function updateAliveBirdPromptPosition() {
+    aliveBirdPromptStates.forEach((state, threshold) => {
+        const { element, bird } = state;
+        if (!element.isConnected) {
+            aliveBirdPromptStates.delete(threshold);
+            return;
+        }
+
+        if (
+            !bird?.isActive ||
+            bird.isGrounded ||
+            bird.isCrashed ||
+            !positionBuddhaLightPrompt(element, bird)
+        ) {
+            const nextBird = pickUnboundVisiblePromptBird(bird);
+            if (!nextBird) {
+                element.classList.remove("is-attached");
+                return;
+            }
+            state.bird = nextBird;
+            positionBuddhaLightPrompt(element, nextBird);
+        }
+    });
+}
+
+function openExploVideos() {
+    localStorage.setItem("exploAudioEnabled", "1");
+    const runId = Date.now();
+    const screenLeft = window.screen.availLeft ?? 0;
+    const screenTop = window.screen.availTop ?? 0;
+    const firstWindow = window.open(
+        new URL("./explo/player.html", window.location.href).href,
+        `explo_player_${runId}`,
+        `popup=yes,width=832,height=468,left=${screenLeft + 24},top=${screenTop + 24},resizable=yes`
+    );
+    const secondWindow = window.open(
+        new URL("./explo/player2.html?delay=0", window.location.href).href,
+        `explo_player_2_${runId}`,
+        `popup=yes,width=480,height=360,left=${screenLeft + Math.max(24, window.screen.availWidth - 504)},top=${screenTop + Math.max(24, window.screen.availHeight - 384)},resizable=yes`
+    );
+
+    [firstWindow, secondWindow].forEach((popupWindow) => {
+        if (popupWindow) {
+            popupWindows.add(popupWindow);
+        }
+    });
+
+    if (firstWindow) {
+        const beginFirstVideo = window.setInterval(() => {
+            if (firstWindow.closed) {
+                window.clearInterval(beginFirstVideo);
+            } else if (typeof firstWindow.beginExplo === "function") {
+                firstWindow.beginExplo();
+                window.clearInterval(beginFirstVideo);
+            }
+        }, 200);
+    }
+
+    if (!firstWindow || !secondWindow) {
+        hud.innerHTML = "影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+    } else {
+        secondWindow.focus();
+    }
+}
+
+function openAnesthesiaGunVideos() {
+    if (anesthesiaGunVideosOpened) {
+        return;
+    }
+
+    const run = String(Date.now());
+    const screenLeft = window.screen.availLeft ?? 0;
+    const screenTop = window.screen.availTop ?? 0;
+    const screenWidth = window.screen.availWidth || window.innerWidth;
+    const screenHeight = window.screen.availHeight || window.innerHeight;
+    const videos = [
+        { width: 560, height: 360, x: 0.5, y: 0.5 },
+        { width: 560, height: 360, x: 0.08, y: 0.12 },
+        { width: 560, height: 360, x: 0.78, y: 0.12 },
+        { width: 560, height: 360, x: 0.08, y: 0.72 },
+        { width: 560, height: 360, x: 0.78, y: 0.72 },
+        { width: 560, height: 360, x: 0.45, y: 0.08 }
+    ];
+    const positions = videos.map(({ x, y }) => ({ x, y }));
+    const openedWindows = [];
+
+    localStorage.removeItem("popupVideoUnlock");
+    localStorage.setItem(
+        "popupVideoPositions",
+        JSON.stringify({ run, positions })
+    );
+
+    videos.forEach((video, index) => {
+        const left = Math.round(screenLeft + THREE.MathUtils.clamp(
+            screenWidth * video.x - video.width / 2,
+            0,
+            Math.max(0, screenWidth - video.width)
+        ));
+        const top = Math.round(screenTop + THREE.MathUtils.clamp(
+            screenHeight * video.y - video.height / 2,
+            0,
+            Math.max(0, screenHeight - video.height)
+        ));
+        const popupUrl = new URL("./麻醉槍/popup.html", window.location.href);
+        popupUrl.searchParams.set("video", String(index));
+        popupUrl.searchParams.set("run", run);
+        popupUrl.searchParams.set("lockPlacement", "1");
+        const popupWindow = window.open(
+            popupUrl.href,
+            `anesthesia_gun_${run}_${index}`,
+            `popup=yes,width=${video.width},height=${video.height},left=${left},top=${top},resizable=yes,scrollbars=no`
+        );
+
+        if (popupWindow) {
+            popupWindows.add(popupWindow);
+            openedWindows.push(popupWindow);
+        }
+    });
+
+    if (openedWindows.length === 0) {
+        hud.innerHTML = "麻醉槍影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        return;
+    }
+
+    anesthesiaGunVideosOpened = true;
+    openedWindows.at(-1)?.focus();
+}
+
+function openSaltLampMomVideos() {
+    const run = Date.now();
+    const screenLeft = window.screen.availLeft ?? 0;
+    const screenTop = window.screen.availTop ?? 0;
+    const screenWidth = window.screen.availWidth || window.innerWidth;
+    const screenHeight = window.screen.availHeight || window.innerHeight;
+    const fallbackSize = { width: 560, height: 360 };
+    const popupItems = [
+        { x: 0.5, y: 0.5 },
+        { x: 0.18, y: 0.5 },
+        { x: 0.82, y: 0.5 }
+    ];
+    const openedWindows = [];
+
+    popupItems.forEach((item, index) => {
+        const left = Math.round(screenLeft + THREE.MathUtils.clamp(
+            screenWidth * item.x - fallbackSize.width / 2,
+            0,
+            Math.max(0, screenWidth - fallbackSize.width)
+        ));
+        const top = Math.round(screenTop + THREE.MathUtils.clamp(
+            screenHeight * item.y - fallbackSize.height / 2,
+            0,
+            Math.max(0, screenHeight - fallbackSize.height)
+        ));
+        const popupUrl = new URL("./鹽燈媽媽/popup.html", window.location.href);
+        popupUrl.searchParams.set("video", String(index));
+        const popupWindow = window.open(
+            popupUrl.href,
+            `salt_lamp_mom_${run}_${index}`,
+            `popup=yes,width=${fallbackSize.width},height=${fallbackSize.height},left=${left},top=${top},resizable=yes,scrollbars=no`
+        );
+
+        if (popupWindow) {
+            popupWindows.add(popupWindow);
+            openedWindows.push(popupWindow);
+        }
+    });
+
+    if (openedWindows.length === 0) {
+        hud.innerHTML = "鹽燈媽媽影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        return;
+    }
+
+    openedWindows.at(-1)?.focus();
+}
+
+function openTruthVideos() {
+    const runId = Date.now();
+    const screenLeft = window.screen.availLeft ?? 0;
+    const screenTop = window.screen.availTop ?? 0;
+    const screenWidth = window.screen.availWidth || window.innerWidth;
+    const screenHeight = window.screen.availHeight || window.innerHeight;
+    const truthVideos = [
+        { id: "M1", file: "M1.mp4", width: 672, height: 378, delay: 0, sound: 1, x: 0.5, y: 0.5 },
+        { id: "V1", file: "V1.mp4", width: 300, height: 480, delay: 900, sound: 0, x: 0.08, y: 0.08 },
+        { id: "S1", file: "S1.mp4", width: 230, height: 172, delay: 1550, sound: 0, x: 0.82, y: 0.08 },
+        { id: "V2", file: "V2.mp4", width: 240, height: 384, delay: 2200, sound: 0, x: 0.08, y: 0.82 },
+        { id: "S2", file: "S2.mp4", width: 720, height: 200, delay: 2850, sound: 0, x: 0.72, y: 0.82 }
+    ];
+
+    truthVideos.forEach((item) => {
+        const left = Math.round(screenLeft + THREE.MathUtils.clamp(
+            screenWidth * item.x - item.width / 2,
+            0,
+            Math.max(0, screenWidth - item.width)
+        ));
+        const top = Math.round(screenTop + THREE.MathUtils.clamp(
+            screenHeight * item.y - item.height / 2,
+            0,
+            Math.max(0, screenHeight - item.height)
+        ));
+        const popupWindow = window.open(
+            "about:blank",
+            `truth_${item.id}_${runId}`,
+            `popup=yes,width=${item.width},height=${item.height},left=${left},top=${top},resizable=yes,scrollbars=no`
+        );
+
+        if (!popupWindow) {
+            return;
+        }
+
+        popupWindows.add(popupWindow);
+        popupWindow.document.documentElement.style.background = "#000";
+        const popupUrl = new URL("./Truth/popup-video.html", window.location.href);
+        popupUrl.searchParams.set("id", item.id);
+        popupUrl.searchParams.set("src", new URL(`./Truth/${item.file}`, window.location.href).href);
+        popupUrl.searchParams.set("sound", String(item.sound));
+        popupUrl.searchParams.set("w", String(item.width));
+        popupUrl.searchParams.set("h", String(item.height));
+        popupUrl.searchParams.set("volume", String(getGlobalVolumeRatio()));
+
+        const beginPlayback = () => {
+            if (!popupWindow.closed && popupWindow.location.href === "about:blank") {
+                popupWindow.location.replace(popupUrl.href);
+            }
+        };
+
+        if (item.delay === 0) {
+            popupWindow.location.replace(popupUrl.href);
+        } else {
+            window.setTimeout(beginPlayback, item.delay);
+        }
+    });
+}
+
+const lookAtThemClips = [
+    "1.mp4",
+    "3.mp4",
+    "4.mp4",
+    "5.mp4",
+    "6.mp4",
+    "7.mp4",
+    "8.mp4",
+    "9.mp4",
+    "10.mp4",
+    "11.mp4",
+    "12.mp4",
+    "13.mp4"
+];
+let lookAtThemPopupWindows = [];
+let lookAtThemMonitorTimer = 0;
+let lookAtThemClosingAll = false;
+
+function closeLookAtThemPopups() {
+    if (lookAtThemClosingAll) {
+        return;
+    }
+
+    lookAtThemClosingAll = true;
+    window.clearInterval(lookAtThemMonitorTimer);
+    lookAtThemMonitorTimer = 0;
+    lookAtThemPopupWindows.forEach((popupWindow) => {
+        try {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.close();
+            }
+        } catch (error) {}
+    });
+    lookAtThemPopupWindows = [];
+    window.setTimeout(() => {
+        lookAtThemClosingAll = false;
+    }, 500);
+}
+
+function monitorLookAtThemPopups() {
+    window.clearInterval(lookAtThemMonitorTimer);
+    lookAtThemMonitorTimer = window.setInterval(() => {
+        if (lookAtThemClosingAll || lookAtThemPopupWindows.length === 0) {
+            return;
+        }
+
+        const hasClosedWindow = lookAtThemPopupWindows.some((popupWindow) => {
+            try {
+                return !popupWindow || popupWindow.closed;
+            } catch (error) {
+                return true;
+            }
+        });
+
+        if (hasClosedWindow) {
+            closeLookAtThemPopups();
+        }
+    }, 300);
+}
+
+function fitLookAtThemToScreen(size, maxRatio = 0.82) {
+    const maxWidth = Math.floor(window.screen.availWidth * maxRatio);
+    const maxHeight = Math.floor(window.screen.availHeight * maxRatio);
+    const scale = Math.min(1, maxWidth / size.width, maxHeight / size.height);
+
+    return {
+        width: Math.max(220, Math.round(size.width * scale)),
+        height: Math.max(160, Math.round(size.height * scale))
+    };
+}
+
+function fitLookAtThemInsideCell(size, cellWidth, cellHeight) {
+    const scale = Math.min(cellWidth / size.width, cellHeight / size.height);
+
+    return {
+        width: Math.max(150, Math.floor(size.width * scale)),
+        height: Math.max(105, Math.floor(size.height * scale))
+    };
+}
+
+function getLookAtThemTopRightRect(size, margin = 18) {
+    return {
+        width: size.width,
+        height: size.height,
+        left: Math.max(0, window.screen.availWidth - size.width - margin),
+        top: margin
+    };
+}
+
+function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
+    return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>${label}</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+    video { width: 100vw; height: 100vh; display: none; object-fit: cover; background: #000; }
+    .armed {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #050606;
+      color: #f0bb65;
+      font: 800 12px ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: .12em;
+    }
+  </style>
+</head>
+<body>
+  <div class="armed" id="armed">${delay ? "ARMED / +" + Math.round(delay / 1000) + "S" : "LIVE"}</div>
+  <video id="video" src="${src}" autoplay ${shouldLoop ? "loop" : ""} playsinline></video>
+  <script>
+    const video = document.querySelector("#video");
+    const armed = document.querySelector("#armed");
+    let activated = false;
+    async function playWithSound() {
+      video.muted = false;
+      video.volume = 1;
+      try {
+        await video.play();
+      } catch (error) {
+        video.muted = true;
+        video.volume = 0;
+        await video.play().catch(() => {});
+      }
+    }
+    function activate() {
+      if (activated) return;
+      activated = true;
+      try {
+window.moveTo(${rect.left}, ${rect.top});
+window.resizeTo(${rect.width}, ${rect.height});
+      } catch (error) {}
+      armed.style.display = "none";
+      video.style.display = "block";
+      video.muted = false;
+      video.currentTime = 0;
+      playWithSound();
+    }
+    window.activatePopup = activate;
+    window.addEventListener("focus", playWithSound);
+    window.addEventListener("pointerdown", playWithSound);
+    window.addEventListener("beforeunload", () => {
+      try {
+window.opener.postMessage({ type: "look-at-them-popup-closed" }, "*");
+      } catch (error) {}
+    });
+    window.setTimeout(activate, ${delay});
+  <\/script>
+</body>
+</html>`;
+}
+
+function openLookAtThemVideoPopup(src, label, rect, delay = 0, startTiny = false, shouldLoop = true) {
+    const initialWidth = startTiny ? 220 : rect.width;
+    const initialHeight = startTiny ? 140 : rect.height;
+    const hiddenRect = getLookAtThemTopRightRect({ width: initialWidth, height: initialHeight }, 26);
+    const initialLeft = startTiny ? hiddenRect.left : rect.left;
+    const initialTop = startTiny ? hiddenRect.top : rect.top;
+    const popupWindow = window.open(
+        "",
+        `${label}-${Date.now()}-${Math.random()}`,
+        [
+            "popup=yes",
+            "resizable=yes",
+            "scrollbars=no",
+            `width=${initialWidth}`,
+            `height=${initialHeight}`,
+            `left=${initialLeft}`,
+            `top=${initialTop}`
+        ].join(",")
+    );
+
+    if (!popupWindow) {
+        return null;
+    }
+
+    popupWindow.document.open();
+    popupWindow.document.write(makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop));
+    popupWindow.document.close();
+    lookAtThemPopupWindows.push(popupWindow);
+    popupWindows.add(popupWindow);
+    if (delay === 0 && popupWindow.activatePopup) {
+        popupWindow.activatePopup();
+    }
+    return popupWindow;
+}
+
+function openLookAtThemPopups() {
+    closeLookAtThemPopups();
+    lookAtThemClosingAll = false;
+
+    const screenWidth = window.screen.availWidth || window.innerWidth;
+    const screenHeight = window.screen.availHeight || window.innerHeight;
+    const c1Size = fitLookAtThemToScreen({ width: 640, height: 360 });
+    const c1Rect = getLookAtThemTopRightRect(c1Size, 18);
+    const margin = 24;
+    const gap = 14;
+    const columns = 4;
+    const rows = Math.ceil(lookAtThemClips.length / columns);
+    const cellWidth = Math.floor((screenWidth - margin * 2 - gap * (columns - 1)) / columns);
+    const cellHeight = Math.floor((screenHeight - margin * 2 - gap * (rows - 1)) / rows);
+    let opened = 0;
+
+    lookAtThemClips.forEach((fileName, index) => {
+        const displaySize = fitLookAtThemInsideCell({ width: 640, height: 360 }, cellWidth, cellHeight);
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        const cellLeft = screenWidth - margin - cellWidth - column * (cellWidth + gap);
+        const cellTop = margin + row * (cellHeight + gap);
+        const diagonalNudge = Math.min(gap * row, Math.max(0, cellWidth - displaySize.width));
+        const left = cellLeft + Math.max(0, cellWidth - displaySize.width) - diagonalNudge;
+        const top = cellTop + Math.floor((cellHeight - displaySize.height) / 2);
+        const popupWindow = openLookAtThemVideoPopup(
+            new URL(`./look_at_them/${fileName}`, window.location.href).href,
+            `CAM-${String(index + 1).padStart(2, "0")}`,
+            {
+                width: displaySize.width,
+                height: displaySize.height,
+                left: Math.max(0, Math.min(left, screenWidth - displaySize.width)),
+                top: Math.max(0, Math.min(top, screenHeight - displaySize.height))
+            },
+            5000,
+            true,
+            true
+        );
+
+        if (popupWindow) {
+            opened += 1;
+        }
+    });
+
+    if (opened < lookAtThemClips.length) {
+        closeLookAtThemPopups();
+        hud.innerHTML = `look_at_them popup 被瀏覽器擋下<br>請允許彈出式視窗後再點一次 48`;
+        return;
+    }
+
+    const c1Window = openLookAtThemVideoPopup(
+        new URL("./look_at_them/C1.mp4", window.location.href).href,
+        "C1",
+        {
+            width: c1Size.width,
+            height: c1Size.height,
+            left: c1Rect.left,
+            top: c1Rect.top
+        },
+        0,
+        false,
+        false
+    );
+
+    if (!c1Window) {
+        closeLookAtThemPopups();
+        hud.innerHTML = "C1 popup 被瀏覽器擋下<br>請允許彈出式視窗後再點一次 48";
+        return;
+    }
+
+    c1Window.focus();
+    monitorLookAtThemPopups();
+    hud.innerHTML = "look_at_them 已直接播放<br>5 秒後其他影片會一次展開";
+}
+
+function showAliveBirdPrompt(threshold) {
+    if (aliveBirdPromptStates.has(threshold)) {
+        return;
+    }
+
+    const promptBird = pickUnboundVisiblePromptBird();
+    if (!promptBird) {
+        return;
+    }
+
+    const prompt = document.createElement("button");
+    prompt.className = "alive-bird-prompt";
+    prompt.type = "button";
+    prompt.innerHTML = `
+        <img class="alive-bird-prompt-image" src="./活鴿子講話/${threshold}.svg" alt="活鴿子達到 ${threshold} 隻的對話">
+    `;
+    prompt.setAttribute("aria-label", `關閉活鴿子達到 ${threshold} 隻的對話`);
+    aliveBirdPromptStates.set(threshold, {
+        element: prompt,
+        bird: promptBird,
+        threshold
+    });
+    shownAliveBirdPrompts.add(threshold);
+    positionBuddhaLightPrompt(prompt, promptBird);
+
+    prompt.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+    });
+
+    prompt.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (threshold === 26) {
+            openSaltLampMomVideos();
+        }
+        if (threshold === 33) {
+            openButtonModelPopup({
+                videoSrc: nationalJointVideoFile,
+                label: "national joint",
+                forceNew: true,
+                popupPage: "./pages/plain-video-popup.html",
+                windowName: "national_joint_popup"
+            });
+        }
+        if (threshold === 35) {
+            openAnesthesiaGunVideos();
+        }
+        if (threshold === 48) {
+            openLookAtThemPopups();
+        }
+        if (threshold === 50) {
+            openExploVideos();
+        }
+        if (threshold === 20) {
+            openTruthVideos();
+        }
+        const experience = aliveBirdPromptExperiences.get(threshold);
+        if (experience) {
+            const experienceWindow = window.open(
+                new URL(experience.url, window.location.href).href,
+                experience.windowName,
+                `popup=yes,width=${experience.width ?? 960},height=${experience.height ?? 720},resizable=yes,scrollbars=yes`
+            );
+            if (experienceWindow) {
+                popupWindows.add(experienceWindow);
+                experienceWindow.focus();
+            } else {
+                hud.innerHTML = `${experience.label} 小視窗被瀏覽器擋下<br>請允許彈出式視窗`;
+            }
+        }
+        prompt.classList.add("is-closing");
+        window.setTimeout(() => prompt.remove(), 180);
+        aliveBirdPromptStates.delete(threshold);
+    });
+
+    document.body.appendChild(prompt);
+    requestAnimationFrame(updateAliveBirdPromptPosition);
+}
+
+function showAliveBirdPromptIfNeeded() {
+    if (testKillsMode) {
+        return;
+    }
+
+    const aliveCount = getAliveBirdCount();
+    const pendingThresholds = aliveBirdPromptThresholds.filter((threshold) => (
+        threshold <= aliveCount && !shownAliveBirdPrompts.has(threshold)
+    ));
+    pendingThresholds.forEach(showAliveBirdPrompt);
+}
+
+function updateBuddhaLightPromptPosition() {
+    if (!buddhaLightPromptState?.element) {
+        return;
+    }
+
+    const { element, bird } = buddhaLightPromptState;
+    if (!element.isConnected) {
+        buddhaLightPromptState = null;
+        buddhaLightPromptShown = false;
+        return;
+    }
+
+    if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
+        const nextBird = pickUnboundVisiblePromptBird(bird);
+        if (!nextBird) {
+            element.classList.remove("is-attached");
+            return;
+        }
+        buddhaLightPromptState.bird = nextBird;
+        positionBuddhaLightPrompt(element, nextBird);
+        return;
+    }
+
+    if (!positionBuddhaLightPrompt(element, bird)) {
+        const nextBird = pickUnboundVisiblePromptBird(bird);
+        if (nextBird) {
+            buddhaLightPromptState.bird = nextBird;
+            positionBuddhaLightPrompt(element, nextBird);
+        }
+    }
+}
+
+function showBuddhaLightPrompt() {
+    if (buddhaLightPromptShown || document.querySelector(".buddha-light-prompt")) {
+        return;
+    }
+
+    const promptBird = pickUnboundVisiblePromptBird();
+    if (!promptBird) {
+        return;
+    }
+
+    const prompt = document.createElement("button");
+
+    buddhaLightPromptShown = true;
+    prompt.className = "buddha-light-prompt";
+    prompt.type = "button";
+    prompt.innerHTML = `
+        <img class="buddha-light-prompt-image" src="./活鴿子講話/28.svg" alt="你要不要吃大便？要，不要">
+    `;
+    prompt.setAttribute("aria-label", "是否要播放佛光砲，是");
+    buddhaLightPromptState = {
+        element: prompt,
+        bird: promptBird
+    };
+    positionBuddhaLightPrompt(prompt, promptBird);
+
+    prompt.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+    });
+
+    prompt.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        prompt.classList.add("is-closing");
+        window.setTimeout(() => prompt.remove(), 180);
+        buddhaLightShown = true;
+        buddhaLightPromptShown = false;
+        buddhaLightPromptState = null;
+        openBuddhaLightCannon();
+    });
+
+    document.body.appendChild(prompt);
+    requestAnimationFrame(() => {
+        updateBuddhaLightPromptPosition();
+    });
+}
+
+function openBuddhaLightCannonIfNeeded() {
+    if (
+        testKillsMode ||
+        buddhaLightShown ||
+        buddhaLightPromptShown ||
+        explosionPromptState ||
+        getAliveBirdCount() < buddhaLightAliveThreshold
+    ) {
+        return;
+    }
+
+    showBuddhaLightPrompt();
+}
+
+function openExplosionExperience() {
+    const popupUrl = new URL("./爆炸0701/index.html", window.location.href);
+    popupUrl.searchParams.set("autostart", "1");
+
+    const previousController = document.querySelector(".explosion-controller-frame");
+    previousController?.remove();
+
+    const controllerFrame = document.createElement("iframe");
+    controllerFrame.className = "explosion-controller-frame";
+    controllerFrame.src = popupUrl.href;
+    controllerFrame.setAttribute("hidden", "");
+    controllerFrame.setAttribute("aria-hidden", "true");
+    controllerFrame.style.display = "none";
+    document.body.appendChild(controllerFrame);
+
+    explosionPopupWindow = controllerFrame.contentWindow;
+    if (explosionPopupWindow) {
+        popupWindows.add(explosionPopupWindow);
+    }
+
+    return explosionPopupWindow;
+}
+
+function positionExplosionPrompt(prompt, bird) {
+    const birdPosition = getBirdScreenPosition(bird);
+    if (!birdPosition) {
+        prompt.classList.remove("is-attached");
+        return false;
+    }
+
+    const x = THREE.MathUtils.clamp(
+        birdPosition.x,
+        96 * appViewport.layoutScale,
+        appViewport.width - 96 * appViewport.layoutScale
+    );
+    const y = THREE.MathUtils.clamp(
+        birdPosition.y,
+        54 * appViewport.layoutScale,
+        appViewport.height - 68 * appViewport.layoutScale
+    );
+
+    prompt.style.left = `${x}px`;
+    prompt.style.top = `${y}px`;
+    prompt.classList.add("is-attached");
+    return true;
+}
+
+function updateExplosionPromptPosition() {
+    if (!explosionPromptState?.element) {
+        return;
+    }
+
+    const { element, bird } = explosionPromptState;
+    if (!element.isConnected) {
+        explosionPromptState = null;
+        explosionPromptShown = false;
+        return;
+    }
+
+    if (!bird?.isActive || bird.isGrounded || bird.isCrashed) {
+        const nextBird = pickUnboundVisiblePromptBird(bird);
+        if (!nextBird) {
+            element.classList.remove("is-attached");
+            return;
+        }
+        explosionPromptState.bird = nextBird;
+        positionExplosionPrompt(element, nextBird);
+        return;
+    }
+
+    if (!positionExplosionPrompt(element, bird)) {
+        const nextBird = pickUnboundVisiblePromptBird(bird);
+        if (nextBird) {
+            explosionPromptState.bird = nextBird;
+            positionExplosionPrompt(element, nextBird);
+        }
+    }
+}
+
+function showExplosionPrompt() {
+    if (explosionPromptShown || document.querySelector(".explosion-prompt")) {
+        return;
+    }
+
+    const promptBird = pickUnboundVisiblePromptBird();
+    if (!promptBird) {
+        return;
+    }
+
+    const prompt = document.createElement("button");
+    explosionPromptShown = true;
+    prompt.className = "explosion-prompt";
+    prompt.type = "button";
+    prompt.innerHTML = `
+        <img class="explosion-prompt-image" src="./活鴿子講話/88.svg" alt="播放大爆炸">
+    `;
+    prompt.setAttribute("aria-label", "播放爆炸影片");
+    explosionPromptState = {
+        element: prompt,
+        bird: promptBird
+    };
+    positionExplosionPrompt(prompt, promptBird);
+
+    prompt.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+    });
+
+    prompt.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        prompt.classList.add("is-closing");
+        window.setTimeout(() => prompt.remove(), 180);
+        explosionShown = true;
+        explosionPromptShown = false;
+        explosionPromptState = null;
+        openExplosionExperience();
+    });
+
+    document.body.appendChild(prompt);
+    requestAnimationFrame(updateExplosionPromptPosition);
+}
+
+function openExplosionIfNeeded() {
+    if (
+        testKillsMode ||
+        explosionShown ||
+        explosionPromptShown ||
+        buddhaLightPromptState ||
+        getAliveBirdCount() < explosionAliveThreshold
+    ) {
+        return;
+    }
+
+    showExplosionPrompt();
+}
+
+function getFlyingBirds(excludedBird = null) {
+    return birds.filter((bird) => (
+        bird !== excludedBird &&
+        bird.isActive &&
+        !bird.isCrashed &&
+        !bird.isGrounded
+    ));
+}
+
+function pickBirdCameraTarget(excludedBird = null) {
+    const flyingBirds = getFlyingBirds(excludedBird);
+    if (flyingBirds.length === 0) {
+        return null;
+    }
+
+    return flyingBirds[Math.floor(Math.random() * flyingBirds.length)];
+}
+
+function openBirdCameraPopup() {
+    if (birdCameraPopupWindow && !birdCameraPopupWindow.closed) {
+        birdCameraPopupWindow.focus();
+        return birdCameraPopupWindow;
+    }
+
+    const popupSize = birdCameraResolution;
+    const popupLeft = Math.max(
+        0,
+        window.screenX + Math.round((window.outerWidth - popupSize) / 2)
+    );
+    const popupTop = Math.max(
+        0,
+        window.screenY + Math.round((window.outerHeight - popupSize) / 2)
+    );
+    const popupFeatures = [
+        "popup=yes",
+        `width=${popupSize}`,
+        `height=${popupSize}`,
+        `left=${popupLeft}`,
+        `top=${popupTop}`,
+        "menubar=no",
+        "toolbar=no",
+        "location=no",
+        "status=no",
+        "resizable=yes",
+        "scrollbars=no"
+    ].join(",");
+    const popupUrl = new URL("./pages/bird-camera-popup.html", window.location.href);
+
+    birdCameraPopupWindow = window.open(
+        popupUrl.href,
+        "bird_camera_popup",
+        popupFeatures
+    );
+
+    if (!birdCameraPopupWindow) {
+        hud.innerHTML = "鴿子攝影機小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        return null;
+    }
+
+    birdCameraPopupWindow.focus();
+    return birdCameraPopupWindow;
+}
+
+function openBirdCameraPopupIfNeeded(excludedBird = null) {
+    if (birdCameraPopupOpened || knockedDownBirdCount !== 23) {
+        return;
+    }
+
+    birdCameraPopupOpened = true;
+    birdCameraTargetBird = pickBirdCameraTarget(excludedBird);
+    birdCameraCloseAt = -1;
+    const popupWindow = openBirdCameraPopup();
+    if (popupWindow) {
+        hud.innerHTML = "第二十三隻鴿子被擊落<br>已開啟鴿子身上的即時攝影機";
+    }
+}
+
+function closeBirdCameraPopup() {
+    birdCameraPopupOpened = false;
+    birdCameraTargetBird = null;
+    birdCameraCloseAt = -1;
+
+    if (birdCameraPopupWindow && !birdCameraPopupWindow.closed) {
+        birdCameraPopupWindow.close();
+    }
+}
+
+function scheduleBirdCameraClose(elapsed) {
+    if (!birdCameraPopupOpened || birdCameraCloseAt > 0) {
+        return;
+    }
+
+    birdCameraCloseAt = elapsed + birdCameraCloseDelay;
+    hud.innerHTML = "鴿子攝影機的鴿子被擊落<br>畫面會在 20 秒後關閉";
+}
+
+function updateBirdCameraTarget() {
+    if (!birdCameraPopupOpened) {
+        return false;
+    }
+
+    if (!birdCameraTargetBird || !birdCameraTargetBird.isActive) {
+        birdCameraTargetBird = pickBirdCameraTarget();
+    }
+
+    return Boolean(birdCameraTargetBird);
+}
+
+function updateBirdCameraTransform() {
+    if (!birdCameraTargetBird) {
+        return;
+    }
+
+    birdCameraForward.copy(birdCameraTargetBird.velocity);
+    if (birdCameraForward.lengthSq() < 0.0001) {
+        birdCameraTargetBird.root.getWorldDirection(birdCameraForward);
+    }
+    birdCameraForward.normalize();
+
+    birdCameraTargetBird.root.getWorldPosition(birdCameraPosition);
+    birdCamera.position
+        .copy(birdCameraPosition)
+        .addScaledVector(birdCameraForward, 0.85);
+    birdCamera.position.y += 0.18;
+
+    birdCameraLookAt
+        .copy(birdCameraPosition)
+        .addScaledVector(birdCameraForward, 12);
+    birdCameraLookAt.y += 0.25;
+    birdCamera.lookAt(birdCameraLookAt);
+}
+
+function sendBirdCameraFrame(elapsed) {
+    if (
+        !birdCameraPopupOpened ||
+        elapsed - lastBirdCameraFrameAt < birdCameraFrameInterval
+    ) {
+        return;
+    }
+
+    if (birdCameraCloseAt > 0 && elapsed >= birdCameraCloseAt) {
+        closeBirdCameraPopup();
+        return;
+    }
+
+    if (
+        !birdCameraPopupWindow ||
+        birdCameraPopupWindow.closed
+    ) {
+        birdCameraPopupOpened = false;
+        birdCameraTargetBird = null;
+        birdCameraCloseAt = -1;
+        return;
+    }
+
+    if (!updateBirdCameraTarget()) {
+        return;
+    }
+
+    if (birdCameraTargetBird.isCrashed || birdCameraTargetBird.isGrounded) {
+        scheduleBirdCameraClose(elapsed);
+    }
+
+    lastBirdCameraFrameAt = elapsed;
+    updateBirdCameraTransform();
+
+    const previousExposure = renderer.toneMappingExposure;
+    const previousClearAlpha = renderer.getClearAlpha();
+    renderer.getClearColor(previousRendererClearColor);
+    renderer.setRenderTarget(birdCameraRenderTarget);
+    renderer.setViewport(0, 0, birdCameraResolution, birdCameraResolution);
+    renderer.setClearColor(birdCameraClearColor, 1);
+    renderer.toneMappingExposure = birdCameraExposure;
+    renderer.clear();
+    renderer.render(scene, birdCamera);
+    renderer.clearDepth();
+    renderer.render(overlayScene, overlayCamera);
+    renderer.readRenderTargetPixels(
+        birdCameraRenderTarget,
+        0,
+        0,
+        birdCameraResolution,
+        birdCameraResolution,
+        birdCameraPixels
+    );
+    renderer.setRenderTarget(null);
+    renderer.setViewport(0, 0, appViewport.width, appViewport.height);
+    renderer.setClearColor(previousRendererClearColor, previousClearAlpha);
+    renderer.toneMappingExposure = previousExposure;
+
+    const rowLength = birdCameraResolution * 4;
+    for (let y = 0; y < birdCameraResolution; y += 1) {
+        const sourceStart = (birdCameraResolution - 1 - y) * rowLength;
+        const targetStart = y * rowLength;
+        birdCameraFrame.set(
+            birdCameraPixels.subarray(sourceStart, sourceStart + rowLength),
+            targetStart
+        );
+    }
+
+    birdCameraPopupWindow.postMessage(
+        {
+            type: "bird-camera-frame",
+            imageData: new ImageData(
+                new Uint8ClampedArray(birdCameraFrame),
+                birdCameraResolution,
+                birdCameraResolution
+            )
+        },
+        window.location.origin
+    );
+}
+
+function setStormWeatherActive(isActive) {
+    stormWeather.classList.toggle("is-active", isActive);
+}
+
+function flashLightningScreen() {
+    stormFlash.style.setProperty("--flash-x1", `${THREE.MathUtils.randFloat(8, 34).toFixed(1)}%`);
+    stormFlash.style.setProperty("--flash-y1", `${THREE.MathUtils.randFloat(10, 42).toFixed(1)}%`);
+    stormFlash.style.setProperty("--flash-x2", `${THREE.MathUtils.randFloat(58, 92).toFixed(1)}%`);
+    stormFlash.style.setProperty("--flash-y2", `${THREE.MathUtils.randFloat(8, 48).toFixed(1)}%`);
+    stormFlash.style.setProperty("--flash-x3", `${THREE.MathUtils.randFloat(18, 82).toFixed(1)}%`);
+    stormFlash.style.setProperty("--flash-y3", `${THREE.MathUtils.randFloat(38, 82).toFixed(1)}%`);
+    stormFlash.style.setProperty("--flash-a1", THREE.MathUtils.randFloat(0.18, 0.34).toFixed(2));
+    stormFlash.style.setProperty("--flash-a2", THREE.MathUtils.randFloat(0.14, 0.28).toFixed(2));
+    stormFlash.style.setProperty("--flash-a3", THREE.MathUtils.randFloat(0.08, 0.18).toFixed(2));
+    stormFlash.classList.add("is-active");
+    window.setTimeout(() => {
+        stormFlash.classList.remove("is-active");
+    }, 65);
+}
+
+function updateStormSky(elapsed) {
+    const targetIntensity = stormEvent.active ? 1 : 0;
+    if (currentStormSkyIntensity < 0) {
+        currentStormSkyIntensity = targetIntensity;
+    }
+
+    currentStormSkyIntensity = THREE.MathUtils.lerp(
+        currentStormSkyIntensity,
+        targetIntensity,
+        stormEvent.active ? 0.08 : 0.035
+    );
+
+    if (Math.abs(currentStormSkyIntensity - targetIntensity) < 0.01) {
+        currentStormSkyIntensity = targetIntensity;
+    }
+
+    drawSkyTexture(currentStormSkyIntensity);
+    skyTexture.needsUpdate = true;
+
+    mixedFogColor.copy(clearFogColor).lerp(stormFogColor, currentStormSkyIntensity);
+    scene.fog.color.copy(mixedFogColor);
+    scene.fog.near = THREE.MathUtils.lerp(34, 18, currentStormSkyIntensity);
+    scene.fog.far = THREE.MathUtils.lerp(128, 76, currentStormSkyIntensity);
+    hemisphereLight.intensity = THREE.MathUtils.lerp(1.9, 0.58, currentStormSkyIntensity);
+    sunLight.intensity = THREE.MathUtils.lerp(2.8, 0.22, currentStormSkyIntensity);
+    overlayHemisphereLight.intensity = THREE.MathUtils.lerp(1.9, 1.05, currentStormSkyIntensity);
+    overlaySunLight.intensity = THREE.MathUtils.lerp(2.8, 0.95, currentStormSkyIntensity);
+    renderer.toneMappingExposure = THREE.MathUtils.lerp(0.3, 0.18, currentStormSkyIntensity);
+
+    cloudGroup.traverse((child) => {
+        if (!child.isMesh || !child.material) {
+            return;
+        }
+
+        child.material.color.copy(clearCloudColor).lerp(stormCloudColor, currentStormSkyIntensity);
+        child.material.emissive.copy(clearCloudEmissive).lerp(stormCloudEmissive, currentStormSkyIntensity);
+        child.material.emissiveIntensity = THREE.MathUtils.lerp(0.18, 0.02, currentStormSkyIntensity);
+        child.material.opacity = THREE.MathUtils.lerp(0.76, 0.88, currentStormSkyIntensity);
+    });
+
+    if (stormEvent.active && Math.sin(elapsed * 17) > 0.985) {
+        flashLightningScreen();
+    }
+}
+
+function createLightningGlowTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 512;
+    const context = canvas.getContext("2d");
+    const centerX = canvas.width * THREE.MathUtils.randFloat(0.44, 0.56);
+    const points = [];
+    let x = centerX;
+
+    for (let index = 0; index < 11; index += 1) {
+        const y = 22 + index * 46;
+        x += THREE.MathUtils.randFloatSpread(34);
+        x = THREE.MathUtils.clamp(x, 78, 178);
+        points.push({ x, y });
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.globalCompositeOperation = "lighter";
+
+    const glow = context.createRadialGradient(
+        canvas.width * 0.5,
+        canvas.height * 0.42,
+        18,
+        canvas.width * 0.5,
+        canvas.height * 0.42,
+        canvas.width * 0.52
+    );
+    glow.addColorStop(0, "rgba(205, 236, 255, 0.26)");
+    glow.addColorStop(0.45, "rgba(105, 170, 230, 0.12)");
+    glow.addColorStop(1, "rgba(105, 170, 230, 0)");
+    context.fillStyle = glow;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    const drawPath = (lineWidth, alpha, blur) => {
+        context.save();
+        context.shadowColor = `rgba(190, 235, 255, ${alpha})`;
+        context.shadowBlur = blur;
+        context.strokeStyle = `rgba(225, 246, 255, ${alpha})`;
+        context.lineWidth = lineWidth;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.beginPath();
+        context.moveTo(points[0].x, points[0].y);
+        for (let index = 1; index < points.length; index += 1) {
+            const previous = points[index - 1];
+            const point = points[index];
+            const midX = (previous.x + point.x) * 0.5 + THREE.MathUtils.randFloatSpread(18);
+            const midY = (previous.y + point.y) * 0.5;
+            context.quadraticCurveTo(midX, midY, point.x, point.y);
+        }
+        context.stroke();
+
+        for (let index = 2; index < points.length - 2; index += 1) {
+            if (Math.random() > 0.48) {
+                continue;
+            }
+            const branchStart = points[index];
+            const side = Math.random() < 0.5 ? -1 : 1;
+            const branchEnd = {
+                x: branchStart.x + side * THREE.MathUtils.randFloat(26, 72),
+                y: branchStart.y + THREE.MathUtils.randFloat(18, 62)
+            };
+            context.beginPath();
+            context.moveTo(branchStart.x, branchStart.y);
+            context.quadraticCurveTo(
+                (branchStart.x + branchEnd.x) * 0.5 + THREE.MathUtils.randFloatSpread(14),
+                (branchStart.y + branchEnd.y) * 0.5,
+                branchEnd.x,
+                branchEnd.y
+            );
+            context.stroke();
+        }
+        context.restore();
+    };
+
+    drawPath(18, 0.08, 26);
+    drawPath(8, 0.16, 16);
+    drawPath(2.2, 0.42, 8);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+}
+
+function createLightningBoltToBird(bird, elapsed) {
+    bird.root.getWorldPosition(lightningEndPosition);
+    lightningStartPosition.set(
+        lightningEndPosition.x + THREE.MathUtils.randFloatSpread(6),
+        flightArea.centerY + flightArea.height + 12,
+        lightningEndPosition.z + THREE.MathUtils.randFloatSpread(4)
+    );
+
+    const group = new THREE.Group();
+    const texture = createLightningGlowTexture();
+    const material = new THREE.SpriteMaterial({
+        map: texture,
+        color: 0xd9f4ff,
+        transparent: true,
+        opacity: 0.72,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    const sprite = new THREE.Sprite(material);
+    const boltLength = lightningStartPosition.distanceTo(lightningEndPosition);
+    sprite.position.copy(lightningStartPosition).lerp(lightningEndPosition, 0.5);
+    sprite.scale.set(
+        THREE.MathUtils.randFloat(5.2, 7.4),
+        boltLength * THREE.MathUtils.randFloat(1.04, 1.18),
+        1
+    );
+    group.add(sprite);
+
+    const cloudLight = new THREE.PointLight(0x9fdcff, 2.4, 58, 2);
+    cloudLight.position.copy(lightningStartPosition);
+    group.add(cloudLight);
+    const hitLight = new THREE.PointLight(0xc8f1ff, 5.2, 22, 2);
+    hitLight.position.copy(lightningEndPosition);
+    group.add(hitLight);
+    scene.add(group);
+    lightningBolts.push({
+        object: group,
+        material,
+        texture,
+        hitLight,
+        cloudLight,
+        createdAt: elapsed,
+        duration: 0.28
+    });
+}
+
+function strikeBirdWithLightning(bird, elapsed) {
+    if (!bird?.isActive || bird.isCrashed || bird.isGrounded) {
+        return false;
+    }
+
+    createLightningBoltToBird(bird, elapsed);
+    flashLightningScreen();
+    bird.isCrashed = true;
+    bird.crashFallSpeed = 0;
+    bird.reviveAt = Number.POSITIVE_INFINITY;
+    bird.forceStormRevive = true;
+    bird.stormRehitAt = -1;
+    bird.velocity.multiplyScalar(0.28);
+    bird.velocity.y = Math.min(bird.velocity.y, -2);
+    stormEvent.struckBirds.add(bird);
+    playBirdCoo(bird);
+    stopBirdWingAudio(bird);
+
+    if (bird.actions.hit) {
+        playBirdAction(bird, "hit", 0.05, { once: true, force: true });
+        bird.actionUntil = elapsed + 1.2;
+    } else if (bird.mixer) {
+        bird.mixer.stopAllAction();
+    }
+
+    if (bird === birdCameraTargetBird) {
+        scheduleBirdCameraClose(elapsed);
+    }
+
+    return true;
+}
+
+function beginStormStrikeSequence(elapsed) {
+    stormEvent.targets = getFlyingBirds();
+    stormEvent.strikeIndex = 0;
+    stormEvent.nextStrikeAt = elapsed;
+    stormEvent.strikeEndAt = -1;
+    hud.innerHTML = `存活鴿子達到 ${stormAliveThreshold} 隻觸發閃電暴雨<br>閃電正在鎖定 ${stormEvent.targets.length} 隻天上的鴿子`;
+}
+
+function startAliveThresholdStorm(elapsed = clock.elapsedTime) {
+    if (stormEvent.triggered) {
+        return;
+    }
+
+    stormEvent.triggered = true;
+    stormEvent.active = true;
+    stormEvent.startedAt = elapsed;
+    stormEvent.strikeStartAt = elapsed + stormStrikeDelaySeconds;
+    stormEvent.strikeEndAt = -1;
+    stormEvent.clearAt = elapsed + stormDurationSeconds;
+    stormEvent.reviveAt = -1;
+    stormEvent.targets = [];
+    stormEvent.struckBirds.clear();
+    stormEvent.strikeSequenceStarted = false;
+    stormEvent.strikeIndex = 0;
+    stormEvent.nextStrikeAt = -1;
+    setStormWeatherActive(true);
+    nextSpawnAt = Math.max(nextSpawnAt, stormEvent.clearAt);
+    hud.innerHTML = `存活鴿子達到 ${stormAliveThreshold} 隻<br>閃電暴雨開始，${stormStrikeDelaySeconds} 秒後會鎖定所有天上的鴿子`;
+}
+
+function reviveStormBirds(elapsed) {
+    stormEvent.struckBirds.forEach((bird) => {
+        if (!bird?.isActive) {
+            return;
+        }
+
+        bird.forceStormRevive = false;
+        bird.stormRehitAt = -1;
+        reviveBird(bird, elapsed);
+    });
+    stormEvent.struckBirds.clear();
+    hud.innerHTML = "被閃電擊落的鴿子全部復活了<br>天氣已經轉晴";
+}
+
+function finishAliveThresholdStorm(elapsed) {
+    stormEvent.active = false;
+    setStormWeatherActive(false);
+    const revivedBirdCount = stormEvent.struckBirds.size;
+    if (revivedBirdCount > 0) {
+        reviveStormBirds(elapsed);
+    }
+    stormEvent.startedAt = -1;
+    stormEvent.strikeStartAt = -1;
+    stormEvent.strikeEndAt = -1;
+    stormEvent.clearAt = -1;
+    stormEvent.reviveAt = -1;
+    stormEvent.targets = [];
+    stormEvent.struckBirds.clear();
+    stormEvent.strikeSequenceStarted = false;
+    stormEvent.strikeIndex = 0;
+    stormEvent.nextStrikeAt = -1;
+    scheduleNextSpawn(elapsed);
+    hud.innerHTML = revivedBirdCount > 0
+        ? "閃電暴雨結束<br>天氣轉晴，鴿子活過來了"
+        : "閃電暴雨結束<br>天氣轉晴";
+}
+
+function updateLightningBolts(elapsed) {
+    for (let index = lightningBolts.length - 1; index >= 0; index -= 1) {
+        const bolt = lightningBolts[index];
+        const age = elapsed - bolt.createdAt;
+        const progress = THREE.MathUtils.clamp(age / bolt.duration, 0, 1);
+        const flicker = 0.62 + Math.sin(age * 92) * 0.13 + Math.random() * 0.1;
+        const fade = Math.max(0, 1 - progress) * flicker;
+        bolt.material.opacity = 0.72 * fade;
+        bolt.hitLight.intensity = 5.2 * Math.max(0, 1 - progress * 1.6);
+        bolt.cloudLight.intensity = 2.4 * Math.max(0, 1 - progress * 1.2);
+
+        if (progress >= 1) {
+            scene.remove(bolt.object);
+            bolt.material.dispose();
+            bolt.texture.dispose();
+            lightningBolts.splice(index, 1);
+        }
+    }
+}
+
+function updateAliveThresholdStorm(elapsed) {
+    updateStormSky(elapsed);
+    updateLightningBolts(elapsed);
+
+    if (!stormEvent.triggered && getAliveBirdCount() >= stormAliveThreshold) {
+        startAliveThresholdStorm(elapsed);
+    }
+
+    if (!stormEvent.active) {
+        return;
+    }
+
+    stormEvent.struckBirds.forEach((bird) => {
+        if (
+            bird?.isActive &&
+            !bird.isCrashed &&
+            !bird.isGrounded &&
+            bird.stormRehitAt > 0 &&
+            elapsed >= bird.stormRehitAt
+        ) {
+            strikeBirdWithLightning(bird, elapsed);
+            hud.innerHTML = `鴿子在暴雨裡復飛了 ${stormReflightSeconds} 秒<br>馬上又被閃電擊落`;
+        }
+    });
+
+    if (!stormEvent.strikeSequenceStarted && elapsed >= stormEvent.strikeStartAt) {
+        stormEvent.strikeSequenceStarted = true;
+        beginStormStrikeSequence(elapsed);
+        if (stormEvent.targets.length === 0) {
+            stormEvent.strikeEndAt = elapsed;
+            stormEvent.reviveAt = elapsed + stormReviveDelaySeconds;
+            stormEvent.clearAt = stormEvent.reviveAt;
+            hud.innerHTML = `閃電沒有找到天上的鴿子<br>${stormReviveDelaySeconds} 秒後天氣轉晴`;
+        }
+    }
+
+    if (
+        stormEvent.targets.length > 0 &&
+        stormEvent.strikeIndex < stormEvent.targets.length &&
+        elapsed >= stormEvent.nextStrikeAt
+    ) {
+        const targetBird = stormEvent.targets[stormEvent.strikeIndex];
+        strikeBirdWithLightning(targetBird, elapsed);
+        stormEvent.strikeIndex += 1;
+        stormEvent.nextStrikeAt = elapsed + 0.22;
+
+        if (stormEvent.strikeIndex >= stormEvent.targets.length) {
+            stormEvent.strikeEndAt = elapsed;
+            stormEvent.reviveAt = elapsed + stormReviveDelaySeconds;
+            stormEvent.clearAt = stormEvent.reviveAt;
+            hud.innerHTML = `天上的鴿子已全部被閃電擊落<br>停 ${stormReviveDelaySeconds} 秒後天氣轉晴並一起復活`;
+        }
+    }
+
+    if (elapsed >= stormEvent.clearAt) {
+        finishAliveThresholdStorm(elapsed);
+    }
+}
+
+function scheduleNextSpawn(elapsed) {
+    const aliveCount = getAliveBirdCount();
+    const minSeconds = aliveCount >= 20 ? 3 : 10;
+    const maxSeconds = aliveCount >= 20 ? 8 : 15;
+    nextSpawnAt = elapsed + THREE.MathUtils.randFloat(minSeconds, maxSeconds);
+    return { minSeconds, maxSeconds };
+}
+
+function scheduleNextPoop(bird, elapsed) {
+    bird.nextPoopAt = elapsed + THREE.MathUtils.randFloat(24, 36);
+}
+
+function pickAutoFlightTarget(bird) {
+    bird.autoFlightTarget.set(
+        THREE.MathUtils.randFloatSpread(flightArea.width * 1.7),
+        THREE.MathUtils.randFloat(5, flightArea.centerY + flightArea.height * 0.95),
+        THREE.MathUtils.randFloat(
+            flightArea.centerZ - flightArea.depth,
+            flightArea.centerZ + flightArea.depth * 0.55
+        )
+    );
+}
+
+function setBirdChildrenId(root, birdId) {
+    root.traverse((child) => {
+        child.userData.birdId = birdId;
+    });
+}
+
+function getBirdDropPosition(bird) {
+    return bird.root.localToWorld(new THREE.Vector3(0, -0.8, 2.1));
+}
+
+function createDroppedSign(bird, phrase) {
+    if (poopModelTemplates.length === 0) {
+        return;
+    }
+
+    const template =
+        poopModelTemplates[Math.floor(Math.random() * poopModelTemplates.length)];
+    const dropObject = clone(template);
+    if (template.userData.baseScale) {
+        dropObject.userData.baseScale = template.userData.baseScale;
+        applyScaledModelSize(dropObject, template.userData.baseScale);
+    }
+    dropObject.position.copy(getBirdDropPosition(bird));
+    dropObject.rotation.copy(bird.root.rotation);
+    scene.add(dropObject);
+
+    droppedSigns.push({
+        object: dropObject,
+        velocity: new THREE.Vector3(
+            THREE.MathUtils.randFloatSpread(1.2),
+            -3.5,
+            THREE.MathUtils.randFloatSpread(1.2)
+        ),
+        spin: THREE.MathUtils.randFloatSpread(1.2),
+        grounded: false,
+        phrase
+    });
+}
+
+function dropTaunt(bird) {
+    const phrase = tauntPhrases[Math.floor(Math.random() * tauntPhrases.length)];
+    createDroppedSign(bird, phrase);
+    hud.innerHTML = `鴿子丟下標語：${phrase}<br>牠還在畫面裡亂飛`;
+}
+
+function setBirdActiveState(bird, isVisible) {
+    bird.root.visible = isVisible;
+    bird.isActive = isVisible;
+}
+
+function setupBirdActions(bird) {
+    if (birdAnimationClips.length === 0) {
+        return;
+    }
+
+    bird.mixer = new THREE.AnimationMixer(bird.visual);
+    bird.actions = {};
+
+    if (birdActionLibrary?.idle) {
+        bird.actions.idle = bird.mixer.clipAction(birdActionLibrary.idle);
+    }
+    if (birdActionLibrary?.evade) {
+        bird.actions.evade = bird.mixer.clipAction(birdActionLibrary.evade);
+    }
+    if (birdActionLibrary?.hit) {
+        bird.actions.hit = bird.mixer.clipAction(birdActionLibrary.hit);
+    }
+    if (birdActionLibrary?.poop) {
+        bird.actions.poop = bird.mixer.clipAction(birdActionLibrary.poop);
+    }
+
+    Object.values(bird.actions).forEach((action) => {
+        action.enabled = true;
+        action.setEffectiveWeight(1);
+    });
+
+    bird.currentAction = null;
+    playBirdAction(bird, "idle", 0);
+}
+
+function setupBirdAudio(bird) {
+    if (!bird.wingAudio) {
+        bird.wingAudio = new THREE.Audio(audioListener);
+    }
+    if (!bird.cooAudio) {
+        bird.cooAudio = new THREE.Audio(audioListener);
+    }
+
+    if (wingAudioBuffer && bird.wingAudio.buffer !== wingAudioBuffer) {
+        bird.wingAudio.setBuffer(wingAudioBuffer);
+        bird.wingAudio.setLoop(true);
+    }
+
+    if (cooAudioBuffer && bird.cooAudio.buffer !== cooAudioBuffer) {
+        bird.cooAudio.setBuffer(cooAudioBuffer);
+        bird.cooAudio.setLoop(false);
+    }
+
+    applyVolumeToBird(bird);
+}
+
+function ensureBirdWingAudio(bird) {
+    if (!audioUnlocked || !bird.wingAudio?.buffer || bird.isGrounded) {
+        return;
+    }
+
+    if (!bird.wingAudio.isPlaying) {
+        bird.wingAudio.play();
+    }
+}
+
+function stopBirdWingAudio(bird) {
+    if (bird.wingAudio?.isPlaying) {
+        bird.wingAudio.stop();
+    }
+}
+
+function playBirdCoo(bird) {
+    if (!audioUnlocked || !bird.cooAudio?.buffer) {
+        return;
+    }
+
+    if (bird.cooAudio.isPlaying) {
+        bird.cooAudio.stop();
+    }
+    bird.cooAudio.play();
+}
+
+function playGunshotAudio() {
+    const audio = gunshotAudio.cloneNode();
+    audio.volume = getGlobalVolumeRatio();
+    audio.play().catch(() => {});
+}
+
+function unlockAudio() {
+    if (audioUnlocked) {
+        return;
+    }
+
+    audioUnlocked = true;
+    audioGate.classList.add("is-hidden");
+    birds.forEach((bird) => {
+        if (bird.isActive && !bird.isGrounded && !bird.isCrashed) {
+            ensureBirdWingAudio(bird);
+        }
+    });
+}
+
+function restartBirdActions(bird) {
+    if (!bird.mixer) {
+        return;
+    }
+
+    bird.mixer.stopAllAction();
+    bird.currentAction = null;
+    playBirdAction(bird, "idle", 0);
+}
+
+function playBirdAction(bird, actionName, fadeDuration = 0.18, options = {}) {
+    if (!bird.actions || !bird.actions[actionName]) {
+        return;
+    }
+
+    const nextAction = bird.actions[actionName];
+    if (bird.currentAction === actionName && !options.force) {
+        return;
+    }
+
+    const previousAction = bird.currentAction ? bird.actions[bird.currentAction] : null;
+    bird.currentAction = actionName;
+
+    if (previousAction && previousAction !== nextAction) {
+        previousAction.fadeOut(fadeDuration);
+    }
+
+    nextAction.reset();
+    nextAction.enabled = true;
+    nextAction.setEffectiveTimeScale(1);
+    nextAction.setEffectiveWeight(1);
+
+    if (options.once) {
+        nextAction.setLoop(THREE.LoopOnce, 1);
+        nextAction.clampWhenFinished = true;
+    } else {
+        nextAction.setLoop(THREE.LoopRepeat, Infinity);
+        nextAction.clampWhenFinished = false;
+    }
+
+    nextAction.fadeIn(fadeDuration).play();
+}
+
+function reviveBird(bird, elapsed) {
+    bird.isCrashed = false;
+    bird.isGrounded = false;
+    bird.crashFallSpeed = 0;
+    bird.reviveAt = -1;
+    bird.root.position.y = groundY + 0.3;
+    bird.root.rotation.set(0, bird.root.rotation.y, 0);
+    bird.velocity.set(
+        THREE.MathUtils.randFloatSpread(4),
+        THREE.MathUtils.randFloat(7, 11),
+        THREE.MathUtils.randFloatSpread(4)
+    );
+    bird.speed = THREE.MathUtils.randFloat(8.5, 13.5);
+    pickAutoFlightTarget(bird);
+    scheduleNextPoop(bird, elapsed);
+    restartBirdActions(bird);
+    ensureBirdWingAudio(bird);
+}
+
+function spawnBird(elapsed, bird = null) {
+    if (!birdTemplate) {
+        return null;
+    }
+
+    const targetBird = bird ?? {
+        id: nextBirdId++,
+        root: new THREE.Group(),
+        visual: clone(birdTemplate),
+        velocity: new THREE.Vector3(),
+        flightTarget: new THREE.Vector3(),
+        autoFlightTarget: new THREE.Vector3(),
+        lookTarget: new THREE.Vector3(),
+        pointerOffset: new THREE.Vector3(
+            THREE.MathUtils.randFloatSpread(8),
+            THREE.MathUtils.randFloat(-3, 3),
+            THREE.MathUtils.randFloatSpread(6)
+        ),
+        scareRadius: THREE.MathUtils.randFloat(13, 20),
+        scareStrength: THREE.MathUtils.randFloat(18, 30),
+        wanderOffset: new THREE.Vector3(
+            THREE.MathUtils.randFloatSpread(10),
+            THREE.MathUtils.randFloatSpread(6),
+            THREE.MathUtils.randFloatSpread(10)
+        ),
+        wanderSeed: Math.random() * 1000,
+        speed: THREE.MathUtils.randFloat(5.5, 9.5),
+        crashFallSpeed: 0,
+        isCrashed: false,
+        isGrounded: false,
+        isActive: true,
+        reviveAt: -1,
+        actionUntil: 0,
+        currentAction: null,
+        mixer: null,
+        actions: {},
+        wingAudio: null,
+        cooAudio: null,
+        nextPoopAt: elapsed + THREE.MathUtils.randFloat(24, 36)
+    };
+
+    if (!bird) {
+        if (birdTemplate.userData.baseScale) {
+            targetBird.visual.userData.baseScale = birdTemplate.userData.baseScale;
+            applyScaledModelSize(targetBird.visual, birdTemplate.userData.baseScale);
+        }
+        targetBird.root.add(targetBird.visual);
+        setBirdChildrenId(targetBird.root, targetBird.id);
+        scene.add(targetBird.root);
+        setupBirdActions(targetBird);
+        setupBirdAudio(targetBird);
+        birds.push(targetBird);
+    }
+
+    setBirdActiveState(targetBird, true);
+    targetBird.isCrashed = false;
+    targetBird.isGrounded = false;
+    targetBird.crashFallSpeed = 0;
+    targetBird.reviveAt = -1;
+    targetBird.actionUntil = 0;
+    targetBird.currentAction = null;
+    scheduleNextPoop(targetBird, elapsed);
+    targetBird.pointerOffset.set(
+        THREE.MathUtils.randFloatSpread(8),
+        THREE.MathUtils.randFloat(-3, 3),
+        THREE.MathUtils.randFloatSpread(6)
+    );
+    targetBird.scareRadius = THREE.MathUtils.randFloat(13, 20);
+    targetBird.scareStrength = THREE.MathUtils.randFloat(18, 30);
+    targetBird.wanderOffset.set(
+        THREE.MathUtils.randFloatSpread(10),
+        THREE.MathUtils.randFloatSpread(6),
+        THREE.MathUtils.randFloatSpread(10)
+    );
+    targetBird.wanderSeed = Math.random() * 1000;
+    targetBird.speed = THREE.MathUtils.randFloat(7.5, 12.5);
+
+    const edge = Math.floor(Math.random() * 4);
+    const spawnX = edge === 0 ? -flightArea.width - 18 : edge === 1 ? flightArea.width + 18 : THREE.MathUtils.randFloatSpread(flightArea.width * 1.6);
+    const spawnZ = edge === 2 ? flightArea.centerZ - flightArea.depth - 20 : edge === 3 ? flightArea.centerZ + flightArea.depth + 14 : flightArea.centerZ + THREE.MathUtils.randFloatSpread(flightArea.depth * 1.2);
+    targetBird.root.position.set(
+        spawnX,
+        THREE.MathUtils.randFloat(8, flightArea.centerY + flightArea.height * 0.7),
+        spawnZ
+    );
+    targetBird.root.rotation.set(0, 0, 0);
+    targetBird.velocity.set(
+        THREE.MathUtils.randFloatSpread(6),
+        THREE.MathUtils.randFloat(-0.6, 1.2),
+        THREE.MathUtils.randFloatSpread(6)
+    );
+    pickAutoFlightTarget(targetBird);
+    restartBirdActions(targetBird);
+    ensureBirdWingAudio(targetBird);
+    return targetBird;
+}
+
+function spawnWave(elapsed) {
+    spawnBird(elapsed);
+    const nextSpawnInterval = scheduleNextSpawn(elapsed);
+    const activeCount = birds.filter((bird) => bird.isActive && !bird.isGrounded).length;
+    hud.innerHTML = `有 ${activeCount} 隻鴿子在飛<br>每 ${nextSpawnInterval.minSeconds}~${nextSpawnInterval.maxSeconds} 秒會再飛進來一隻`;
+}
+
+function startReadManAnimationCycle(elapsed = clock.elapsedTime) {
+    if (!readManMixer || readManActions.length === 0) {
+        return;
+    }
+
+    const speed = Math.abs(readManPlacement.animationSpeed);
+    const longestDuration = Math.max(
+        ...readManActions.map((action) => action.getClip().duration),
+        0
+    );
+
+    readManMixer.timeScale = readManPlacement.animationSpeed;
+    readManResumeAt = -1;
+    readManCycleEndAt = speed > 0
+        ? elapsed + longestDuration / speed
+        : Infinity;
+    readManActions.forEach((action) => {
+        action.reset();
+        action.enabled = true;
+        action.paused = false;
+        action.play();
+    });
+}
+
+updateFlightArea();
+updateOverlayCamera();
+startPointCounters();
+renderVolumeSlot();
+applyGlobalVolume();
+updateOnlineTimeMarqueeStat();
+renderMarqueeStats();
+fetchGlobalKillCountOnce();
+recordPageviewOnce();
+window.setTimeout(fetchPageviewsOnce, 700);
+window.setInterval(updateOnlineTimeMarqueeStat, 1000);
+
+volumeSlot.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+});
+
+volumeSlot.addEventListener("click", (event) => {
+    event.stopPropagation();
+});
+
+window.addEventListener("message", (event) => {
+    if (event.data?.type === "look-at-them-popup-closed") {
+        closeLookAtThemPopups();
+        return;
+    }
+
+    if (
+        event.origin !== window.location.origin ||
+        event.data?.type !== "close-anthem-popup" ||
+        event.source !== anthemPopupWindow
+    ) {
+        return;
+    }
+
+    anthemPopupWindow.close();
+    popupWindows.delete(anthemPopupWindow);
+    anthemPopupWindow = null;
+    anthemPopupOpened = false;
+});
+
+[chatToggle, chatPanel].forEach((element) => {
+    element.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+    });
+
+    element.addEventListener("click", (event) => {
+        event.stopPropagation();
+    });
+});
+
+chatToggle.addEventListener("click", () => {
+    setChatPanelOpen(!chatPanelOpen);
+});
+
+chatDragHandle.addEventListener("pointerdown", startChatPanelDrag);
+chatDragHandle.addEventListener("pointermove", moveChatPanelDrag);
+chatDragHandle.addEventListener("pointerup", stopChatPanelDrag);
+chatDragHandle.addEventListener("pointercancel", stopChatPanelDrag);
+
+chatMessages.addEventListener("scroll", () => {
+    hideChatActionMenu();
+});
+
+chatActionMenu.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const reactionButton = event.target.closest("[data-chat-reaction]");
+    if (!reactionButton) {
+        return;
+    }
+
+    submitChatReaction(reactionButton.dataset.chatReaction);
+});
+
+globalVolumeControl.addEventListener("volumechange", (event) => {
+    event.stopPropagation();
+    setGlobalVolume(event.detail.value);
+});
+
+poopModelPaths.forEach((path) => {
+    loader.load(
+        path,
+        (gltf) => {
+            const template = gltf.scene;
+            const box = new THREE.Box3().setFromObject(template);
+            const size = new THREE.Vector3();
+            const center = new THREE.Vector3();
+            box.getSize(size);
+            box.getCenter(center);
+
+            template.position.sub(center);
+
+            const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+            const scale = 5 / maxAxis;
+            template.userData.baseScale = scale;
+            applyScaledModelSize(template, scale);
+            poopModelTemplates.push(template);
+        },
+        undefined,
+        (error) => {
+            console.error(error);
+            hud.innerHTML = "掉落模型載入失敗<br>請確認 <code>鴿子拉屎的文字</code> 資料夾中的 glb 檔案";
+        }
+    );
+});
+
+loader.load(
+    "./assets/models/UU.glb",
+    (gltf) => {
+        setupReadManVideo();
+        readManModel = gltf.scene;
+        readManAnchor = new THREE.Group();
+
+        const box = new THREE.Box3().setFromObject(readManModel);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        box.getSize(size);
+        box.getCenter(center);
+
+        const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+        const scale = 1 / maxAxis;
+        readManModel.userData.baseScale = scale;
+        readManModel.userData.center = center;
+        applyScaledModelSize(readManModel, scale);
+        readManAnchor.add(readManModel);
+        overlayScene.add(readManAnchor);
+        if (gltf.animations.length > 0) {
+            readManMixer = new THREE.AnimationMixer(readManModel);
+            readManMixer.timeScale = readManPlacement.animationSpeed;
+            readManActions = gltf.animations.map((clip) => {
+                const action = readManMixer.clipAction(clip);
+                action.setLoop(THREE.LoopOnce, 1);
+                action.clampWhenFinished = true;
+                return action;
+            });
+        }
+        applyReadManEnvironment();
+        applyReadManVideoTexture();
+        updateReadManPlacement();
+    },
+    undefined,
+    (error) => {
+        console.error(error);
+    }
+);
+
+audioLoader.load(
+    "./assets/audio/翅膀拍動的聲音2.mp3",
+    (buffer) => {
+        wingAudioBuffer = buffer;
+        birds.forEach((bird) => setupBirdAudio(bird));
+    },
+    undefined,
+    (error) => {
+        console.error(error);
+    }
+);
+
+audioLoader.load(
+    "./assets/audio/鴿子的叫聲.mp3",
+    (buffer) => {
+        cooAudioBuffer = buffer;
+        birds.forEach((bird) => setupBirdAudio(bird));
+    },
+    undefined,
+    (error) => {
+        console.error(error);
+    }
+);
+
+loader.load(
+    "./assets/models/action.glb",
+    (gltf) => {
+        birdTemplate = gltf.scene;
+        birdAnimationClips = gltf.animations;
+        birdActionLibrary = {
+            idle: birdAnimationClips.find((clip) => clip.name.includes("基本") && !clip.name.includes("拉")),
+            evade: birdAnimationClips.find((clip) => clip.name.includes("閃避")),
+            hit: birdAnimationClips.find((clip) => clip.name.includes("擊中")),
+            poop: birdAnimationClips.find((clip) => clip.name.includes("拉"))
+        };
+
+        const box = new THREE.Box3().setFromObject(birdTemplate);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        box.getSize(size);
+        box.getCenter(center);
+
+        birdTemplate.position.sub(center);
+
+        const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+        const scale = 4 / maxAxis;
+        birdTemplate.userData.baseScale = scale;
+        applyScaledModelSize(birdTemplate, scale);
+
+        if (testAliveCount === null) {
+            hud.innerHTML = "動作模型載入完成<br>正在套用互動動畫";
+            spawnWave(0);
+        } else {
+            for (let index = 0; index < testAliveCount; index += 1) {
+                spawnBird(0);
+            }
+            nextSpawnAt = Number.POSITIVE_INFINITY;
+            hud.innerHTML = `測試模式<br>已設定 ${testAliveCount} 隻存活鴿子`;
+        }
+    },
+    undefined,
+    (error) => {
+        console.error(error);
+        hud.innerHTML = "模型載入失敗<br>請確認 <code>assets/models/action.glb</code> 存在";
+    }
+);
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+    const elapsed = clock.elapsedTime;
+
+    if (!stormEvent.active && birdTemplate && elapsed >= nextSpawnAt) {
+        spawnWave(elapsed);
+    }
+
+    updateAliveThresholdStorm(elapsed);
+
+    updateReadManPointerAnimation(elapsed);
+    if (readManMixer && readManPointerNear) {
+        readManMixer.update(delta);
+    }
+
+    droppedSigns.forEach((sign) => {
+        if (sign.grounded) {
+            return;
+        }
+
+        sign.velocity.y -= 10 * delta;
+        sign.object.position.addScaledVector(sign.velocity, delta);
+        sign.object.rotation.z += sign.spin * delta;
+        sign.object.rotation.y += sign.spin * 0.35 * delta;
+
+        if (sign.object.position.y <= 1.1) {
+            sign.object.position.y = 1.1;
+            sign.velocity.set(0, 0, 0);
+            sign.spin = 0;
+            sign.grounded = true;
+            sign.object.rotation.x = Math.PI / 2;
+            sign.object.rotation.y += THREE.MathUtils.randFloatSpread(0.3);
+            sign.object.rotation.z = THREE.MathUtils.randFloatSpread(0.25);
+        }
+    });
+
+    const pointerActive = elapsed - lastPointerMoveAt < 4;
+    if (pointerActive) {
+        pointerWorld.set(
+            pointer.x * flightArea.width,
+            flightArea.centerY + pointer.y * flightArea.height,
+            flightArea.centerZ + pointer.x * 10 - pointer.y * flightArea.depth * 0.9
+        );
+    }
+
+    birds.forEach((bird) => {
+        if (bird.mixer && bird.isActive && !bird.isGrounded) {
+            bird.mixer.update(delta);
+        }
+
+        if (!bird.isActive) {
+            return;
+        }
+
+        if (!bird.isCrashed) {
+            if (elapsed >= bird.nextPoopAt) {
+                dropTaunt(bird);
+                scheduleNextPoop(bird, elapsed);
+                if (bird.actions.poop) {
+                    playBirdAction(bird, "poop", 0.12, { once: true, force: true });
+                    bird.actionUntil = elapsed + 1.6;
+                }
+            }
+
+            if (bird.root.position.distanceTo(bird.autoFlightTarget) < 3.5) {
+                pickAutoFlightTarget(bird);
+            }
+
+            bird.flightTarget.copy(bird.autoFlightTarget);
+
+            bird.flightTarget.x += Math.sin(elapsed * 0.8 + bird.wanderSeed) * bird.wanderOffset.x;
+            bird.flightTarget.y += Math.cos(elapsed * 1.1 + bird.wanderSeed * 0.7) * bird.wanderOffset.y;
+            bird.flightTarget.z += Math.sin(elapsed * 0.65 + bird.wanderSeed * 1.3) * bird.wanderOffset.z;
+
+            if (pointerActive) {
+                pointerToBird.subVectors(bird.root.position, pointerWorld);
+                const pointerDistance = pointerToBird.length();
+
+                if (pointerDistance < bird.scareRadius) {
+                    const repelStrength =
+                        (1 - pointerDistance / bird.scareRadius) * bird.scareStrength;
+                    pointerRepel
+                        .copy(pointerToBird.normalize())
+                        .multiplyScalar(repelStrength);
+                    pointerRepel.y += repelStrength * 0.6;
+                    bird.flightTarget.add(pointerRepel);
+                    bird.speed = THREE.MathUtils.lerp(bird.speed, 15, 0.08);
+                    if (bird.actions.evade && elapsed >= bird.actionUntil) {
+                        playBirdAction(bird, "evade", 0.1);
+                    }
+                } else {
+                    bird.speed = THREE.MathUtils.lerp(bird.speed, 9.5, 0.03);
+                    if (bird.actions.idle && elapsed >= bird.actionUntil) {
+                        playBirdAction(bird, "idle", 0.2);
+                    }
+                }
+            } else {
+                bird.speed = THREE.MathUtils.lerp(bird.speed, 9.5, 0.02);
+                if (bird.actions.idle && elapsed >= bird.actionUntil) {
+                    playBirdAction(bird, "idle", 0.2);
+                }
+            }
+
+            bird.flightTarget.y = THREE.MathUtils.clamp(bird.flightTarget.y, 5, flightArea.centerY + flightArea.height);
+            bird.flightTarget.x = THREE.MathUtils.clamp(bird.flightTarget.x, -flightArea.width - 8, flightArea.width + 8);
+            bird.flightTarget.z = THREE.MathUtils.clamp(
+                bird.flightTarget.z,
+                flightArea.centerZ - flightArea.depth - 8,
+                flightArea.centerZ + flightArea.depth * 0.75
+            );
+
+            const toTarget = new THREE.Vector3().subVectors(bird.flightTarget, bird.root.position);
+            const desiredVelocity = toTarget.normalize().multiplyScalar(bird.speed);
+
+            bird.velocity.lerp(desiredVelocity, 0.05);
+            bird.root.position.addScaledVector(bird.velocity, delta);
+
+            bird.lookTarget.copy(bird.root.position).add(bird.velocity);
+            bird.root.lookAt(bird.lookTarget);
+            bird.root.rotation.z += Math.sin(elapsed * 4.2 + bird.id) * 0.01;
+            bird.root.rotation.x += Math.cos(elapsed * 3.6 + bird.id * 0.4) * 0.002;
+            bird.root.position.y += Math.sin(elapsed * 3.1 + bird.id * 0.3) * 0.015;
+        } else if (!bird.isGrounded) {
+            stopBirdWingAudio(bird);
+            bird.crashFallSpeed += 16 * delta;
+            bird.velocity.multiplyScalar(0.985);
+            bird.root.position.addScaledVector(bird.velocity, delta);
+            bird.root.position.y -= bird.crashFallSpeed * delta;
+            bird.root.rotation.x = THREE.MathUtils.lerp(bird.root.rotation.x, Math.PI / 2, 0.06);
+            bird.root.rotation.z = THREE.MathUtils.lerp(bird.root.rotation.z, 0.15, 0.06);
+
+            if (bird.root.position.y <= groundY) {
+                bird.root.position.y = groundY;
+                bird.root.rotation.x = Math.PI / 2;
+                bird.root.rotation.z = 0.15;
+                bird.velocity.set(0, 0, 0);
+                bird.isGrounded = true;
+                stopBirdWingAudio(bird);
+                if (bird.forceStormRevive) {
+                    if (
+                        stormEvent.active &&
+                        stormEvent.strikeEndAt < 0 &&
+                        elapsed + 0.8 + stormReflightSeconds < stormEvent.clearAt
+                    ) {
+                        bird.reviveAt = elapsed + 0.8;
+                        hud.innerHTML = `被閃電擊落的鴿子正在掙扎<br>牠會短暫飛起來 ${stormReflightSeconds} 秒`;
+                    } else {
+                        bird.reviveAt = Number.POSITIVE_INFINITY;
+                    }
+                } else {
+                    bird.reviveAt = elapsed + 5;
+                    hud.innerHTML = "有鴿子被打下來了<br>5 秒後有機率自動復活";
+                }
+            }
+        } else if (bird.reviveAt > 0 && elapsed >= bird.reviveAt) {
+            bird.reviveAt = -1;
+            if (bird.forceStormRevive && stormEvent.active) {
+                reviveBird(bird, elapsed);
+                bird.forceStormRevive = true;
+                bird.stormRehitAt = elapsed + stormReflightSeconds;
+                hud.innerHTML = `被閃電擊落的鴿子又飛起來了<br>${stormReflightSeconds} 秒後會再被閃電擊落`;
+                return;
+            }
+            if (Math.random() < 1 / 10) {
+                reviveBird(bird, elapsed);
+                hud.innerHTML = "有一隻鴿子自動復活了<br>牠從地上重新飛起來";
+            } else {
+                hud.innerHTML = "有一隻鴿子沒有復活<br>牠繼續躺在地上";
+            }
+        }
+    });
+
+    updateAliveMarqueeStat();
+    showAliveBirdPromptIfNeeded();
+    updateAliveBirdPromptPosition();
+    openBuddhaLightCannonIfNeeded();
+    updateBuddhaLightPromptPosition();
+    openExplosionIfNeeded();
+    updateExplosionPromptPosition();
+
+    cloudGroup.children.forEach((cloud, index) => {
+        cloud.position.x += 0.01 + index * 0.002;
+        if (cloud.position.x > 36) {
+            cloud.position.x = -36;
+        }
+    });
+
+    drawGroundTexture(elapsed);
+    groundTexture.needsUpdate = true;
+
+    if (readManAnchor) {
+        readManAnchor.position.y =
+            readManAnchor.userData.baseY +
+            Math.sin(elapsed * readManPlacement.floatSpeed) *
+            readManPlacement.floatAmplitude;
+        readManAnchor.rotation.x =
+            readManPlacement.rotationX +
+            Math.sin(elapsed * readManPlacement.floatSpeed * 0.8) * 0.025;
+        updateReadManFade();
+        updateReadManCounterPlacement();
+    }
+
+    renderer.clear();
+    renderer.render(scene, camera);
+    renderer.clearDepth();
+    renderer.render(overlayScene, overlayCamera);
+    sendBirdCameraFrame(elapsed);
+}
+
+animate();
+
+function resizeSceneToViewport() {
+    refreshViewportMetrics();
+    camera.aspect = appViewport.aspect;
+    camera.updateProjectionMatrix();
+    renderer.setSize(appViewport.width, appViewport.height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    updateFlightArea();
+    updateOverlayCamera();
+    updateScaledSceneObjects();
+    updateReadManPlacement();
+    updateReadManCounterPlacement();
+    clampCurrentChatPanelPosition();
+}
+
+window.addEventListener("resize", resizeSceneToViewport);
+window.visualViewport?.addEventListener("resize", resizeSceneToViewport);
+
+window.addEventListener("pointermove", (event) => {
+    pointerClientX = event.clientX;
+    pointerClientY = event.clientY;
+    gameCursor.style.left = `${event.clientX}px`;
+    gameCursor.style.top = `${event.clientY}px`;
+    gameCursor.classList.add("is-visible");
+    pointer.x = (event.clientX / appViewport.width) * 2 - 1;
+    pointer.y = -((event.clientY / appViewport.height) * 2 - 1);
+    lastPointerMoveAt = clock.elapsedTime;
+});
+
+window.addEventListener("pointerdown", () => {
+    gameCursor.classList.add("is-firing");
+});
+
+window.addEventListener("pointerup", () => {
+    gameCursor.classList.remove("is-firing");
+});
+
+window.addEventListener("pointerleave", () => {
+    gameCursor.classList.remove("is-visible", "is-firing");
+});
+
+window.addEventListener("click", (event) => {
+    playGunshotAudio();
+    pointerClientX = event.clientX;
+    pointerClientY = event.clientY;
+    gameCursor.style.left = `${event.clientX}px`;
+    gameCursor.style.top = `${event.clientY}px`;
+    gameCursor.classList.add("is-visible");
+    if (hitTestReadMan(event)) {
+        playReadManVideo();
+        replayReadManAnimation(clock.elapsedTime);
+        return;
+    }
+
+    const clickableBirdRoots = birds
+        .filter((bird) => bird.isActive && !bird.isCrashed)
+        .map((bird) => bird.root);
+
+    if (clickableBirdRoots.length === 0) {
+        return;
+    }
+
+    clickPointer.x = (event.clientX / appViewport.width) * 2 - 1;
+    clickPointer.y = -((event.clientY / appViewport.height) * 2 - 1);
+    raycaster.setFromCamera(clickPointer, camera);
+
+    const hits = raycaster.intersectObjects(clickableBirdRoots, true);
+    if (hits.length === 0) {
+        return;
+    }
+
+    let hitBird = null;
+    let node = hits[0].object;
+    while (node) {
+        if (node.userData.birdId) {
+            hitBird = birds.find((bird) => bird.id === node.userData.birdId);
+            break;
+        }
+        node = node.parent;
+    }
+
+    if (!hitBird) {
+        return;
+    }
+
+    if (Math.random() < 1 / 4) {
+        hitBird.speed = THREE.MathUtils.max(hitBird.speed, 13);
+        pickAutoFlightTarget(hitBird);
+        if (hitBird.actions.evade) {
+            playBirdAction(hitBird, "evade", 0.08, { force: true });
+            hitBird.actionUntil = clock.elapsedTime + 0.8;
+        }
+        playBirdCoo(hitBird);
+        hud.innerHTML = "命中一隻鴿子<br>牠閃過去了，沒有墜落";
+        return;
+    }
+
+    hitBird.isCrashed = true;
+    hitBird.crashFallSpeed = 0;
+    hitBird.reviveAt = -1;
+    knockedDownBirdCount += 1;
+    setMarqueeStat("currentKills", knockedDownBirdCount);
+    recordPigeonKill();
+    incrementGlobalKillMarqueeStat();
+    createDroppedSign(hitBird, "幹麻打我");
+    playBirdCoo(hitBird);
+    stopBirdWingAudio(hitBird);
+    if (hitBird.actions.hit) {
+        playBirdAction(hitBird, "hit", 0.05, { once: true, force: true });
+        hitBird.actionUntil = clock.elapsedTime + 1.2;
+    } else if (hitBird.mixer) {
+        hitBird.mixer.stopAllAction();
+    }
+    hud.innerHTML = "命中一隻鴿子<br>牠丟下「幹麻打我」後墜落";
+    openKillCountVideoIfNeeded();
+    openCsGalleryIfNeeded();
+    openAsianFuturismImageIfNeeded();
+    openBirdCameraPopupIfNeeded(hitBird);
+    if (hitBird === birdCameraTargetBird) {
+        scheduleBirdCameraClose(clock.elapsedTime);
+    }
+    openVideoPlaylistAfterTwentyKillsIfNeeded();
+});
+
+function completeFrontPageEntrance() {
+    unlockAudio();
+    playReadManVideo();
+    openAnthemPopup();
+}
+
+window.completeFrontPageEntrance = completeFrontPageEntrance;

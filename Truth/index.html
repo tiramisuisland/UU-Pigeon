@@ -393,11 +393,16 @@
       try {
         await video.play();
       } catch (error) {
-        video.setAttribute("controls", "");
+        setMuted(true);
+        await video.play().catch(() => {
+          video.setAttribute("controls", "");
+        });
       }
     }
 
     window.forcePlay = playVideo;
+    window.addEventListener("focus", playVideo);
+    window.addEventListener("pointerdown", playVideo);
 
     window.addEventListener("beforeunload", () => {
       if (closingByPrimary) return;

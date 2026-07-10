@@ -325,10 +325,16 @@
     const armed = document.querySelector("#armed");
     let activated = false;
 
-    function playWithSound() {
+    async function playWithSound() {
       video.muted = false;
       video.volume = 1;
-      video.play().catch(() => {});
+      try {
+        await video.play();
+      } catch (error) {
+        video.muted = true;
+        video.volume = 0;
+        await video.play().catch(() => {});
+      }
     }
 
     function activate() {
