@@ -1,0 +1,184 @@
+:root {
+  color-scheme: dark;
+  font-family: Futura, "Futura PT", "Trebuchet MS", Arial, sans-serif;
+  background: #090a0c;
+  color: #f5f5f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(99, 115, 132, 0.42), transparent 30rem),
+    radial-gradient(circle at 85% 76%, rgba(135, 74, 65, 0.32), transparent 34rem),
+    linear-gradient(145deg, #0f1115 0%, #17191d 52%, #07080a 100%);
+}
+
+button,
+video {
+  font: inherit;
+}
+
+.launcher {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: clamp(18px, 5vw, 56px);
+}
+
+.launcher-panel {
+  width: min(720px, 100%);
+}
+
+.kicker {
+  margin: 0 0 10px;
+  color: rgba(245, 245, 242, 0.7);
+  font-size: clamp(0.8rem, 1.5vw, 1rem);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0 0 clamp(28px, 5vw, 54px);
+  font-size: clamp(3rem, 12vw, 8rem);
+  line-height: 0.9;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.launch-button {
+  min-height: 56px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  padding: 0 24px;
+  background: #f5f5f2;
+  color: #101114;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.launch-button:hover {
+  background: #ffffff;
+}
+
+.launch-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.launch-status {
+  min-height: 1.4em;
+  margin: 16px 0 0;
+  color: rgba(245, 245, 242, 0.74);
+  font-size: 0.9rem;
+}
+
+.popup-page {
+  overflow: hidden;
+  min-height: 100vh;
+  background: #111317;
+}
+
+.single-popup {
+  width: 100vw;
+  height: 100vh;
+}
+
+.video-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #141518;
+}
+
+video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+body:not(.is-unlocked) video {
+  filter: blur(22px) saturate(0.72) brightness(0.62);
+  transform: scale(1.06);
+}
+
+.warning-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 16px;
+  width: 100%;
+  border: 0;
+  padding: clamp(22px, 7vw, 44px);
+  color: #fff;
+  cursor: pointer;
+  background: rgba(20, 18, 21, 0.28);
+  backdrop-filter: blur(14px) saturate(0.78) brightness(0.9);
+  text-align: center;
+}
+
+.warning-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(120, 74, 80, 0.2), transparent 46%),
+    rgba(0, 0, 0, 0.18);
+}
+
+.warning-overlay > * {
+  position: relative;
+  z-index: 1;
+}
+
+.eye-icon {
+  width: clamp(70px, 16vw, 98px);
+  height: clamp(52px, 12vw, 74px);
+}
+
+.eye-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.eye-shape {
+  fill: #fff;
+}
+
+.warning-text {
+  max-width: min(72vw, 34ch);
+  font-size: clamp(0.85rem, 3.9vw, 1.4rem);
+  font-weight: 500;
+  line-height: 1.24;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+body.is-unlocked .warning-overlay {
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+@media (min-aspect-ratio: 16 / 10) {
+  .warning-text {
+    max-width: min(76vw, 44ch);
+  }
+}
+
+@media (max-aspect-ratio: 1 / 1) {
+  .warning-text {
+    max-width: min(70vw, 24ch);
+  }
+}

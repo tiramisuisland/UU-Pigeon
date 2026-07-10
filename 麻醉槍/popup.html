@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Popup Video</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body class="popup-page">
+    <main class="single-popup" aria-label="Popup video">
+      <div class="video-shell">
+        <video id="popupVideo" preload="metadata" playsinline controls></video>
+        <button class="warning-overlay" type="button" aria-label="Unlock all videos">
+          <span class="eye-icon" aria-hidden="true">
+            <svg viewBox="0 0 128 96" role="img">
+              <mask id="hidden-eye-cutout">
+                <rect width="128" height="96" fill="white"></rect>
+                <circle cx="64" cy="48" r="21" fill="none" stroke="black" stroke-width="8"></circle>
+                <path d="M88 9 40 87" stroke="black" stroke-linecap="round" stroke-width="9"></path>
+              </mask>
+              <path class="eye-shape" mask="url(#hidden-eye-cutout)" d="M10 48C23 28 42 18 64 18s41 10 54 30C105 68 86 78 64 78S23 68 10 48Z"></path>
+            </svg>
+          </span>
+          <span class="warning-text">Sensitive content: this image may contain graphic violence.</span>
+        </button>
+      </div>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
