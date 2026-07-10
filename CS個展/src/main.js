@@ -3,12 +3,16 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { GALLERY_MODEL, GALLERY_VIDEOS, PLAYER, VISITOR_ENTRY_POSITION, VISITORS, WEAPON } from "./asset-manifest.js?v=20260708-voxel-visitors";
 
+window.__csGalleryBooted = true;
+
 const canvas = document.querySelector("#stage");
 const gameEl = document.querySelector("#game");
 const startPanel = document.querySelector("#startPanel");
 const endPanel = document.querySelector("#endPanel");
 const loadingProgressBar = document.querySelector("#loadingProgressBar");
 const loadingProgressText = document.querySelector("#loadingProgressText");
+const loadingStatus = document.querySelector("#loadingStatus");
+const reloadButton = document.querySelector("#reloadButton");
 const radarGoalDot = document.querySelector("#radarGoalDot");
 const radarGlassesDot = document.querySelector("#radarGlassesDot");
 const radarWeaponDot = document.querySelector("#radarWeaponDot");
@@ -74,6 +78,8 @@ const galleryVideos = [];
 const galleryVideoSources = new Map();
 const pendingGalleryVideos = new Set();
 const loadingItems = new Map();
+const pageParams = new URLSearchParams(window.location.search);
+const reloadToken = pageParams.get("reload") || "";
 let galleryVideosStarted = false;
 let galleryVideoPlayRequested = false;
 let galleryVideoWaitStartedAt = 0;
@@ -82,6 +88,7 @@ let galleryVideoSyncCooldown = 0;
 let loadingProgress = 0;
 let loadingComplete = false;
 const GALLERY_VIDEO_START_TIMEOUT = 8;
+const LOADING_STALL_TIMEOUT = 18000;
 const galleryVideoByNode = new Map(GALLERY_VIDEOS.map((config) => [config.nodeName.toLowerCase(), config]));
 const visitors = [];
 const bullets = [];
@@ -225,6 +232,16 @@ const DEFAULT_TICKER_TEXT = "NO GLASSES EQUIPPED - NEAR OBJECTS MAY NOT FOCUS - 
 init();
 animate();
 
+function withLoadCacheBust(url) {
+  if (!reloadToken || !url || url.startsWith("blob:") || url.startsWith("data:")) {
+    return url;
+  }
+
+  const nextUrl = new URL(url, window.location.href);
+  nextUrl.searchParams.set("reload", reloadToken);
+  return nextUrl.href;
+}
+
 function makePresbyopiaMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -303,6 +320,7 @@ function makePresbyopiaMaterial() {
 }
 
 function init() {
+  startLoadingWatchdog();
   makeLights();
   makePlayer();
   makeGallery();
@@ -340,6 +358,7 @@ function init() {
   document.addEventListener("keydown", (event) => keys.add(event.code));
   document.addEventListener("keyup", (event) => keys.delete(event.code));
   window.addEventListener("resize", onResize);
+  reloadButton?.addEventListener("click", () => forceGalleryReload("manual"));
 }
 
 function makePlayer() {
@@ -387,12 +406,60 @@ function loadPlayerModel(modelPath) {
 function startGame() {
   if (loadingComplete) return;
   loadingComplete = true;
+  sessionStorage.removeItem("csGalleryReloadCount");
   loadingProgress = 1;
   updateLoadingProgress();
   startPanel.classList.add("loadingPanel--hidden");
   setTimeout(() => startPanel.classList.add("panel--hidden"), 460);
   gameEl.classList.add("no-glasses");
   isPlaying = true;
+}
+
+function forceGalleryReload(reason = "loading") {
+  if (reason === "manual") {
+    sessionStorage.removeItem("csGalleryReloadCount");
+  }
+
+  if (typeof window.__csGalleryReload === "function") {
+    window.__csGalleryReload(reason);
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.set("reload", String(Date.now()));
+  url.searchParams.set("reason", reason);
+  window.location.replace(url.href);
+}
+
+function showManualReload() {
+  if (loadingStatus) {
+    loadingStatus.textContent = "Loading stalled. Press reload to try again.";
+  }
+  if (reloadButton) {
+    reloadButton.hidden = false;
+  }
+}
+
+function startLoadingWatchdog() {
+  if (loadingStatus) {
+    loadingStatus.textContent = reloadToken
+      ? "Reloading assets..."
+      : "Loading assets...";
+  }
+
+  window.setTimeout(() => {
+    if (loadingComplete) {
+      return;
+    }
+
+    const reloadCount = Number(sessionStorage.getItem("csGalleryReloadCount") || "0");
+    if (reloadCount >= 1) {
+      showManualReload();
+      return;
+    }
+
+    forceGalleryReload("assets");
+  }, LOADING_STALL_TIMEOUT);
 }
 
 function ensureAudio() {
@@ -433,6 +500,9 @@ function updateLoadingProgress() {
   loadingProgressBar?.style.setProperty("--loading-progress", loadingProgress.toFixed(4));
   if (loadingProgressText) {
     loadingProgressText.textContent = `${Math.round(loadingProgress * 100)}%`;
+  }
+  if (loadingStatus && reloadButton?.hidden !== false) {
+    loadingStatus.textContent = `Loading assets... ${Math.round(loadingProgress * 100)}%`;
   }
 }
 
@@ -512,7 +582,7 @@ function loadConfiguredModel(modelPath, onLoad, onError = null) {
   }
   const loadingId = registerLoadingItem(`model:${modelPath}`);
   gltfLoader.load(
-    modelPath,
+    withLoadCacheBust(modelPath),
     (gltf) => {
       updateLoadingItem(loadingId, 1, 1, true);
       prepareModelMeshes(gltf.scene);
@@ -614,7 +684,7 @@ function tuneGalleryMaterials(model, parser = null) {
     }
 
     if (nodeName?.toLowerCase() === "buffalo") {
-      const buffaloTexture = textureLoader.load("./assets/textures/buffalo.jpg", (texture) => {
+      const buffaloTexture = textureLoader.load(withLoadCacheBust("./assets/textures/buffalo.jpg"), (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.flipY = false;
         texture.wrapS = THREE.RepeatWrapping;
@@ -828,7 +898,7 @@ function attachGalleryVideo(mesh, config, videoUrl, onError = null) {
   video.defaultMuted = true;
   video.playsInline = true;
   video.preload = "auto";
-  video.src = new URL(videoUrl, window.location.href).href;
+  video.src = new URL(withLoadCacheBust(videoUrl), window.location.href).href;
   mesh.userData.galleryVideo.video = video;
   const source = { video, texture: null, targets: [{ mesh, config }] };
   galleryVideoSources.set(videoUrl, source);

@@ -71,9 +71,19 @@ function startVideo(video) {
 
   if (playRequest) {
     playRequest.catch(() => {
-      video.setAttribute("controls", "");
+      video.muted = true;
+      video.volume = 0;
+      video.play().catch(() => {
+        video.setAttribute("controls", "");
+      });
     });
   }
+}
+
+function unmuteAndPlay(video) {
+  video.muted = false;
+  video.volume = 1;
+  video.play().catch(() => {});
 }
 
 function setupPopupPage() {
@@ -93,6 +103,8 @@ function setupPopupPage() {
     syncPopupToVideo(index, video);
     startVideo(video);
   });
+  window.addEventListener("pointerdown", () => unmuteAndPlay(video));
+  window.addEventListener("focus", () => unmuteAndPlay(video));
   window.addEventListener("resize", () => syncPopupToVideo(index, video));
   window.addEventListener("focus", () => syncPopupToVideo(index, video));
 }

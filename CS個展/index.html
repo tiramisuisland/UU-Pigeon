@@ -26,6 +26,8 @@
             <span id="loadingProgressBar"></span>
             <strong id="loadingProgressText">0%</strong>
           </div>
+          <p id="loadingStatus" class="loadingPanel__status">Loading assets...</p>
+          <button id="reloadButton" class="loadingPanel__reload" type="button" hidden>Reload</button>
         </div>
       </section>
 
@@ -70,6 +72,39 @@
       </div>
     </main>
 
+    <script>
+      window.__csGalleryBooted = false;
+      window.__csGalleryReload = function __csGalleryReload(reason) {
+        const url = new URL(window.location.href);
+        const reloadCount = Number(sessionStorage.getItem("csGalleryReloadCount") || "0");
+
+        if (reloadCount >= 1) {
+          document.querySelector("#loadingStatus").textContent =
+            "Loading stalled. Press reload to try again.";
+          document.querySelector("#reloadButton").hidden = false;
+          return;
+        }
+
+        sessionStorage.setItem("csGalleryReloadCount", String(reloadCount + 1));
+        url.searchParams.set("reload", String(Date.now()));
+        url.searchParams.set("reason", reason || "boot");
+        window.location.replace(url.href);
+      };
+
+      document.querySelector("#reloadButton").addEventListener("click", () => {
+        const url = new URL(window.location.href);
+        sessionStorage.removeItem("csGalleryReloadCount");
+        url.searchParams.set("reload", String(Date.now()));
+        url.searchParams.set("reason", "manual");
+        window.location.replace(url.href);
+      });
+
+      window.setTimeout(() => {
+        if (!window.__csGalleryBooted) {
+          window.__csGalleryReload("module");
+        }
+      }, 9000);
+    </script>
     <script type="module" src="./src/main.js?v=20260708-wall-emissive-boost"></script>
   </body>
 </html>

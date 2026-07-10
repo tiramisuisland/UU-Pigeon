@@ -44,6 +44,75 @@
             display: block;
         }
 
+        .storm-weather {
+            position: fixed;
+            inset: 0;
+            z-index: 4;
+            overflow: hidden;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 900ms ease;
+        }
+
+        .storm-weather.is-active {
+            opacity: 1;
+        }
+
+        .storm-weather::before,
+        .storm-weather::after {
+            content: "";
+            position: absolute;
+            inset: -12%;
+            background-image:
+                radial-gradient(ellipse at 18% 18%, rgba(210, 230, 245, 0.13), transparent 34%),
+                radial-gradient(ellipse at 74% 22%, rgba(185, 205, 225, 0.11), transparent 38%),
+                radial-gradient(ellipse at 52% 86%, rgba(20, 30, 42, 0.26), transparent 45%),
+                linear-gradient(180deg, rgba(15, 24, 36, 0.08), rgba(8, 13, 22, 0.26));
+            filter: blur(18px);
+            transform: translate3d(-2%, -1%, 0) scale(1.04);
+            animation: stormMist 7s ease-in-out infinite alternate;
+        }
+
+        .storm-weather::after {
+            opacity: 0.74;
+            background-image:
+                radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.08), transparent 18%),
+                radial-gradient(circle at 20% 72%, rgba(125, 155, 185, 0.10), transparent 22%),
+                radial-gradient(circle at 86% 65%, rgba(13, 23, 36, 0.22), transparent 32%);
+            filter: blur(26px);
+            animation-duration: 9s;
+            animation-delay: -2s;
+        }
+
+        .storm-flash {
+            position: fixed;
+            inset: 0;
+            z-index: 5;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at var(--flash-x1, 22%) var(--flash-y1, 24%), rgba(245, 252, 255, var(--flash-a1, 0.26)), transparent 28%),
+                radial-gradient(circle at var(--flash-x2, 72%) var(--flash-y2, 18%), rgba(205, 232, 255, var(--flash-a2, 0.20)), transparent 32%),
+                radial-gradient(circle at var(--flash-x3, 48%) var(--flash-y3, 66%), rgba(225, 242, 255, var(--flash-a3, 0.12)), transparent 38%),
+                linear-gradient(180deg, rgba(215, 240, 255, 0.12), rgba(255, 255, 255, 0.03));
+            opacity: 0;
+            mix-blend-mode: screen;
+            transition: opacity 90ms ease;
+        }
+
+        .storm-flash.is-active {
+            opacity: 1;
+        }
+
+        @keyframes stormMist {
+            from {
+                transform: translate3d(-2%, -1%, 0) scale(1.04);
+            }
+
+            to {
+                transform: translate3d(2%, 1.5%, 0) scale(1.08);
+            }
+        }
+
         .game-cursor {
             position: fixed;
             left: 0;
@@ -732,6 +801,8 @@
 </head>
 <body>
     <div class="hud">載入模型中...<br>場景檔：<code>action.glb</code></div>
+    <div class="storm-weather" aria-hidden="true"></div>
+    <div class="storm-flash" aria-hidden="true"></div>
     <div class="audio-gate">
         <iframe
             class="popup-permission-frame"
@@ -857,6 +928,8 @@
         import { clone } from "three/addons/utils/SkeletonUtils.js";
 
         const hud = document.querySelector(".hud");
+        const stormWeather = document.querySelector(".storm-weather");
+        const stormFlash = document.querySelector(".storm-flash");
         const audioGate = document.querySelector(".audio-gate");
         const agreeCounterElement = document.querySelector("#agreeCounter");
         const disagreeCounterElement = document.querySelector("#disagreeCounter");
@@ -944,26 +1017,67 @@
         skyCanvas.width = 1024;
         skyCanvas.height = 1024;
         const skyContext = skyCanvas.getContext("2d");
-        const skyGradient = skyContext.createLinearGradient(0, 0, 0, skyCanvas.height);
-        skyGradient.addColorStop(0, "#5fa8ff");
-        skyGradient.addColorStop(0.3, "#88c4ff");
-        skyGradient.addColorStop(0.68, "#c88da1");
-        skyGradient.addColorStop(1, "#d96f72");
-        skyContext.fillStyle = skyGradient;
-        skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+        let currentStormSkyIntensity = -1;
+        const clearSkyStops = ["#5fa8ff", "#88c4ff", "#c88da1", "#d96f72"];
+        const stormSkyStops = ["#17263d", "#253952", "#384355", "#242735"];
+        const clearFogColor = new THREE.Color(0xd99870);
+        const stormFogColor = new THREE.Color(0x202b38);
+        const mixedFogColor = new THREE.Color();
+        const clearCloudColor = new THREE.Color(0xcfe8bf);
+        const stormCloudColor = new THREE.Color(0x48596d);
+        const clearCloudEmissive = new THREE.Color(0xb9d9ab);
+        const stormCloudEmissive = new THREE.Color(0x1d2733);
 
-        const sunsetGlow = skyContext.createRadialGradient(
-            skyCanvas.width * 0.5,
-            skyCanvas.height * 0.78,
-            0,
-            skyCanvas.width * 0.5,
-            skyCanvas.height * 0.78,
-            skyCanvas.width * 0.24
-        );
-        sunsetGlow.addColorStop(0, "rgba(255, 170, 120, 0.22)");
-        sunsetGlow.addColorStop(1, "rgba(255, 170, 120, 0)");
-        skyContext.fillStyle = sunsetGlow;
-        skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+        function mixCssColor(clearColor, stormColor, intensity) {
+            return new THREE.Color(clearColor).lerp(new THREE.Color(stormColor), intensity).getStyle();
+        }
+
+        function drawSkyTexture(stormIntensity = 0) {
+            const clampedStormIntensity = THREE.MathUtils.clamp(stormIntensity, 0, 1);
+            skyContext.clearRect(0, 0, skyCanvas.width, skyCanvas.height);
+
+            const skyGradient = skyContext.createLinearGradient(0, 0, 0, skyCanvas.height);
+            skyGradient.addColorStop(0, mixCssColor(clearSkyStops[0], stormSkyStops[0], clampedStormIntensity));
+            skyGradient.addColorStop(0.3, mixCssColor(clearSkyStops[1], stormSkyStops[1], clampedStormIntensity));
+            skyGradient.addColorStop(0.68, mixCssColor(clearSkyStops[2], stormSkyStops[2], clampedStormIntensity));
+            skyGradient.addColorStop(1, mixCssColor(clearSkyStops[3], stormSkyStops[3], clampedStormIntensity));
+            skyContext.fillStyle = skyGradient;
+            skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+
+            skyContext.save();
+            skyContext.globalAlpha = clampedStormIntensity;
+            for (let layer = 0; layer < 6; layer += 1) {
+                const y = 80 + layer * 82;
+                const gradient = skyContext.createRadialGradient(
+                    skyCanvas.width * (0.18 + layer * 0.14),
+                    y,
+                    16,
+                    skyCanvas.width * (0.18 + layer * 0.14),
+                    y,
+                    280 + layer * 24
+                );
+                gradient.addColorStop(0, "rgba(20, 29, 42, 0.42)");
+                gradient.addColorStop(1, "rgba(20, 29, 42, 0)");
+                skyContext.fillStyle = gradient;
+                skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+            }
+            skyContext.restore();
+
+            const sunsetGlow = skyContext.createRadialGradient(
+                skyCanvas.width * 0.5,
+                skyCanvas.height * 0.78,
+                0,
+                skyCanvas.width * 0.5,
+                skyCanvas.height * 0.78,
+                skyCanvas.width * 0.24
+            );
+            sunsetGlow.addColorStop(0, `rgba(255, 170, 120, ${0.22 * (1 - clampedStormIntensity)})`);
+            sunsetGlow.addColorStop(1, "rgba(255, 170, 120, 0)");
+            skyContext.fillStyle = sunsetGlow;
+            skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+        }
+
+        drawSkyTexture();
 
         const skyTexture = new THREE.CanvasTexture(skyCanvas);
         skyTexture.colorSpace = THREE.SRGBColorSpace;
@@ -1169,6 +1283,7 @@
         let anthemPopupOpened = false;
         let birdCameraPopupOpened = false;
         let asianFuturismPopupOpened = false;
+        let anesthesiaGunVideosOpened = false;
         let buddhaLightShown = false;
         let buddhaLightPromptShown = false;
         let buddhaLightPromptState = null;
@@ -1361,6 +1476,26 @@
         const previousRendererClearColor = new THREE.Color();
         const birds = [];
         const droppedSigns = [];
+        const lightningBolts = [];
+        const stormAliveThreshold = 85;
+        const stormDurationSeconds = 20;
+        const stormStrikeDelaySeconds = 5;
+        const stormReflightSeconds = 3;
+        const stormReviveDelaySeconds = 8;
+        const stormEvent = {
+            triggered: false,
+            active: false,
+            startedAt: -1,
+            strikeStartAt: -1,
+            strikeEndAt: -1,
+            clearAt: -1,
+            reviveAt: -1,
+            targets: [],
+            struckBirds: new Set(),
+            strikeSequenceStarted: false,
+            strikeIndex: 0,
+            nextStrikeAt: -1
+        };
         const flightArea = {
             width: 34,
             height: 18,
@@ -1379,6 +1514,8 @@
         const pointerWorld = new THREE.Vector3();
         const pointerRepel = new THREE.Vector3();
         const pointerToBird = new THREE.Vector3();
+        const lightningStartPosition = new THREE.Vector3();
+        const lightningEndPosition = new THREE.Vector3();
         let audioUnlocked = false;
 
         function updateFlightArea() {
@@ -2967,6 +3104,10 @@
         }
 
         function openAnesthesiaGunVideos() {
+            if (anesthesiaGunVideosOpened) {
+                return;
+            }
+
             const run = String(Date.now());
             const screenLeft = window.screen.availLeft ?? 0;
             const screenTop = window.screen.availTop ?? 0;
@@ -3003,6 +3144,7 @@
                 const popupUrl = new URL("./麻醉槍/popup.html", window.location.href);
                 popupUrl.searchParams.set("video", String(index));
                 popupUrl.searchParams.set("run", run);
+                popupUrl.searchParams.set("lockPlacement", "1");
                 const popupWindow = window.open(
                     popupUrl.href,
                     `anesthesia_gun_${run}_${index}`,
@@ -3020,6 +3162,7 @@
                 return;
             }
 
+            anesthesiaGunVideosOpened = true;
             openedWindows.at(-1)?.focus();
         }
 
@@ -3113,19 +3256,273 @@
                 popupUrl.searchParams.set("sound", String(item.sound));
                 popupUrl.searchParams.set("w", String(item.width));
                 popupUrl.searchParams.set("h", String(item.height));
+                popupUrl.searchParams.set("volume", String(getGlobalVolumeRatio()));
 
                 const beginPlayback = () => {
-                    if (!popupWindow.closed) {
+                    if (!popupWindow.closed && popupWindow.location.href === "about:blank") {
                         popupWindow.location.replace(popupUrl.href);
                     }
                 };
 
                 if (item.delay === 0) {
-                    beginPlayback();
+                    popupWindow.location.replace(popupUrl.href);
                 } else {
                     window.setTimeout(beginPlayback, item.delay);
                 }
             });
+        }
+
+        const lookAtThemClips = [
+            "1.mp4",
+            "3.mp4",
+            "4.mp4",
+            "5.mp4",
+            "6.mp4",
+            "7.mp4",
+            "8.mp4",
+            "9.mp4",
+            "10.mp4",
+            "11.mp4",
+            "12.mp4",
+            "13.mp4"
+        ];
+        let lookAtThemPopupWindows = [];
+        let lookAtThemMonitorTimer = 0;
+        let lookAtThemClosingAll = false;
+
+        function closeLookAtThemPopups() {
+            if (lookAtThemClosingAll) {
+                return;
+            }
+
+            lookAtThemClosingAll = true;
+            window.clearInterval(lookAtThemMonitorTimer);
+            lookAtThemMonitorTimer = 0;
+            lookAtThemPopupWindows.forEach((popupWindow) => {
+                try {
+                    if (popupWindow && !popupWindow.closed) {
+                        popupWindow.close();
+                    }
+                } catch (error) {}
+            });
+            lookAtThemPopupWindows = [];
+            window.setTimeout(() => {
+                lookAtThemClosingAll = false;
+            }, 500);
+        }
+
+        function monitorLookAtThemPopups() {
+            window.clearInterval(lookAtThemMonitorTimer);
+            lookAtThemMonitorTimer = window.setInterval(() => {
+                if (lookAtThemClosingAll || lookAtThemPopupWindows.length === 0) {
+                    return;
+                }
+
+                const hasClosedWindow = lookAtThemPopupWindows.some((popupWindow) => {
+                    try {
+                        return !popupWindow || popupWindow.closed;
+                    } catch (error) {
+                        return true;
+                    }
+                });
+
+                if (hasClosedWindow) {
+                    closeLookAtThemPopups();
+                }
+            }, 300);
+        }
+
+        function fitLookAtThemToScreen(size, maxRatio = 0.82) {
+            const maxWidth = Math.floor(window.screen.availWidth * maxRatio);
+            const maxHeight = Math.floor(window.screen.availHeight * maxRatio);
+            const scale = Math.min(1, maxWidth / size.width, maxHeight / size.height);
+
+            return {
+                width: Math.max(220, Math.round(size.width * scale)),
+                height: Math.max(160, Math.round(size.height * scale))
+            };
+        }
+
+        function fitLookAtThemInsideCell(size, cellWidth, cellHeight) {
+            const scale = Math.min(cellWidth / size.width, cellHeight / size.height);
+
+            return {
+                width: Math.max(150, Math.floor(size.width * scale)),
+                height: Math.max(105, Math.floor(size.height * scale))
+            };
+        }
+
+        function getLookAtThemTopRightRect(size, margin = 18) {
+            return {
+                width: size.width,
+                height: size.height,
+                left: Math.max(0, window.screen.availWidth - size.width - margin),
+                top: margin
+            };
+        }
+
+        function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
+            return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>${label}</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+    video { width: 100vw; height: 100vh; display: none; object-fit: cover; background: #000; }
+    .armed {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #050606;
+      color: #f0bb65;
+      font: 800 12px ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: .12em;
+    }
+  </style>
+</head>
+<body>
+  <div class="armed" id="armed">${delay ? "ARMED / +" + Math.round(delay / 1000) + "S" : "LIVE"}</div>
+  <video id="video" src="${src}" autoplay ${shouldLoop ? "loop" : ""} muted playsinline></video>
+  <script>
+    const video = document.querySelector("#video");
+    const armed = document.querySelector("#armed");
+    let activated = false;
+    function activate() {
+      if (activated) return;
+      activated = true;
+      try {
+        window.moveTo(${rect.left}, ${rect.top});
+        window.resizeTo(${rect.width}, ${rect.height});
+      } catch (error) {}
+      armed.style.display = "none";
+      video.style.display = "block";
+      video.muted = true;
+      video.volume = 1;
+      video.currentTime = 0;
+      video.play().catch(() => {});
+    }
+    window.activatePopup = activate;
+    window.addEventListener("beforeunload", () => {
+      try {
+        window.opener.postMessage({ type: "look-at-them-popup-closed" }, "*");
+      } catch (error) {}
+    });
+    window.setTimeout(activate, ${delay});
+  <\/script>
+</body>
+</html>`;
+        }
+
+        function openLookAtThemVideoPopup(src, label, rect, delay = 0, startTiny = false, shouldLoop = true) {
+            const initialWidth = startTiny ? 220 : rect.width;
+            const initialHeight = startTiny ? 140 : rect.height;
+            const hiddenRect = getLookAtThemTopRightRect({ width: initialWidth, height: initialHeight }, 26);
+            const initialLeft = startTiny ? hiddenRect.left : rect.left;
+            const initialTop = startTiny ? hiddenRect.top : rect.top;
+            const popupWindow = window.open(
+                "",
+                `${label}-${Date.now()}-${Math.random()}`,
+                [
+                    "popup=yes",
+                    "resizable=yes",
+                    "scrollbars=no",
+                    `width=${initialWidth}`,
+                    `height=${initialHeight}`,
+                    `left=${initialLeft}`,
+                    `top=${initialTop}`
+                ].join(",")
+            );
+
+            if (!popupWindow) {
+                return null;
+            }
+
+            popupWindow.document.open();
+            popupWindow.document.write(makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop));
+            popupWindow.document.close();
+            lookAtThemPopupWindows.push(popupWindow);
+            popupWindows.add(popupWindow);
+            if (delay === 0 && popupWindow.activatePopup) {
+                popupWindow.activatePopup();
+            }
+            return popupWindow;
+        }
+
+        function openLookAtThemPopups() {
+            closeLookAtThemPopups();
+            lookAtThemClosingAll = false;
+
+            const screenWidth = window.screen.availWidth || window.innerWidth;
+            const screenHeight = window.screen.availHeight || window.innerHeight;
+            const c1Size = fitLookAtThemToScreen({ width: 640, height: 360 });
+            const c1Rect = getLookAtThemTopRightRect(c1Size, 18);
+            const margin = 24;
+            const gap = 14;
+            const columns = 4;
+            const rows = Math.ceil(lookAtThemClips.length / columns);
+            const cellWidth = Math.floor((screenWidth - margin * 2 - gap * (columns - 1)) / columns);
+            const cellHeight = Math.floor((screenHeight - margin * 2 - gap * (rows - 1)) / rows);
+            let opened = 0;
+
+            lookAtThemClips.forEach((fileName, index) => {
+                const displaySize = fitLookAtThemInsideCell({ width: 640, height: 360 }, cellWidth, cellHeight);
+                const column = index % columns;
+                const row = Math.floor(index / columns);
+                const cellLeft = screenWidth - margin - cellWidth - column * (cellWidth + gap);
+                const cellTop = margin + row * (cellHeight + gap);
+                const diagonalNudge = Math.min(gap * row, Math.max(0, cellWidth - displaySize.width));
+                const left = cellLeft + Math.max(0, cellWidth - displaySize.width) - diagonalNudge;
+                const top = cellTop + Math.floor((cellHeight - displaySize.height) / 2);
+                const popupWindow = openLookAtThemVideoPopup(
+                    new URL(`./look_at_them/${fileName}`, window.location.href).href,
+                    `CAM-${String(index + 1).padStart(2, "0")}`,
+                    {
+                        width: displaySize.width,
+                        height: displaySize.height,
+                        left: Math.max(0, Math.min(left, screenWidth - displaySize.width)),
+                        top: Math.max(0, Math.min(top, screenHeight - displaySize.height))
+                    },
+                    5000,
+                    true,
+                    true
+                );
+
+                if (popupWindow) {
+                    opened += 1;
+                }
+            });
+
+            if (opened < lookAtThemClips.length) {
+                closeLookAtThemPopups();
+                hud.innerHTML = `look_at_them popup 被瀏覽器擋下<br>請允許彈出式視窗後再點一次 48`;
+                return;
+            }
+
+            const c1Window = openLookAtThemVideoPopup(
+                new URL("./look_at_them/C1.mp4", window.location.href).href,
+                "C1",
+                {
+                    width: c1Size.width,
+                    height: c1Size.height,
+                    left: c1Rect.left,
+                    top: c1Rect.top
+                },
+                0,
+                false,
+                false
+            );
+
+            if (!c1Window) {
+                closeLookAtThemPopups();
+                hud.innerHTML = "C1 popup 被瀏覽器擋下<br>請允許彈出式視窗後再點一次 48";
+                return;
+            }
+
+            c1Window.focus();
+            monitorLookAtThemPopups();
+            hud.innerHTML = "look_at_them 已直接播放<br>5 秒後其他影片會一次展開";
         }
 
         function showAliveBirdPrompt(threshold) {
@@ -3168,11 +3565,15 @@
                         videoSrc: nationalJointVideoFile,
                         label: "national joint",
                         forceNew: true,
+                        popupPage: "./pages/plain-video-popup.html",
                         windowName: "national_joint_popup"
                     });
                 }
                 if (threshold === 35) {
                     openAnesthesiaGunVideos();
+                }
+                if (threshold === 48) {
+                    openLookAtThemPopups();
                 }
                 if (threshold === 50) {
                     openExploVideos();
@@ -3656,6 +4057,379 @@
             );
         }
 
+        function setStormWeatherActive(isActive) {
+            stormWeather.classList.toggle("is-active", isActive);
+        }
+
+        function flashLightningScreen() {
+            stormFlash.style.setProperty("--flash-x1", `${THREE.MathUtils.randFloat(8, 34).toFixed(1)}%`);
+            stormFlash.style.setProperty("--flash-y1", `${THREE.MathUtils.randFloat(10, 42).toFixed(1)}%`);
+            stormFlash.style.setProperty("--flash-x2", `${THREE.MathUtils.randFloat(58, 92).toFixed(1)}%`);
+            stormFlash.style.setProperty("--flash-y2", `${THREE.MathUtils.randFloat(8, 48).toFixed(1)}%`);
+            stormFlash.style.setProperty("--flash-x3", `${THREE.MathUtils.randFloat(18, 82).toFixed(1)}%`);
+            stormFlash.style.setProperty("--flash-y3", `${THREE.MathUtils.randFloat(38, 82).toFixed(1)}%`);
+            stormFlash.style.setProperty("--flash-a1", THREE.MathUtils.randFloat(0.18, 0.34).toFixed(2));
+            stormFlash.style.setProperty("--flash-a2", THREE.MathUtils.randFloat(0.14, 0.28).toFixed(2));
+            stormFlash.style.setProperty("--flash-a3", THREE.MathUtils.randFloat(0.08, 0.18).toFixed(2));
+            stormFlash.classList.add("is-active");
+            window.setTimeout(() => {
+                stormFlash.classList.remove("is-active");
+            }, 65);
+        }
+
+        function updateStormSky(elapsed) {
+            const targetIntensity = stormEvent.active ? 1 : 0;
+            if (currentStormSkyIntensity < 0) {
+                currentStormSkyIntensity = targetIntensity;
+            }
+
+            currentStormSkyIntensity = THREE.MathUtils.lerp(
+                currentStormSkyIntensity,
+                targetIntensity,
+                stormEvent.active ? 0.08 : 0.035
+            );
+
+            if (Math.abs(currentStormSkyIntensity - targetIntensity) < 0.01) {
+                currentStormSkyIntensity = targetIntensity;
+            }
+
+            drawSkyTexture(currentStormSkyIntensity);
+            skyTexture.needsUpdate = true;
+
+            mixedFogColor.copy(clearFogColor).lerp(stormFogColor, currentStormSkyIntensity);
+            scene.fog.color.copy(mixedFogColor);
+            scene.fog.near = THREE.MathUtils.lerp(34, 18, currentStormSkyIntensity);
+            scene.fog.far = THREE.MathUtils.lerp(128, 76, currentStormSkyIntensity);
+            hemisphereLight.intensity = THREE.MathUtils.lerp(1.9, 0.58, currentStormSkyIntensity);
+            sunLight.intensity = THREE.MathUtils.lerp(2.8, 0.22, currentStormSkyIntensity);
+            overlayHemisphereLight.intensity = THREE.MathUtils.lerp(1.9, 1.05, currentStormSkyIntensity);
+            overlaySunLight.intensity = THREE.MathUtils.lerp(2.8, 0.95, currentStormSkyIntensity);
+            renderer.toneMappingExposure = THREE.MathUtils.lerp(0.3, 0.18, currentStormSkyIntensity);
+
+            cloudGroup.traverse((child) => {
+                if (!child.isMesh || !child.material) {
+                    return;
+                }
+
+                child.material.color.copy(clearCloudColor).lerp(stormCloudColor, currentStormSkyIntensity);
+                child.material.emissive.copy(clearCloudEmissive).lerp(stormCloudEmissive, currentStormSkyIntensity);
+                child.material.emissiveIntensity = THREE.MathUtils.lerp(0.18, 0.02, currentStormSkyIntensity);
+                child.material.opacity = THREE.MathUtils.lerp(0.76, 0.88, currentStormSkyIntensity);
+            });
+
+            if (stormEvent.active && Math.sin(elapsed * 17) > 0.985) {
+                flashLightningScreen();
+            }
+        }
+
+        function createLightningGlowTexture() {
+            const canvas = document.createElement("canvas");
+            canvas.width = 256;
+            canvas.height = 512;
+            const context = canvas.getContext("2d");
+            const centerX = canvas.width * THREE.MathUtils.randFloat(0.44, 0.56);
+            const points = [];
+            let x = centerX;
+
+            for (let index = 0; index < 11; index += 1) {
+                const y = 22 + index * 46;
+                x += THREE.MathUtils.randFloatSpread(34);
+                x = THREE.MathUtils.clamp(x, 78, 178);
+                points.push({ x, y });
+            }
+
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.globalCompositeOperation = "lighter";
+
+            const glow = context.createRadialGradient(
+                canvas.width * 0.5,
+                canvas.height * 0.42,
+                18,
+                canvas.width * 0.5,
+                canvas.height * 0.42,
+                canvas.width * 0.52
+            );
+            glow.addColorStop(0, "rgba(205, 236, 255, 0.26)");
+            glow.addColorStop(0.45, "rgba(105, 170, 230, 0.12)");
+            glow.addColorStop(1, "rgba(105, 170, 230, 0)");
+            context.fillStyle = glow;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            const drawPath = (lineWidth, alpha, blur) => {
+                context.save();
+                context.shadowColor = `rgba(190, 235, 255, ${alpha})`;
+                context.shadowBlur = blur;
+                context.strokeStyle = `rgba(225, 246, 255, ${alpha})`;
+                context.lineWidth = lineWidth;
+                context.lineCap = "round";
+                context.lineJoin = "round";
+                context.beginPath();
+                context.moveTo(points[0].x, points[0].y);
+                for (let index = 1; index < points.length; index += 1) {
+                    const previous = points[index - 1];
+                    const point = points[index];
+                    const midX = (previous.x + point.x) * 0.5 + THREE.MathUtils.randFloatSpread(18);
+                    const midY = (previous.y + point.y) * 0.5;
+                    context.quadraticCurveTo(midX, midY, point.x, point.y);
+                }
+                context.stroke();
+
+                for (let index = 2; index < points.length - 2; index += 1) {
+                    if (Math.random() > 0.48) {
+                        continue;
+                    }
+                    const branchStart = points[index];
+                    const side = Math.random() < 0.5 ? -1 : 1;
+                    const branchEnd = {
+                        x: branchStart.x + side * THREE.MathUtils.randFloat(26, 72),
+                        y: branchStart.y + THREE.MathUtils.randFloat(18, 62)
+                    };
+                    context.beginPath();
+                    context.moveTo(branchStart.x, branchStart.y);
+                    context.quadraticCurveTo(
+                        (branchStart.x + branchEnd.x) * 0.5 + THREE.MathUtils.randFloatSpread(14),
+                        (branchStart.y + branchEnd.y) * 0.5,
+                        branchEnd.x,
+                        branchEnd.y
+                    );
+                    context.stroke();
+                }
+                context.restore();
+            };
+
+            drawPath(18, 0.08, 26);
+            drawPath(8, 0.16, 16);
+            drawPath(2.2, 0.42, 8);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            return texture;
+        }
+
+        function createLightningBoltToBird(bird, elapsed) {
+            bird.root.getWorldPosition(lightningEndPosition);
+            lightningStartPosition.set(
+                lightningEndPosition.x + THREE.MathUtils.randFloatSpread(6),
+                flightArea.centerY + flightArea.height + 12,
+                lightningEndPosition.z + THREE.MathUtils.randFloatSpread(4)
+            );
+
+            const group = new THREE.Group();
+            const texture = createLightningGlowTexture();
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                color: 0xd9f4ff,
+                transparent: true,
+                opacity: 0.72,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const sprite = new THREE.Sprite(material);
+            const boltLength = lightningStartPosition.distanceTo(lightningEndPosition);
+            sprite.position.copy(lightningStartPosition).lerp(lightningEndPosition, 0.5);
+            sprite.scale.set(
+                THREE.MathUtils.randFloat(5.2, 7.4),
+                boltLength * THREE.MathUtils.randFloat(1.04, 1.18),
+                1
+            );
+            group.add(sprite);
+
+            const cloudLight = new THREE.PointLight(0x9fdcff, 2.4, 58, 2);
+            cloudLight.position.copy(lightningStartPosition);
+            group.add(cloudLight);
+            const hitLight = new THREE.PointLight(0xc8f1ff, 5.2, 22, 2);
+            hitLight.position.copy(lightningEndPosition);
+            group.add(hitLight);
+            scene.add(group);
+            lightningBolts.push({
+                object: group,
+                material,
+                texture,
+                hitLight,
+                cloudLight,
+                createdAt: elapsed,
+                duration: 0.28
+            });
+        }
+
+        function strikeBirdWithLightning(bird, elapsed) {
+            if (!bird?.isActive || bird.isCrashed || bird.isGrounded) {
+                return false;
+            }
+
+            createLightningBoltToBird(bird, elapsed);
+            flashLightningScreen();
+            bird.isCrashed = true;
+            bird.crashFallSpeed = 0;
+            bird.reviveAt = Number.POSITIVE_INFINITY;
+            bird.forceStormRevive = true;
+            bird.stormRehitAt = -1;
+            bird.velocity.multiplyScalar(0.28);
+            bird.velocity.y = Math.min(bird.velocity.y, -2);
+            stormEvent.struckBirds.add(bird);
+            playBirdCoo(bird);
+            stopBirdWingAudio(bird);
+
+            if (bird.actions.hit) {
+                playBirdAction(bird, "hit", 0.05, { once: true, force: true });
+                bird.actionUntil = elapsed + 1.2;
+            } else if (bird.mixer) {
+                bird.mixer.stopAllAction();
+            }
+
+            if (bird === birdCameraTargetBird) {
+                scheduleBirdCameraClose(elapsed);
+            }
+
+            return true;
+        }
+
+        function beginStormStrikeSequence(elapsed) {
+            stormEvent.targets = getFlyingBirds();
+            stormEvent.strikeIndex = 0;
+            stormEvent.nextStrikeAt = elapsed;
+            stormEvent.strikeEndAt = -1;
+            hud.innerHTML = `存活鴿子達到 ${stormAliveThreshold} 隻觸發閃電暴雨<br>閃電正在鎖定 ${stormEvent.targets.length} 隻天上的鴿子`;
+        }
+
+        function startAliveThresholdStorm(elapsed = clock.elapsedTime) {
+            if (stormEvent.triggered) {
+                return;
+            }
+
+            stormEvent.triggered = true;
+            stormEvent.active = true;
+            stormEvent.startedAt = elapsed;
+            stormEvent.strikeStartAt = elapsed + stormStrikeDelaySeconds;
+            stormEvent.strikeEndAt = -1;
+            stormEvent.clearAt = elapsed + stormDurationSeconds;
+            stormEvent.reviveAt = -1;
+            stormEvent.targets = [];
+            stormEvent.struckBirds.clear();
+            stormEvent.strikeSequenceStarted = false;
+            stormEvent.strikeIndex = 0;
+            stormEvent.nextStrikeAt = -1;
+            setStormWeatherActive(true);
+            nextSpawnAt = Math.max(nextSpawnAt, stormEvent.clearAt);
+            hud.innerHTML = `存活鴿子達到 ${stormAliveThreshold} 隻<br>閃電暴雨開始，${stormStrikeDelaySeconds} 秒後會鎖定所有天上的鴿子`;
+        }
+
+        function reviveStormBirds(elapsed) {
+            stormEvent.struckBirds.forEach((bird) => {
+                if (!bird?.isActive) {
+                    return;
+                }
+
+                bird.forceStormRevive = false;
+                bird.stormRehitAt = -1;
+                reviveBird(bird, elapsed);
+            });
+            stormEvent.struckBirds.clear();
+            hud.innerHTML = "被閃電擊落的鴿子全部復活了<br>天氣已經轉晴";
+        }
+
+        function finishAliveThresholdStorm(elapsed) {
+            stormEvent.active = false;
+            setStormWeatherActive(false);
+            const revivedBirdCount = stormEvent.struckBirds.size;
+            if (revivedBirdCount > 0) {
+                reviveStormBirds(elapsed);
+            }
+            stormEvent.startedAt = -1;
+            stormEvent.strikeStartAt = -1;
+            stormEvent.strikeEndAt = -1;
+            stormEvent.clearAt = -1;
+            stormEvent.reviveAt = -1;
+            stormEvent.targets = [];
+            stormEvent.struckBirds.clear();
+            stormEvent.strikeSequenceStarted = false;
+            stormEvent.strikeIndex = 0;
+            stormEvent.nextStrikeAt = -1;
+            scheduleNextSpawn(elapsed);
+            hud.innerHTML = revivedBirdCount > 0
+                ? "閃電暴雨結束<br>天氣轉晴，鴿子活過來了"
+                : "閃電暴雨結束<br>天氣轉晴";
+        }
+
+        function updateLightningBolts(elapsed) {
+            for (let index = lightningBolts.length - 1; index >= 0; index -= 1) {
+                const bolt = lightningBolts[index];
+                const age = elapsed - bolt.createdAt;
+                const progress = THREE.MathUtils.clamp(age / bolt.duration, 0, 1);
+                const flicker = 0.62 + Math.sin(age * 92) * 0.13 + Math.random() * 0.1;
+                const fade = Math.max(0, 1 - progress) * flicker;
+                bolt.material.opacity = 0.72 * fade;
+                bolt.hitLight.intensity = 5.2 * Math.max(0, 1 - progress * 1.6);
+                bolt.cloudLight.intensity = 2.4 * Math.max(0, 1 - progress * 1.2);
+
+                if (progress >= 1) {
+                    scene.remove(bolt.object);
+                    bolt.material.dispose();
+                    bolt.texture.dispose();
+                    lightningBolts.splice(index, 1);
+                }
+            }
+        }
+
+        function updateAliveThresholdStorm(elapsed) {
+            updateStormSky(elapsed);
+            updateLightningBolts(elapsed);
+
+            if (!stormEvent.triggered && getAliveBirdCount() >= stormAliveThreshold) {
+                startAliveThresholdStorm(elapsed);
+            }
+
+            if (!stormEvent.active) {
+                return;
+            }
+
+            stormEvent.struckBirds.forEach((bird) => {
+                if (
+                    bird?.isActive &&
+                    !bird.isCrashed &&
+                    !bird.isGrounded &&
+                    bird.stormRehitAt > 0 &&
+                    elapsed >= bird.stormRehitAt
+                ) {
+                    strikeBirdWithLightning(bird, elapsed);
+                    hud.innerHTML = `鴿子在暴雨裡復飛了 ${stormReflightSeconds} 秒<br>馬上又被閃電擊落`;
+                }
+            });
+
+            if (!stormEvent.strikeSequenceStarted && elapsed >= stormEvent.strikeStartAt) {
+                stormEvent.strikeSequenceStarted = true;
+                beginStormStrikeSequence(elapsed);
+                if (stormEvent.targets.length === 0) {
+                    stormEvent.strikeEndAt = elapsed;
+                    stormEvent.reviveAt = elapsed + stormReviveDelaySeconds;
+                    stormEvent.clearAt = stormEvent.reviveAt;
+                    hud.innerHTML = `閃電沒有找到天上的鴿子<br>${stormReviveDelaySeconds} 秒後天氣轉晴`;
+                }
+            }
+
+            if (
+                stormEvent.targets.length > 0 &&
+                stormEvent.strikeIndex < stormEvent.targets.length &&
+                elapsed >= stormEvent.nextStrikeAt
+            ) {
+                const targetBird = stormEvent.targets[stormEvent.strikeIndex];
+                strikeBirdWithLightning(targetBird, elapsed);
+                stormEvent.strikeIndex += 1;
+                stormEvent.nextStrikeAt = elapsed + 0.22;
+
+                if (stormEvent.strikeIndex >= stormEvent.targets.length) {
+                    stormEvent.strikeEndAt = elapsed;
+                    stormEvent.reviveAt = elapsed + stormReviveDelaySeconds;
+                    stormEvent.clearAt = stormEvent.reviveAt;
+                    hud.innerHTML = `天上的鴿子已全部被閃電擊落<br>停 ${stormReviveDelaySeconds} 秒後天氣轉晴並一起復活`;
+                }
+            }
+
+            if (elapsed >= stormEvent.clearAt) {
+                finishAliveThresholdStorm(elapsed);
+            }
+        }
+
         function scheduleNextSpawn(elapsed) {
             const aliveCount = getAliveBirdCount();
             const minSeconds = aliveCount >= 20 ? 3 : 10;
@@ -4038,6 +4812,11 @@
         });
 
         window.addEventListener("message", (event) => {
+            if (event.data?.type === "look-at-them-popup-closed") {
+                closeLookAtThemPopups();
+                return;
+            }
+
             if (
                 event.origin !== window.location.origin ||
                 event.data?.type !== "close-anthem-popup" ||
@@ -4230,9 +5009,11 @@
             const delta = clock.getDelta();
             const elapsed = clock.elapsedTime;
 
-            if (birdTemplate && elapsed >= nextSpawnAt) {
+            if (!stormEvent.active && birdTemplate && elapsed >= nextSpawnAt) {
                 spawnWave(elapsed);
             }
+
+            updateAliveThresholdStorm(elapsed);
 
             updateReadManPointerAnimation(elapsed);
             if (readManMixer && readManPointerNear) {
@@ -4362,11 +5143,31 @@
                         bird.velocity.set(0, 0, 0);
                         bird.isGrounded = true;
                         stopBirdWingAudio(bird);
-                        bird.reviveAt = elapsed + 5;
-                        hud.innerHTML = "有鴿子被打下來了<br>5 秒後有機率自動復活";
+                        if (bird.forceStormRevive) {
+                            if (
+                                stormEvent.active &&
+                                stormEvent.strikeEndAt < 0 &&
+                                elapsed + 0.8 + stormReflightSeconds < stormEvent.clearAt
+                            ) {
+                                bird.reviveAt = elapsed + 0.8;
+                                hud.innerHTML = `被閃電擊落的鴿子正在掙扎<br>牠會短暫飛起來 ${stormReflightSeconds} 秒`;
+                            } else {
+                                bird.reviveAt = Number.POSITIVE_INFINITY;
+                            }
+                        } else {
+                            bird.reviveAt = elapsed + 5;
+                            hud.innerHTML = "有鴿子被打下來了<br>5 秒後有機率自動復活";
+                        }
                     }
                 } else if (bird.reviveAt > 0 && elapsed >= bird.reviveAt) {
                     bird.reviveAt = -1;
+                    if (bird.forceStormRevive && stormEvent.active) {
+                        reviveBird(bird, elapsed);
+                        bird.forceStormRevive = true;
+                        bird.stormRehitAt = elapsed + stormReflightSeconds;
+                        hud.innerHTML = `被閃電擊落的鴿子又飛起來了<br>${stormReflightSeconds} 秒後會再被閃電擊落`;
+                        return;
+                    }
                     if (Math.random() < 1 / 10) {
                         reviveBird(bird, elapsed);
                         hud.innerHTML = "有一隻鴿子自動復活了<br>牠從地上重新飛起來";

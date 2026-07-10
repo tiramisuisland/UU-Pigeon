@@ -53,15 +53,18 @@ function setupPopupPage() {
   const params = new URLSearchParams(window.location.search);
   const index = Number(params.get("video") || 0);
   const run = params.get("run") || "";
+  const lockPlacement = params.get("lockPlacement") === "1";
   const item = videos[index] || videos[0];
   const video = document.querySelector("#popupVideo");
   const overlay = document.querySelector(".warning-overlay");
 
   document.title = item.title;
   video.src = item.file;
-  video.addEventListener("loadedmetadata", () => syncPopupToVideo(index, video, run));
-  window.addEventListener("resize", () => syncPopupToVideo(index, video, run));
-  window.addEventListener("focus", () => syncPopupToVideo(index, video, run));
+  if (!lockPlacement) {
+    video.addEventListener("loadedmetadata", () => syncPopupToVideo(index, video, run));
+    window.addEventListener("resize", () => syncPopupToVideo(index, video, run));
+    window.addEventListener("focus", () => syncPopupToVideo(index, video, run));
+  }
   overlay.addEventListener("click", () => unlockPopup());
 
   channel?.addEventListener("message", (event) => {
