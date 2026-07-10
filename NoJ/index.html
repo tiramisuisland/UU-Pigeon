@@ -316,9 +316,9 @@
       <div class="machine" id="machine">
         <img class="machine-art" src="slot machine.png" alt="Slot machine">
         <div class="reel-window" aria-live="polite" aria-label="轉輪結果">
-          <div class="reel"><div class="strip" data-final="8"></div></div>
-          <div class="reel"><div class="strip" data-final="8"></div></div>
-          <div class="reel"><div class="strip" data-final="6"></div></div>
+          <div class="reel"><div class="strip" data-final="？"></div></div>
+          <div class="reel"><div class="strip" data-final="？"></div></div>
+          <div class="reel"><div class="strip" data-final="？"></div></div>
         </div>
         <img class="driver-art" src="driver.png" alt="">
         <div class="sparks" id="sparks" aria-hidden="true"></div>
@@ -340,6 +340,7 @@
     const resultMessage = document.querySelector("#resultMessage");
     const pool = ["8", "8", "6", "7", "○", "◠", "◡", "▱", "∩", "◞"];
     const spinPool = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "○", "◠", "◡", "▱"];
+    const unknownSymbol = "？";
     const colors = ["#28292c", "#747579", "#f4f1ee"];
     const outcomeMessages = {
       "777": "loser",
@@ -443,7 +444,7 @@
     }
 
     function symbolClass(symbol) {
-      return Number.isNaN(Number(symbol)) ? "symbol small" : "symbol";
+      return Number.isNaN(Number(symbol)) && symbol !== unknownSymbol ? "symbol small" : "symbol";
     }
 
     function nextOutcome() {
@@ -493,7 +494,7 @@
       }
     }
 
-    function setFinal(result = "886") {
+    function setFinal(result = `${unknownSymbol}${unknownSymbol}${unknownSymbol}`) {
       strips.forEach((strip, index) => {
         const finalSymbol = result[index] || strip.dataset.final;
         strip.dataset.final = finalSymbol;

@@ -303,6 +303,9 @@
             height: calc(34px * var(--layout-scale));
             border-radius: 50%;
             background: #616262;
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
             border: 1px solid rgba(255, 255, 255, 0.16);
             box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.05);
         }
@@ -751,7 +754,7 @@
         <press-volume-control id="globalVolumeControl" value="100"></press-volume-control>
     </div>
     <div class="alive-marquee" aria-live="polite">
-        <div class="marquee-track" id="aliveMarqueeText">Alive: 0 / Current kills: 0 / Global kills: Loading / Visitors: Loading</div>
+        <div class="marquee-track" id="aliveMarqueeText">Alive : 0   You killed: 0   Global killed: Loading   Visitors : Loading   Average staying time: --   Time you stay: 00:00   Something you should know is watching does not make you neutral</div>
     </div>
     <button class="chat-toggle" id="chatToggle" type="button" aria-label="開啟聊天訊息" aria-expanded="false" aria-controls="chatPanel">
         <span class="chat-typing-dots" aria-hidden="true">
@@ -1139,6 +1142,8 @@
 
         const loader = new GLTFLoader();
         const audioLoader = new THREE.AudioLoader();
+        const gunshotAudio = new Audio("./Gun4.mp3");
+        gunshotAudio.preload = "auto";
         let birdTemplate = null;
         let birdAnimationClips = [];
         let birdActionLibrary = null;
@@ -1201,6 +1206,7 @@
             currentKills: "0",
             kills: "Loading",
             pageviews: "Loading",
+            averageStayingTime: "--",
             onlineTime: "00:00"
         };
         const videoBackgroundFiles = [
@@ -1278,6 +1284,13 @@
             like: "https://macn8n.tiramisu-island.com/webhook/chatting_like_count",
             dislike: "https://macn8n.tiramisu-island.com/webhook/chatting_dislike_count"
         };
+        const chatAvatarImages = new Map([
+            ["川普", "./聊天室頭像/T.png"],
+            ["Trump", "./聊天室頭像/T.png"],
+            ["賴清德", "./聊天室頭像/W.png"],
+            ["習近平", "./聊天室頭像/X.png"],
+            ["习近平", "./聊天室頭像/X.png"],
+        ]);
         const digitPath = "./assets/digits/";
         const digitSprites = new Map();
         const pointCounters = {
@@ -1960,9 +1973,8 @@
 
         function renderMarqueeStats() {
             const marqueeText =
-                `Alive: ${marqueeStats.alive} / Current kills: ${marqueeStats.currentKills} / Global kills: ${marqueeStats.kills} / Visitors: ${marqueeStats.pageviews} / Online time: ${marqueeStats.onlineTime}`;
-            aliveMarqueeText.textContent =
-                `${marqueeText}     ${marqueeText}     ${marqueeText}`;
+                `Alive : ${marqueeStats.alive}   You killed: ${marqueeStats.currentKills}   Global killed: ${marqueeStats.kills}   Visitors : ${marqueeStats.pageviews}   Average staying time: ${marqueeStats.averageStayingTime}   Time you stay: ${marqueeStats.onlineTime}   Something you should know is watching does not make you neutral`;
+            aliveMarqueeText.textContent = marqueeText;
         }
 
         function setMarqueeStat(name, value) {
@@ -2230,6 +2242,10 @@
             });
         }
 
+        function getChatAvatarSrc(senderName) {
+            return chatAvatarImages.get(String(senderName || "").trim()) || "";
+        }
+
         async function submitChatReaction(reactionType) {
             const endpoint = chatReactionEndpoints[reactionType];
             const messageId = selectedChatMessageId;
@@ -2266,6 +2282,10 @@
             const avatarElement = document.createElement("div");
             avatarElement.className = "chat-avatar";
             avatarElement.setAttribute("aria-hidden", "true");
+            const avatarSrc = getChatAvatarSrc(chatItem.sender_name);
+            if (avatarSrc) {
+                avatarElement.style.backgroundImage = `url("${avatarSrc}")`;
+            }
 
             const bubbleElement = document.createElement("div");
             bubbleElement.className = "chat-bubble";
@@ -2344,7 +2364,7 @@
 
                 const messages = await response.json();
                 renderChatMessages(messages);
-                setChatStatus("已更新");
+                setChatStatus("");
             } catch (error) {
                 console.error("聊天訊息讀取失敗", error);
                 setChatStatus("讀取失敗");
@@ -2448,6 +2468,7 @@
             if (readManVideo) {
                 readManVideo.volume = getReadManVideoVolume();
             }
+            gunshotAudio.volume = volumeRatio;
             broadcastVolumeToPopups();
         }
 
@@ -3639,6 +3660,12 @@
             bird.cooAudio.play();
         }
 
+        function playGunshotAudio() {
+            const audio = gunshotAudio.cloneNode();
+            audio.volume = getGlobalVolumeRatio();
+            audio.play().catch(() => {});
+        }
+
         function unlockAudio() {
             if (audioUnlocked) {
                 return;
@@ -4282,6 +4309,7 @@
         });
 
         window.addEventListener("click", (event) => {
+            playGunshotAudio();
             pointerClientX = event.clientX;
             pointerClientY = event.clientY;
             gameCursor.style.left = `${event.clientX}px`;
