@@ -2522,9 +2522,9 @@ function openTruthVideos() {
     const screenHeight = window.screen.availHeight || window.innerHeight;
     const truthVideos = [
         { id: "M1", file: "M1.mp4", width: 672, height: 378, delay: 0, sound: 1, x: 0.5, y: 0.5 },
-        { id: "V1", file: "V1.mp4", width: 300, height: 480, delay: 900, sound: 0, x: 0.08, y: 0.08 },
-        { id: "S1", file: "S1.mp4", width: 230, height: 172, delay: 1550, sound: 0, x: 0.82, y: 0.08 },
-        { id: "V2", file: "V2.mp4", width: 240, height: 384, delay: 2200, sound: 0, x: 0.08, y: 0.82 },
+        { id: "V1", file: "V1.mp4", width: 300, height: 480, delay: 450, sound: 0, x: 0.08, y: 0.08 },
+        { id: "S1", file: "S1.mp4", width: 230, height: 172, delay: 450, sound: 0, x: 0.82, y: 0.08 },
+        { id: "V2", file: "V2.mp4", width: 240, height: 384, delay: 450, sound: 0, x: 0.08, y: 0.82 },
         { id: "S2", file: "S2.mp4", width: 720, height: 200, delay: 450, sound: 0, x: 0.72, y: 0.82 }
     ];
     const openedWindows = [];
