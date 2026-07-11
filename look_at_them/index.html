@@ -355,14 +355,16 @@
     let activated = false;
 
     function fitWindowToVideo() {
-      if (!video.videoWidth || !video.videoHeight) return;
+      const naturalWidth = video.videoWidth || ${sourceSize.width};
+      const naturalHeight = video.videoHeight || ${sourceSize.height};
+      if (!naturalWidth || !naturalHeight) return;
       const scale = Math.min(
         1,
-        (window.screen.availWidth * 0.82) / video.videoWidth,
-        (window.screen.availHeight * 0.82) / video.videoHeight
+        (window.screen.availWidth * 0.82) / naturalWidth,
+        (window.screen.availHeight * 0.82) / naturalHeight
       );
-      const width = Math.max(1, Math.round(video.videoWidth * scale));
-      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      const width = Math.max(1, Math.round(naturalWidth * scale));
+      const height = Math.max(1, Math.round(naturalHeight * scale));
       const left = Math.round(Math.max(0, Math.min(${rect.left}, window.screen.availWidth - width)));
       const top = Math.round(Math.max(0, Math.min(${rect.top}, window.screen.availHeight - height)));
 

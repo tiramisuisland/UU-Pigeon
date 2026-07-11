@@ -277,7 +277,7 @@
             overflow: hidden;
             border: 0;
             border-radius: 11px;
-            background: transparent;
+            background: url("../images/chat-room.svg?v=20260711") center / 100% 100% no-repeat;
             box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
             color: #efefef;
             opacity: 0;
@@ -362,7 +362,7 @@
             padding: calc(13px * var(--layout-scale)) calc(12px * var(--layout-scale)) calc(18px * var(--layout-scale));
             overflow-y: auto;
             overscroll-behavior: contain;
-            background: transparent;
+            background: #333333;
             border-radius: 0 0 calc(12px * var(--layout-scale)) calc(12px * var(--layout-scale));
             scrollbar-color: #666666 transparent;
             scrollbar-width: thin;

@@ -1,0 +1,1031 @@
+:root {
+    color-scheme: dark;
+    --gold: #ffd56b;
+    --deep-red: #6c0f12;
+    --temple-red: #a5201d;
+    --lacquer: #3b0708;
+    --ink: #170a08;
+    --jade: #83d9bd;
+    --smoke: rgba(255, 244, 210, 0.22);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-height: 100%;
+    margin: 0;
+}
+
+body {
+    overflow-x: hidden;
+    background:
+        radial-gradient(circle at 50% 32%, rgba(255, 218, 122, 0.34), transparent 18rem),
+        radial-gradient(circle at 18% 18%, rgba(177, 32, 28, 0.42), transparent 24rem),
+        linear-gradient(180deg, #180707 0%, #32100b 46%, #070303 100%);
+    color: #fff6d7;
+    font-family: "Noto Serif TC", "PingFang TC", "Songti TC", serif;
+}
+
+.temple-photo {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    min-height: 640px;
+    overflow: hidden;
+    background: #1d2331;
+    isolation: isolate;
+}
+
+.statue-photo {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 44%;
+    filter: contrast(1.05) saturate(0.94);
+}
+
+.temple-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+        linear-gradient(180deg, rgba(8, 12, 20, 0.18), transparent 28%, rgba(6, 3, 2, 0.48) 100%),
+        radial-gradient(circle at 50% 46%, transparent 34%, rgba(4, 3, 5, 0.34) 100%);
+    pointer-events: none;
+}
+
+.temple-message {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: clamp(18px, 4vh, 34px);
+    z-index: 3;
+    padding: 0 26px;
+    text-align: center;
+    text-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.72),
+        0 0 32px rgba(255, 220, 130, 0.42);
+}
+
+.temple-kicker {
+    margin: 0 0 8px;
+    color: rgba(255, 237, 184, 0.92);
+    font-size: clamp(13px, 2.2vw, 18px);
+    font-weight: 900;
+    letter-spacing: 0.18em;
+}
+
+.temple-message h1 {
+    margin: 0;
+    color: #fff3be;
+    font-size: clamp(54px, 10vw, 92px);
+    line-height: 0.9;
+    letter-spacing: 0.05em;
+    text-shadow:
+        0 3px 0 rgba(100, 36, 15, 0.74),
+        0 0 16px rgba(255, 237, 176, 0.72),
+        0 0 48px rgba(255, 146, 69, 0.5),
+        0 8px 22px rgba(0, 0, 0, 0.72);
+}
+
+.temple-subtitle {
+    margin: 12px auto 0;
+    max-width: 22em;
+    color: rgba(255, 248, 223, 0.92);
+    font-size: clamp(16px, 2.8vw, 24px);
+    font-weight: 900;
+    line-height: 1.35;
+}
+
+.temple-plaque {
+    position: absolute;
+    left: 50%;
+    bottom: 58px;
+    z-index: 3;
+    display: flex;
+    gap: 8px;
+    width: min(92vw, 520px);
+    transform: translateX(-50%);
+}
+
+.temple-plaque span {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 6px;
+    border: 1px solid rgba(255, 225, 136, 0.7);
+    border-radius: 999px;
+    background: rgba(37, 9, 6, 0.68);
+    color: #ffe9a8;
+    box-shadow:
+        inset 0 0 18px rgba(255, 194, 86, 0.18),
+        0 10px 24px rgba(0, 0, 0, 0.36);
+    font-size: clamp(14px, 2.4vw, 18px);
+    font-weight: 900;
+    text-align: center;
+    letter-spacing: 0.08em;
+    backdrop-filter: blur(6px);
+}
+
+.temple-close {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    z-index: 4;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 10px 22px;
+    border: 1px solid rgba(255, 231, 160, 0.9);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255, 238, 178, 0.94), rgba(184, 105, 39, 0.94));
+    color: #301007;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
+    font: 900 15px/1 "Noto Serif TC", "PingFang TC", serif;
+    cursor: pointer;
+}
+
+.temple-incense {
+    position: absolute;
+    bottom: -16%;
+    z-index: 2;
+    width: 40%;
+    height: 58%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 100%, rgba(255, 244, 210, 0.26), transparent 64%);
+    filter: blur(18px);
+    opacity: 0.66;
+    animation: smokeRise 9s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+.temple-incense-left {
+    left: -14%;
+}
+
+.temple-incense-right {
+    right: -14%;
+    animation-delay: -4s;
+}
+
+.temple {
+    position: relative;
+    min-height: 100vh;
+    padding: clamp(22px, 4vw, 48px);
+    overflow: hidden;
+}
+
+.sky-glow {
+    position: fixed;
+    inset: -20%;
+    background:
+        repeating-radial-gradient(circle at 50% 34%, rgba(255, 232, 142, 0.16) 0 2px, transparent 2px 18px),
+        radial-gradient(circle at 50% 36%, rgba(255, 196, 86, 0.34), transparent 25%),
+        radial-gradient(circle at 50% 92%, rgba(125, 19, 18, 0.68), transparent 34%);
+    animation: glowPulse 6s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+.hall {
+    position: relative;
+    z-index: 1;
+    width: min(980px, 100%);
+    min-height: 650px;
+    margin: 0 auto;
+    padding: clamp(128px, 17vw, 170px) clamp(18px, 5vw, 64px) 36px;
+}
+
+.roof {
+    position: absolute;
+    left: 50%;
+    width: min(1080px, 110vw);
+    height: 150px;
+    transform: translateX(-50%);
+    clip-path: polygon(4% 78%, 18% 42%, 50% 5%, 82% 42%, 96% 78%, 88% 100%, 12% 100%);
+    background:
+        linear-gradient(90deg, transparent 0 7%, rgba(255, 226, 126, 0.7) 7% 8%, transparent 8% 92%, rgba(255, 226, 126, 0.7) 92% 93%, transparent 93%),
+        repeating-linear-gradient(90deg, rgba(255, 215, 105, 0.16) 0 18px, rgba(55, 3, 5, 0.18) 18px 36px),
+        linear-gradient(180deg, #d83a24 0%, #7d1012 64%, #3b0608 100%);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.38);
+}
+
+.roof-back {
+    top: 18px;
+    opacity: 0.55;
+    filter: blur(1px);
+}
+
+.roof-front {
+    top: 54px;
+}
+
+.roof-front::after {
+    content: "";
+    position: absolute;
+    left: 9%;
+    right: 9%;
+    bottom: 12px;
+    height: 14px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.lantern {
+    position: absolute;
+    top: 170px;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 68px;
+    height: 96px;
+    border-radius: 48% 48% 44% 44%;
+    background:
+        radial-gradient(circle at 50% 35%, rgba(255, 246, 196, 0.9), transparent 24%),
+        linear-gradient(90deg, #8c0c0c, #f04f25 26% 74%, #8c0c0c);
+    border: 3px solid #f7c862;
+    box-shadow: 0 0 28px rgba(255, 116, 44, 0.5);
+    animation: lanternSwing 4.6s ease-in-out infinite alternate;
+}
+
+.lantern::before {
+    content: "";
+    position: absolute;
+    top: -38px;
+    width: 2px;
+    height: 42px;
+    background: #f4d389;
+}
+
+.lantern span {
+    font-size: 32px;
+    font-weight: 900;
+    color: #3b0608;
+}
+
+.lantern-left {
+    left: clamp(6px, 5vw, 74px);
+}
+
+.lantern-right {
+    right: clamp(6px, 5vw, 74px);
+    animation-delay: -1.6s;
+}
+
+.columns {
+    position: absolute;
+    inset: 178px clamp(0px, 3vw, 42px) 46px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.column {
+    width: clamp(32px, 5vw, 54px);
+    border-radius: 999px;
+    background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.24), transparent 28% 70%, rgba(0, 0, 0, 0.2)),
+        repeating-linear-gradient(180deg, #bb241f 0 30px, #8a1212 30px 36px);
+    border: 3px solid rgba(255, 210, 95, 0.78);
+    box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35), 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+.sanctum {
+    position: relative;
+    z-index: 2;
+    min-height: 470px;
+    padding: clamp(24px, 5vw, 48px);
+    border: 4px double rgba(255, 220, 118, 0.72);
+    border-radius: 24px;
+    background:
+        linear-gradient(90deg, rgba(255, 224, 118, 0.13), transparent 16% 84%, rgba(255, 224, 118, 0.13)),
+        radial-gradient(circle at 50% 46%, rgba(255, 215, 105, 0.24), transparent 34%),
+        linear-gradient(180deg, rgba(77, 8, 10, 0.92), rgba(20, 5, 5, 0.94));
+    box-shadow: inset 0 0 60px rgba(255, 189, 76, 0.12), 0 26px 70px rgba(0, 0, 0, 0.42);
+    text-align: center;
+}
+
+.sutra-line {
+    margin: 0 0 14px;
+    color: var(--jade);
+    font-size: clamp(14px, 2vw, 18px);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+}
+
+h1 {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    color: #fff0b2;
+    font-size: clamp(56px, 11vw, 128px);
+    line-height: 0.92;
+    letter-spacing: 0.05em;
+    text-shadow:
+        0 3px 0 #8f260f,
+        0 0 18px rgba(255, 214, 110, 0.72),
+        0 0 44px rgba(255, 106, 54, 0.36);
+}
+
+.subtitle {
+    position: relative;
+    z-index: 2;
+    margin: 20px auto 0;
+    max-width: 34em;
+    color: #ffe8a0;
+    font-size: clamp(18px, 2.4vw, 26px);
+    font-weight: 800;
+    line-height: 1.6;
+}
+
+.buddha {
+    position: relative;
+    width: min(360px, 76vw);
+    height: 270px;
+    margin: 22px auto 0;
+}
+
+.halo {
+    position: absolute;
+    left: 50%;
+    top: 44%;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.halo-outer {
+    width: 260px;
+    height: 260px;
+    background: repeating-radial-gradient(circle, rgba(255, 220, 112, 0.2) 0 6px, transparent 6px 14px);
+    animation: spinGlow 18s linear infinite;
+}
+
+.halo-inner {
+    width: 188px;
+    height: 188px;
+    background: radial-gradient(circle, rgba(255, 244, 176, 0.9), rgba(255, 174, 69, 0.2) 48%, transparent 70%);
+}
+
+.head {
+    position: absolute;
+    left: 50%;
+    top: 62px;
+    width: 74px;
+    height: 86px;
+    border-radius: 50% 50% 44% 44%;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, #ffe2a4, #c88731);
+    box-shadow: 0 0 24px rgba(255, 220, 110, 0.62);
+}
+
+.body {
+    position: absolute;
+    left: 50%;
+    top: 136px;
+    width: 178px;
+    height: 116px;
+    border-radius: 48% 48% 18% 18%;
+    transform: translateX(-50%);
+    background:
+        radial-gradient(circle at 50% 22%, rgba(255, 242, 175, 0.84), transparent 22%),
+        linear-gradient(135deg, #efad41, #8b2715 64%, #4f0b0c);
+    border: 2px solid rgba(255, 218, 105, 0.8);
+}
+
+.hands {
+    position: absolute;
+    left: 50%;
+    top: 170px;
+    width: 84px;
+    height: 36px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, #d99c50, #ffe0a4, #d99c50);
+}
+
+.lotus {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    display: flex;
+    gap: 4px;
+    transform: translateX(-50%);
+}
+
+.lotus span {
+    display: block;
+    width: 54px;
+    height: 44px;
+    border-radius: 80% 20% 80% 20%;
+    background: linear-gradient(135deg, #fff1b8, #e94d76 62%, #8c1644);
+    transform: rotate(45deg);
+}
+
+.lotus span:nth-child(2),
+.lotus span:nth-child(4) {
+    margin-top: 18px;
+}
+
+.vows {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 28px;
+}
+
+.vows article {
+    padding: 16px 12px;
+    border: 1px solid rgba(255, 214, 105, 0.42);
+    border-radius: 16px;
+    background: rgba(35, 7, 7, 0.58);
+}
+
+.vows strong,
+.vows span {
+    display: block;
+}
+
+.vows strong {
+    color: #ffe18c;
+    font-size: 24px;
+}
+
+.vows span {
+    margin-top: 8px;
+    color: rgba(255, 246, 220, 0.78);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.altar {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    gap: 38px;
+    margin: 18px auto 0;
+}
+
+.candle {
+    width: 22px;
+    height: 76px;
+    border-radius: 10px 10px 4px 4px;
+    background: linear-gradient(90deg, #f6d9a2, #fff4d3, #bc7b42);
+}
+
+.candle::before {
+    content: "";
+    display: block;
+    width: 24px;
+    height: 34px;
+    margin: -28px 0 0 -1px;
+    border-radius: 50% 50% 46% 46%;
+    background: radial-gradient(circle at 50% 68%, #fff6b8, #ff9d2d 52%, transparent 70%);
+    animation: flame 0.8s ease-in-out infinite alternate;
+}
+
+.bowl {
+    width: 170px;
+    height: 64px;
+    border-radius: 12px 12px 80px 80px;
+    background:
+        radial-gradient(ellipse at 50% 8%, rgba(255, 232, 156, 0.9), transparent 30%),
+        linear-gradient(180deg, #f5c15c, #8d3918);
+    border: 2px solid rgba(255, 226, 130, 0.8);
+}
+
+.edict {
+    position: relative;
+    z-index: 2;
+    width: min(880px, 100%);
+    margin: 8px auto 0;
+    padding: 22px clamp(18px, 4vw, 42px) 34px;
+    text-align: center;
+    color: #fff2bf;
+}
+
+.edict p {
+    margin: 10px 0;
+    font-size: clamp(18px, 2.3vw, 25px);
+    font-weight: 800;
+    letter-spacing: 0.05em;
+}
+
+button {
+    margin-top: 18px;
+    padding: 13px 28px;
+    border: 2px solid #ffdf87;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffe6a2, #cf812c);
+    color: #321007;
+    font: 900 18px/1 "Noto Serif TC", "PingFang TC", serif;
+    cursor: pointer;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+}
+
+.incense {
+    position: fixed;
+    bottom: -8vh;
+    width: 22vw;
+    height: 72vh;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 100%, var(--smoke), transparent 66%);
+    filter: blur(14px);
+    opacity: 0.7;
+    animation: smokeRise 9s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+.incense-one {
+    left: 6vw;
+}
+
+.incense-two {
+    left: 38vw;
+    animation-delay: -3s;
+}
+
+.incense-three {
+    right: 4vw;
+    animation-delay: -5.5s;
+}
+
+@keyframes glowPulse {
+    from {
+        opacity: 0.72;
+        transform: scale(1);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1.04);
+    }
+}
+
+@keyframes lanternSwing {
+    from {
+        transform: rotate(-2deg);
+    }
+
+    to {
+        transform: rotate(2.5deg);
+    }
+}
+
+@keyframes spinGlow {
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+@keyframes flame {
+    from {
+        transform: scale(0.92) skewX(-3deg);
+    }
+
+    to {
+        transform: scale(1.08) skewX(4deg);
+    }
+}
+
+@keyframes smokeRise {
+    from {
+        transform: translateY(8%) translateX(-2%) scale(0.9);
+    }
+
+    to {
+        transform: translateY(-7%) translateX(3%) scale(1.08);
+    }
+}
+
+@media (max-width: 760px) {
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+    }
+
+    body {
+        overflow: hidden;
+    }
+
+    .temple {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100vh;
+        min-height: 0;
+        padding: 6px;
+        overflow: hidden;
+    }
+
+    .hall {
+        width: 100%;
+        min-height: 0;
+        margin: 0 auto;
+        padding: 48px 8px 5px;
+    }
+
+    .roof {
+        width: 112%;
+        height: 58px;
+    }
+
+    .roof-back {
+        top: 0;
+    }
+
+    .roof-front {
+        top: 20px;
+    }
+
+    .roof-front::after {
+        bottom: 5px;
+        height: 5px;
+    }
+
+    .lantern {
+        top: 50px;
+        width: 28px;
+        height: 38px;
+        border-width: 2px;
+    }
+
+    .lantern::before {
+        top: -17px;
+        height: 18px;
+    }
+
+    .lantern span {
+        font-size: 14px;
+    }
+
+    .columns {
+        inset: 64px 4px 10px;
+        opacity: 0.34;
+    }
+
+    .column {
+        width: 18px;
+        border-width: 2px;
+    }
+
+    .sanctum {
+        min-height: 0;
+        padding: 10px 10px 8px;
+        border-width: 2px;
+        border-radius: 14px;
+    }
+
+    .sutra-line {
+        margin-bottom: 5px;
+        font-size: 9px;
+        letter-spacing: 0.04em;
+    }
+
+    h1 {
+        font-size: 34px;
+        line-height: 0.95;
+    }
+
+    .subtitle {
+        margin-top: 6px;
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .buddha {
+        width: 126px;
+        height: 92px;
+        margin-top: 5px;
+    }
+
+    .halo-outer {
+        width: 94px;
+        height: 94px;
+    }
+
+    .halo-inner {
+        width: 68px;
+        height: 68px;
+    }
+
+    .head {
+        top: 20px;
+        width: 27px;
+        height: 31px;
+    }
+
+    .body {
+        top: 50px;
+        width: 68px;
+        height: 42px;
+    }
+
+    .hands {
+        top: 62px;
+        width: 32px;
+        height: 14px;
+    }
+
+    .lotus span {
+        width: 20px;
+        height: 17px;
+    }
+
+    .vows {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
+        margin-top: 6px;
+    }
+
+    .vows article {
+        padding: 5px 3px;
+        border-radius: 8px;
+    }
+
+    .vows strong {
+        font-size: 12px;
+    }
+
+    .vows span {
+        display: none;
+    }
+
+    .altar {
+        gap: 16px;
+        margin-top: 3px;
+    }
+
+    .candle {
+        width: 9px;
+        height: 22px;
+    }
+
+    .candle::before {
+        width: 12px;
+        height: 15px;
+        margin: -12px 0 0 -1px;
+    }
+
+    .bowl {
+        width: 64px;
+        height: 24px;
+    }
+
+    .edict {
+        flex: 0 0 auto;
+        margin-top: 0;
+        padding: 0 8px 4px;
+    }
+
+    .edict p {
+        margin: 2px 0;
+        font-size: 10px;
+        line-height: 1.15;
+    }
+
+    button {
+        margin-top: 4px;
+        padding: 5px 12px;
+        border-width: 1px;
+        font-size: 11px;
+    }
+}
+
+@media (min-width: 520px) and (max-width: 760px) and (min-height: 700px) {
+    body {
+        background:
+            radial-gradient(circle at 50% 22%, rgba(255, 224, 130, 0.42), transparent 16rem),
+            linear-gradient(90deg, rgba(82, 8, 10, 0.82), transparent 18% 82%, rgba(82, 8, 10, 0.82)),
+            linear-gradient(180deg, #120404 0%, #3d0909 46%, #090202 100%);
+    }
+
+    .temple {
+        padding: 10px 12px;
+    }
+
+    .hall {
+        width: min(560px, 100%);
+        padding: 118px 24px 8px;
+    }
+
+    .hall::before {
+        content: "";
+        position: absolute;
+        left: 5%;
+        right: 5%;
+        bottom: 8px;
+        z-index: 1;
+        height: 92px;
+        clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+        background:
+            repeating-linear-gradient(180deg, rgba(255, 214, 110, 0.2) 0 2px, transparent 2px 18px),
+            linear-gradient(180deg, rgba(111, 21, 17, 0.86), rgba(31, 5, 5, 0.94));
+        border-bottom: 4px solid rgba(255, 210, 98, 0.62);
+        pointer-events: none;
+    }
+
+    .roof {
+        width: 138%;
+        height: 138px;
+        clip-path: polygon(1% 76%, 16% 40%, 50% 2%, 84% 40%, 99% 76%, 91% 100%, 9% 100%);
+        box-shadow:
+            0 18px 38px rgba(0, 0, 0, 0.48),
+            0 0 42px rgba(255, 189, 72, 0.18);
+    }
+
+    .roof-back {
+        top: 2px;
+        opacity: 0.72;
+    }
+
+    .roof-front {
+        top: 52px;
+    }
+
+    .roof-front::after {
+        left: 6%;
+        right: 6%;
+        bottom: 10px;
+        height: 10px;
+    }
+
+    .lantern {
+        top: 126px;
+        width: 52px;
+        height: 76px;
+        box-shadow:
+            0 0 28px rgba(255, 116, 44, 0.64),
+            0 16px 34px rgba(0, 0, 0, 0.3);
+    }
+
+    .lantern span {
+        font-size: 25px;
+    }
+
+    .columns {
+        inset: 134px 4px 54px;
+        opacity: 0.78;
+    }
+
+    .column {
+        width: 34px;
+        background:
+            linear-gradient(90deg, rgba(255, 238, 155, 0.34), transparent 26% 70%, rgba(0, 0, 0, 0.28)),
+            repeating-linear-gradient(180deg, #d22b22 0 34px, #7f0e10 34px 41px);
+        box-shadow:
+            inset 0 0 22px rgba(0, 0, 0, 0.42),
+            0 18px 32px rgba(0, 0, 0, 0.36);
+    }
+
+    .sanctum {
+        padding: 24px 22px 18px;
+        border-width: 3px;
+        border-radius: 22px;
+        background:
+            radial-gradient(circle at 50% 36%, rgba(255, 225, 117, 0.34), transparent 32%),
+            linear-gradient(90deg, rgba(255, 220, 112, 0.15), transparent 18% 82%, rgba(255, 220, 112, 0.15)),
+            linear-gradient(180deg, rgba(88, 9, 12, 0.96), rgba(17, 4, 4, 0.98));
+        box-shadow:
+            inset 0 0 70px rgba(255, 189, 76, 0.16),
+            0 26px 64px rgba(0, 0, 0, 0.54);
+    }
+
+    .sanctum::before {
+        content: "Great Buddha Hall";
+        display: inline-block;
+        margin: -8px auto 10px;
+        padding: 4px 18px;
+        border: 2px solid rgba(255, 221, 128, 0.74);
+        background: linear-gradient(180deg, #2a0606, #5a1010);
+        color: #ffe28f;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+    }
+
+    .sutra-line {
+        margin-bottom: 10px;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+    }
+
+    h1 {
+        font-size: 62px;
+        line-height: 0.92;
+    }
+
+    .subtitle {
+        margin-top: 12px;
+        font-size: 15px;
+        line-height: 1.45;
+    }
+
+    .buddha {
+        width: 250px;
+        height: 184px;
+        margin-top: 10px;
+    }
+
+    .halo-outer {
+        width: 184px;
+        height: 184px;
+    }
+
+    .halo-inner {
+        width: 132px;
+        height: 132px;
+    }
+
+    .head {
+        top: 42px;
+        width: 48px;
+        height: 56px;
+    }
+
+    .body {
+        top: 96px;
+        width: 120px;
+        height: 82px;
+    }
+
+    .hands {
+        top: 116px;
+        width: 58px;
+        height: 22px;
+    }
+
+    .lotus span {
+        width: 34px;
+        height: 28px;
+    }
+
+    .vows {
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .vows article {
+        padding: 9px 7px;
+        border-radius: 12px;
+    }
+
+    .vows strong {
+        font-size: 16px;
+    }
+
+    .vows span {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .altar {
+        position: relative;
+        z-index: 3;
+        gap: 30px;
+        margin-top: 10px;
+    }
+
+    .candle {
+        width: 13px;
+        height: 40px;
+    }
+
+    .candle::before {
+        width: 17px;
+        height: 24px;
+        margin: -20px 0 0 -2px;
+    }
+
+    .bowl {
+        width: 118px;
+        height: 42px;
+    }
+
+    .edict {
+        position: relative;
+        z-index: 3;
+        padding: 6px 18px 8px;
+    }
+
+    .edict p {
+        margin: 5px 0;
+        font-size: 13px;
+        line-height: 1.25;
+    }
+
+    button {
+        margin-top: 8px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+}

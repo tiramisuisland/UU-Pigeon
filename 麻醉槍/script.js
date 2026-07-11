@@ -14,6 +14,7 @@ const popupPositionKey = "popupVideoPositions";
 const maxOverlapArea = 100 * 200;
 const fallbackSize = { width: 560, height: 360 };
 const measuredSizes = videos.map(() => ({ ...fallbackSize }));
+let metadataReady = Promise.resolve(measuredSizes);
 let unlocked = false;
 
 function fitVideoSizeToScreen(width, height, maxRatio = 0.72) {
@@ -262,10 +263,8 @@ function syncPopupToVideo(index, video, run) {
   window.moveTo(left, top);
 }
 
-function preloadVideoSizes() {
-  if (!document.body.classList.contains("launcher-page")) return;
-
-  videos.forEach((item, index) => {
+function loadVideoSize(item, index) {
+  return new Promise((resolve) => {
     const probe = document.createElement("video");
 
     probe.preload = "metadata";
@@ -275,8 +274,22 @@ function preloadVideoSizes() {
       if (probe.videoWidth && probe.videoHeight) {
         measuredSizes[index] = fitVideoSizeToScreen(probe.videoWidth, probe.videoHeight);
       }
+      resolve(measuredSizes[index]);
+    }, { once: true });
+    probe.addEventListener("error", () => {
+      measuredSizes[index] = { ...fallbackSize };
+      resolve(measuredSizes[index]);
     }, { once: true });
   });
+}
+
+function preloadVideoSizes() {
+  if (!document.body.classList.contains("launcher-page")) {
+    return Promise.resolve(measuredSizes);
+  }
+
+  metadataReady = Promise.all(videos.map(loadVideoSize));
+  return metadataReady;
 }
 
 function openPopup(item, index, run) {
@@ -303,12 +316,23 @@ function setupLauncherPage() {
   const button = document.querySelector("#launchButton");
   const status = document.querySelector("#launchStatus");
 
-  button.addEventListener("click", () => {
+  button.disabled = true;
+  status.textContent = "Measuring video sizes...";
+  metadataReady.then(() => {
+    button.disabled = false;
+    status.textContent = "Ready.";
+  });
+
+  button.addEventListener("click", async () => {
     let popupIndex = 0;
     const run = String(Date.now());
-    const positions = makeRandomPositionSet(measuredSizes);
 
     button.disabled = true;
+    status.textContent = "Measuring video sizes...";
+    await metadataReady;
+
+    const positions = makeRandomPositionSet(measuredSizes);
+
     status.textContent = "Opening popup windows...";
     localStorage.removeItem(unlockKey);
     savePopupPositions(run, positions);

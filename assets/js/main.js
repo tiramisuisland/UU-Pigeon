@@ -346,6 +346,13 @@ let readManResumeAt = -1;
 let readManPointerNear = false;
 let pointerClientX = Number.NaN;
 let pointerClientY = Number.NaN;
+let machineGunHoldTimer = 0;
+let machineGunFireTimer = 0;
+let machineGunActive = false;
+let suppressNextClickShot = false;
+let machineGunPointerId = null;
+let machineGunClientX = Number.NaN;
+let machineGunClientY = Number.NaN;
 let readManVideo = null;
 let readManVideoTexture = null;
 let buttonModelPopupWindow = null;
@@ -360,6 +367,17 @@ let anthemPopupOpened = false;
 let birdCameraPopupOpened = false;
 let asianFuturismPopupOpened = false;
 let anesthesiaGunVideosOpened = false;
+let anesthesiaGunVideosOpening = false;
+let layDownKnifePopupOpened = false;
+const anesthesiaGunVideoFiles = [
+    "Sing F.mp4",
+    "Sing ppl.mp4",
+    "Sing D.mp4",
+    "Sing S.mp4",
+    "Sing U.mp4",
+    "Sing N.mp4"
+];
+const anesthesiaGunVideoSizeCache = new Map();
 let buddhaLightShown = false;
 let buddhaLightPromptShown = false;
 let buddhaLightPromptState = null;
@@ -478,12 +496,31 @@ const chatReactionEndpoints = {
     like: "https://macn8n.tiramisu-island.com/webhook/chatting_like_count",
     dislike: "https://macn8n.tiramisu-island.com/webhook/chatting_dislike_count"
 };
+const chatAvatarPaths = {
+    trump: "./assets/images/chat-avatars/T.png",
+    lai: "./assets/images/chat-avatars/W.png",
+    xi: "./assets/images/chat-avatars/X.png"
+};
 const chatAvatarImages = new Map([
-    ["川普", "./assets/images/chat-avatars/T.png"],
-    ["Trump", "./assets/images/chat-avatars/T.png"],
-    ["賴清德", "./assets/images/chat-avatars/W.png"],
-    ["習近平", "./assets/images/chat-avatars/X.png"],
-    ["习近平", "./assets/images/chat-avatars/X.png"],
+    ["trump", chatAvatarPaths.trump],
+    ["donaldtrump", chatAvatarPaths.trump],
+    ["donaldjtrump", chatAvatarPaths.trump],
+    ["presidenttrump", chatAvatarPaths.trump],
+    ["川普", chatAvatarPaths.trump],
+    ["特朗普", chatAvatarPaths.trump],
+    ["唐納川普", chatAvatarPaths.trump],
+    ["唐納德川普", chatAvatarPaths.trump],
+    ["lai", chatAvatarPaths.lai],
+    ["williamlai", chatAvatarPaths.lai],
+    ["laichingte", chatAvatarPaths.lai],
+    ["賴清德", chatAvatarPaths.lai],
+    ["赖清德", chatAvatarPaths.lai],
+    ["清德", chatAvatarPaths.lai],
+    ["xi", chatAvatarPaths.xi],
+    ["xijinping", chatAvatarPaths.xi],
+    ["習近平", chatAvatarPaths.xi],
+    ["习近平", chatAvatarPaths.xi],
+    ["近平", chatAvatarPaths.xi],
 ]);
 const digitPath = "./assets/digits/";
 const digitSprites = new Map();
@@ -1461,8 +1498,15 @@ function attachChatMessageActions(messageElement, chatItem) {
     });
 }
 
+function normalizeChatAvatarName(senderName) {
+    return String(senderName || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[.\s_'’`·・-]+/g, "");
+}
+
 function getChatAvatarSrc(senderName) {
-    return chatAvatarImages.get(String(senderName || "").trim()) || "";
+    return chatAvatarImages.get(normalizeChatAvatarName(senderName)) || "";
 }
 
 async function submitChatReaction(reactionType) {
@@ -1935,6 +1979,31 @@ function openAsianFuturismImageIfNeeded() {
     asianFuturismPopupWindow.focus();
 }
 
+function openLayDownKnifeTempleIfNeeded() {
+    if (layDownKnifePopupOpened || knockedDownBirdCount !== 44) {
+        return;
+    }
+
+    const width = 600;
+    const height = 800;
+    const left = (window.screen.availLeft ?? 0) + Math.round((window.screen.availWidth - width) / 2);
+    const top = (window.screen.availTop ?? 0) + Math.round((window.screen.availHeight - height) / 2);
+    const templeWindow = window.open(
+        new URL("./lay_down_knife/index.html", window.location.href).href,
+        "lay_down_knife_temple",
+        `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+
+    if (!templeWindow) {
+        hud.innerHTML = "放下屠刀頁面被瀏覽器擋下<br>請允許彈出式視窗";
+        return;
+    }
+
+    layDownKnifePopupOpened = true;
+    popupWindows.add(templeWindow);
+    templeWindow.focus();
+}
+
 function setTestKillCount(count) {
     if (!testKillsMode) {
         return false;
@@ -1959,6 +2028,7 @@ function setTestKillCount(count) {
     openKillCountVideoIfNeeded();
     openCsGalleryIfNeeded();
     openAsianFuturismImageIfNeeded();
+    openLayDownKnifeTempleIfNeeded();
     openVideoPlaylistAfterTwentyKillsIfNeeded();
     openBirdCameraPopupIfNeeded();
     return true;
@@ -2182,25 +2252,73 @@ function openExploVideos() {
     }
 }
 
-function openAnesthesiaGunVideos() {
-    if (anesthesiaGunVideosOpened) {
+function getAnesthesiaGunVideoSize(src) {
+    if (anesthesiaGunVideoSizeCache.has(src)) {
+        return Promise.resolve(anesthesiaGunVideoSizeCache.get(src));
+    }
+
+    return new Promise((resolve) => {
+        const probe = document.createElement("video");
+        probe.muted = true;
+        probe.preload = "metadata";
+        probe.playsInline = true;
+        probe.src = src;
+        probe.addEventListener("loadedmetadata", () => {
+            const size = {
+                width: probe.videoWidth || 560,
+                height: probe.videoHeight || 360
+            };
+            anesthesiaGunVideoSizeCache.set(src, size);
+            resolve(size);
+        }, { once: true });
+        probe.addEventListener("error", () => {
+            const size = { width: 560, height: 360 };
+            anesthesiaGunVideoSizeCache.set(src, size);
+            resolve(size);
+        }, { once: true });
+    });
+}
+
+function fitAnesthesiaGunVideoSize(size, maxRatio = 0.72) {
+    const screenWidth = window.screen.availWidth || window.innerWidth;
+    const screenHeight = window.screen.availHeight || window.innerHeight;
+    const maxWidth = Math.max(1, Math.floor(screenWidth * maxRatio));
+    const maxHeight = Math.max(1, Math.floor(screenHeight * maxRatio));
+    const scale = Math.min(1, maxWidth / size.width, maxHeight / size.height);
+
+    return {
+        width: Math.max(1, Math.round(size.width * scale)),
+        height: Math.max(1, Math.round(size.height * scale))
+    };
+}
+
+async function openAnesthesiaGunVideos() {
+    if (anesthesiaGunVideosOpened || anesthesiaGunVideosOpening) {
         return;
     }
 
+    anesthesiaGunVideosOpening = true;
     const run = String(Date.now());
     const screenLeft = window.screen.availLeft ?? 0;
     const screenTop = window.screen.availTop ?? 0;
     const screenWidth = window.screen.availWidth || window.innerWidth;
     const screenHeight = window.screen.availHeight || window.innerHeight;
-    const videos = [
-        { width: 560, height: 360, x: 0.5, y: 0.5 },
-        { width: 560, height: 360, x: 0.08, y: 0.12 },
-        { width: 560, height: 360, x: 0.78, y: 0.12 },
-        { width: 560, height: 360, x: 0.08, y: 0.72 },
-        { width: 560, height: 360, x: 0.78, y: 0.72 },
-        { width: 560, height: 360, x: 0.45, y: 0.08 }
+    const placements = [
+        { x: 0.5, y: 0.5 },
+        { x: 0.08, y: 0.12 },
+        { x: 0.78, y: 0.12 },
+        { x: 0.08, y: 0.72 },
+        { x: 0.78, y: 0.72 },
+        { x: 0.45, y: 0.08 }
     ];
-    const positions = videos.map(({ x, y }) => ({ x, y }));
+    const videoSizes = await Promise.all(anesthesiaGunVideoFiles.map((fileName) => (
+        getAnesthesiaGunVideoSize(new URL(`./麻醉槍/${fileName}`, window.location.href).href)
+    )));
+    const videos = placements.map((placement, index) => ({
+        ...placement,
+        ...fitAnesthesiaGunVideoSize(videoSizes[index] || { width: 560, height: 360 })
+    }));
+    const positions = placements.map(({ x, y }) => ({ x, y }));
     const openedWindows = [];
 
     localStorage.removeItem("popupVideoUnlock");
@@ -2223,7 +2341,6 @@ function openAnesthesiaGunVideos() {
         const popupUrl = new URL("./麻醉槍/popup.html", window.location.href);
         popupUrl.searchParams.set("video", String(index));
         popupUrl.searchParams.set("run", run);
-        popupUrl.searchParams.set("lockPlacement", "1");
         const popupWindow = window.open(
             popupUrl.href,
             `anesthesia_gun_${run}_${index}`,
@@ -2238,10 +2355,12 @@ function openAnesthesiaGunVideos() {
 
     if (openedWindows.length === 0) {
         hud.innerHTML = "麻醉槍影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        anesthesiaGunVideosOpening = false;
         return;
     }
 
     anesthesiaGunVideosOpened = true;
+    anesthesiaGunVideosOpening = false;
     openedWindows.at(-1)?.focus();
 }
 
@@ -2465,6 +2584,7 @@ let lookAtThemPopupWindows = [];
 let lookAtThemMonitorTimer = 0;
 let lookAtThemClosingAll = false;
 let lookAtThemC1Audio = null;
+const lookAtThemMetadataCache = new Map();
 
 function playLookAtThemC1Audio() {
     if (lookAtThemC1Audio) {
@@ -2494,6 +2614,37 @@ function stopLookAtThemC1Audio() {
 
 window.playLookAtThemC1Audio = playLookAtThemC1Audio;
 window.stopLookAtThemC1Audio = stopLookAtThemC1Audio;
+
+function waitForLookAtThemMetadata(src) {
+    if (lookAtThemMetadataCache.has(src)) {
+        return Promise.resolve(lookAtThemMetadataCache.get(src));
+    }
+
+    return new Promise((resolve) => {
+        const probe = document.createElement("video");
+        probe.muted = true;
+        probe.preload = "metadata";
+        probe.playsInline = true;
+        probe.src = src;
+        probe.onloadedmetadata = () => {
+            const size = {
+                width: probe.videoWidth || 640,
+                height: probe.videoHeight || 360
+            };
+            lookAtThemMetadataCache.set(src, size);
+            resolve(size);
+        };
+        probe.onerror = () => {
+            const size = { width: 640, height: 360 };
+            lookAtThemMetadataCache.set(src, size);
+            resolve(size);
+        };
+    });
+}
+
+function getCachedLookAtThemSize(src) {
+    return lookAtThemMetadataCache.get(src) || { width: 640, height: 360 };
+}
 
 function closeLookAtThemPopups() {
     if (lookAtThemClosingAll) {
@@ -2567,7 +2718,7 @@ function getLookAtThemTopRightRect(size, margin = 18) {
     };
 }
 
-function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
+function makeLookAtThemPopupHtml(src, label, sourceSize, delay, rect, shouldLoop) {
     const useOpenerAudio = label === "C1";
     return `<!doctype html>
 <html lang="zh-Hant">
@@ -2598,14 +2749,16 @@ function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
     const useOpenerAudio = ${useOpenerAudio ? "true" : "false"};
     let activated = false;
     function fitWindowToVideo() {
-      if (!video.videoWidth || !video.videoHeight) return;
+      const naturalWidth = video.videoWidth || ${sourceSize.width};
+      const naturalHeight = video.videoHeight || ${sourceSize.height};
+      if (!naturalWidth || !naturalHeight) return;
       const scale = Math.min(
         1,
-        (window.screen.availWidth * 0.82) / video.videoWidth,
-        (window.screen.availHeight * 0.82) / video.videoHeight
+        (window.screen.availWidth * 0.82) / naturalWidth,
+        (window.screen.availHeight * 0.82) / naturalHeight
       );
-      const width = Math.max(1, Math.round(video.videoWidth * scale));
-      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      const width = Math.max(1, Math.round(naturalWidth * scale));
+      const height = Math.max(1, Math.round(naturalHeight * scale));
       const left = Math.round(Math.max(0, Math.min(${rect.left}, window.screen.availWidth - width)));
       const top = Math.round(Math.max(0, Math.min(${rect.top}, window.screen.availHeight - height)));
       try {
@@ -2659,7 +2812,7 @@ window.opener.postMessage({ type: "look-at-them-popup-closed" }, "*");
 </html>`;
 }
 
-function openLookAtThemVideoPopup(src, label, rect, delay = 0, startTiny = false, shouldLoop = true) {
+function openLookAtThemVideoPopup(src, label, sourceSize, rect, delay = 0, startTiny = false, shouldLoop = true) {
     const initialWidth = startTiny ? 220 : rect.width;
     const initialHeight = startTiny ? 140 : rect.height;
     const hiddenRect = getLookAtThemTopRightRect({ width: initialWidth, height: initialHeight }, 26);
@@ -2684,7 +2837,7 @@ function openLookAtThemVideoPopup(src, label, rect, delay = 0, startTiny = false
     }
 
     popupWindow.document.open();
-    popupWindow.document.write(makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop));
+    popupWindow.document.write(makeLookAtThemPopupHtml(src, label, sourceSize, delay, rect, shouldLoop));
     popupWindow.document.close();
     lookAtThemPopupWindows.push(popupWindow);
     popupWindows.add(popupWindow);
@@ -2700,7 +2853,9 @@ function openLookAtThemPopups() {
 
     const screenWidth = window.screen.availWidth || window.innerWidth;
     const screenHeight = window.screen.availHeight || window.innerHeight;
-    const c1Size = fitLookAtThemToScreen({ width: 640, height: 360 });
+    const c1Src = new URL("./look_at_them/C1.mp4", window.location.href).href;
+    const c1SourceSize = getCachedLookAtThemSize(c1Src);
+    const c1Size = fitLookAtThemToScreen(c1SourceSize);
     const c1Rect = getLookAtThemTopRightRect(c1Size, 18);
     const margin = 24;
     const gap = 14;
@@ -2711,7 +2866,9 @@ function openLookAtThemPopups() {
     let opened = 0;
 
     lookAtThemClips.forEach((fileName, index) => {
-        const displaySize = fitLookAtThemInsideCell({ width: 640, height: 360 }, cellWidth, cellHeight);
+        const src = new URL(`./look_at_them/${fileName}`, window.location.href).href;
+        const sourceSize = getCachedLookAtThemSize(src);
+        const displaySize = fitLookAtThemInsideCell(sourceSize, cellWidth, cellHeight);
         const column = index % columns;
         const row = Math.floor(index / columns);
         const cellLeft = screenWidth - margin - cellWidth - column * (cellWidth + gap);
@@ -2720,8 +2877,9 @@ function openLookAtThemPopups() {
         const left = cellLeft + Math.max(0, cellWidth - displaySize.width) - diagonalNudge;
         const top = cellTop + Math.floor((cellHeight - displaySize.height) / 2);
         const popupWindow = openLookAtThemVideoPopup(
-            new URL(`./look_at_them/${fileName}`, window.location.href).href,
+            src,
             `CAM-${String(index + 1).padStart(2, "0")}`,
+            sourceSize,
             {
                 width: displaySize.width,
                 height: displaySize.height,
@@ -2745,8 +2903,9 @@ function openLookAtThemPopups() {
     }
 
     const c1Window = openLookAtThemVideoPopup(
-        new URL("./look_at_them/C1.mp4", window.location.href).href,
+        c1Src,
         "C1",
+        c1SourceSize,
         {
             width: c1Size.width,
             height: c1Size.height,
@@ -2768,6 +2927,12 @@ function openLookAtThemPopups() {
     monitorLookAtThemPopups();
     hud.innerHTML = "look_at_them 已直接播放<br>5 秒後其他影片會一次展開";
 }
+
+[new URL("./look_at_them/C1.mp4", window.location.href).href, ...lookAtThemClips.map((fileName) => (
+    new URL(`./look_at_them/${fileName}`, window.location.href).href
+))].forEach((src) => {
+    waitForLookAtThemMetadata(src);
+});
 
 function showAliveBirdPrompt(threshold) {
     if (aliveBirdPromptStates.has(threshold)) {
@@ -4011,6 +4176,140 @@ function spawnWave(elapsed) {
     hud.innerHTML = `有 ${activeCount} 隻鴿子在飛<br>每 ${nextSpawnInterval.minSeconds}~${nextSpawnInterval.maxSeconds} 秒會再飛進來一隻`;
 }
 
+function updateAimFromClientPoint(clientX, clientY) {
+    pointerClientX = clientX;
+    pointerClientY = clientY;
+    gameCursor.style.left = `${clientX}px`;
+    gameCursor.style.top = `${clientY}px`;
+    gameCursor.classList.add("is-visible");
+}
+
+function shootAtPoint(clientX, clientY, options = {}) {
+    const { allowReadMan = true } = options;
+    playGunshotAudio();
+    updateAimFromClientPoint(clientX, clientY);
+
+    if (allowReadMan && hitTestReadMan({ clientX, clientY })) {
+        playReadManVideo();
+        replayReadManAnimation(clock.elapsedTime);
+        return;
+    }
+
+    const clickableBirdRoots = birds
+        .filter((bird) => bird.isActive && !bird.isCrashed)
+        .map((bird) => bird.root);
+
+    if (clickableBirdRoots.length === 0) {
+        return;
+    }
+
+    clickPointer.x = (clientX / appViewport.width) * 2 - 1;
+    clickPointer.y = -((clientY / appViewport.height) * 2 - 1);
+    raycaster.setFromCamera(clickPointer, camera);
+
+    const hits = raycaster.intersectObjects(clickableBirdRoots, true);
+    if (hits.length === 0) {
+        return;
+    }
+
+    let hitBird = null;
+    let node = hits[0].object;
+    while (node) {
+        if (node.userData.birdId) {
+            hitBird = birds.find((bird) => bird.id === node.userData.birdId);
+            break;
+        }
+        node = node.parent;
+    }
+
+    if (!hitBird) {
+        return;
+    }
+
+    if (Math.random() < 1 / 4) {
+        hitBird.speed = THREE.MathUtils.max(hitBird.speed, 13);
+        pickAutoFlightTarget(hitBird);
+        if (hitBird.actions.evade) {
+            playBirdAction(hitBird, "evade", 0.08, { force: true });
+            hitBird.actionUntil = clock.elapsedTime + 0.8;
+        }
+        playBirdCoo(hitBird);
+        hud.innerHTML = "命中一隻鴿子<br>牠閃過去了，沒有墜落";
+        return;
+    }
+
+    hitBird.isCrashed = true;
+    hitBird.crashFallSpeed = 0;
+    hitBird.reviveAt = -1;
+    knockedDownBirdCount += 1;
+    setMarqueeStat("currentKills", knockedDownBirdCount);
+    recordPigeonKill();
+    incrementGlobalKillMarqueeStat();
+    createDroppedSign(hitBird, "幹麻打我");
+    playBirdCoo(hitBird);
+    stopBirdWingAudio(hitBird);
+    if (hitBird.actions.hit) {
+        playBirdAction(hitBird, "hit", 0.05, { once: true, force: true });
+        hitBird.actionUntil = clock.elapsedTime + 1.2;
+    } else if (hitBird.mixer) {
+        hitBird.mixer.stopAllAction();
+    }
+    hud.innerHTML = "命中一隻鴿子<br>牠丟下「幹麻打我」後墜落";
+    openKillCountVideoIfNeeded();
+    openCsGalleryIfNeeded();
+    openAsianFuturismImageIfNeeded();
+    openLayDownKnifeTempleIfNeeded();
+    openBirdCameraPopupIfNeeded(hitBird);
+    if (hitBird === birdCameraTargetBird) {
+        scheduleBirdCameraClose(clock.elapsedTime);
+    }
+    openVideoPlaylistAfterTwentyKillsIfNeeded();
+}
+
+function stopMachineGun() {
+    window.clearTimeout(machineGunHoldTimer);
+    window.clearInterval(machineGunFireTimer);
+    machineGunHoldTimer = 0;
+    machineGunFireTimer = 0;
+    machineGunActive = false;
+    machineGunPointerId = null;
+}
+
+function fireMachineGunShot() {
+    if (!machineGunActive) {
+        return;
+    }
+
+    shootAtPoint(machineGunClientX, machineGunClientY, { allowReadMan: false });
+}
+
+function startMachineGunHold(event) {
+    if (event.button !== 0) {
+        return;
+    }
+
+    stopMachineGun();
+    machineGunPointerId = event.pointerId;
+    machineGunClientX = event.clientX;
+    machineGunClientY = event.clientY;
+    machineGunHoldTimer = window.setTimeout(() => {
+        machineGunActive = true;
+        suppressNextClickShot = true;
+        gameCursor.classList.add("is-firing");
+        fireMachineGunShot();
+        machineGunFireTimer = window.setInterval(fireMachineGunShot, 200);
+    }, 5000);
+}
+
+function updateMachineGunAim(event) {
+    if (machineGunPointerId !== event.pointerId) {
+        return;
+    }
+
+    machineGunClientX = event.clientX;
+    machineGunClientY = event.clientY;
+}
+
 function startReadManAnimationCycle(elapsed = clock.elapsedTime) {
     if (!readManMixer || readManActions.length === 0) {
         return;
@@ -4486,101 +4785,45 @@ window.addEventListener("pointermove", (event) => {
     pointer.x = (event.clientX / appViewport.width) * 2 - 1;
     pointer.y = -((event.clientY / appViewport.height) * 2 - 1);
     lastPointerMoveAt = clock.elapsedTime;
+    updateMachineGunAim(event);
 });
 
-window.addEventListener("pointerdown", () => {
+window.addEventListener("pointerdown", (event) => {
     gameCursor.classList.add("is-firing");
+    startMachineGunHold(event);
 });
 
 window.addEventListener("pointerup", () => {
     gameCursor.classList.remove("is-firing");
+    stopMachineGun();
+});
+
+window.addEventListener("pointercancel", () => {
+    gameCursor.classList.remove("is-firing");
+    stopMachineGun();
+    suppressNextClickShot = false;
 });
 
 window.addEventListener("pointerleave", () => {
     gameCursor.classList.remove("is-visible", "is-firing");
+    stopMachineGun();
+    suppressNextClickShot = false;
+});
+
+window.addEventListener("blur", () => {
+    gameCursor.classList.remove("is-firing");
+    stopMachineGun();
+    suppressNextClickShot = false;
 });
 
 window.addEventListener("click", (event) => {
-    playGunshotAudio();
-    pointerClientX = event.clientX;
-    pointerClientY = event.clientY;
-    gameCursor.style.left = `${event.clientX}px`;
-    gameCursor.style.top = `${event.clientY}px`;
-    gameCursor.classList.add("is-visible");
-    if (hitTestReadMan(event)) {
-        playReadManVideo();
-        replayReadManAnimation(clock.elapsedTime);
+    if (suppressNextClickShot) {
+        suppressNextClickShot = false;
+        event.preventDefault();
         return;
     }
 
-    const clickableBirdRoots = birds
-        .filter((bird) => bird.isActive && !bird.isCrashed)
-        .map((bird) => bird.root);
-
-    if (clickableBirdRoots.length === 0) {
-        return;
-    }
-
-    clickPointer.x = (event.clientX / appViewport.width) * 2 - 1;
-    clickPointer.y = -((event.clientY / appViewport.height) * 2 - 1);
-    raycaster.setFromCamera(clickPointer, camera);
-
-    const hits = raycaster.intersectObjects(clickableBirdRoots, true);
-    if (hits.length === 0) {
-        return;
-    }
-
-    let hitBird = null;
-    let node = hits[0].object;
-    while (node) {
-        if (node.userData.birdId) {
-            hitBird = birds.find((bird) => bird.id === node.userData.birdId);
-            break;
-        }
-        node = node.parent;
-    }
-
-    if (!hitBird) {
-        return;
-    }
-
-    if (Math.random() < 1 / 4) {
-        hitBird.speed = THREE.MathUtils.max(hitBird.speed, 13);
-        pickAutoFlightTarget(hitBird);
-        if (hitBird.actions.evade) {
-            playBirdAction(hitBird, "evade", 0.08, { force: true });
-            hitBird.actionUntil = clock.elapsedTime + 0.8;
-        }
-        playBirdCoo(hitBird);
-        hud.innerHTML = "命中一隻鴿子<br>牠閃過去了，沒有墜落";
-        return;
-    }
-
-    hitBird.isCrashed = true;
-    hitBird.crashFallSpeed = 0;
-    hitBird.reviveAt = -1;
-    knockedDownBirdCount += 1;
-    setMarqueeStat("currentKills", knockedDownBirdCount);
-    recordPigeonKill();
-    incrementGlobalKillMarqueeStat();
-    createDroppedSign(hitBird, "幹麻打我");
-    playBirdCoo(hitBird);
-    stopBirdWingAudio(hitBird);
-    if (hitBird.actions.hit) {
-        playBirdAction(hitBird, "hit", 0.05, { once: true, force: true });
-        hitBird.actionUntil = clock.elapsedTime + 1.2;
-    } else if (hitBird.mixer) {
-        hitBird.mixer.stopAllAction();
-    }
-    hud.innerHTML = "命中一隻鴿子<br>牠丟下「幹麻打我」後墜落";
-    openKillCountVideoIfNeeded();
-    openCsGalleryIfNeeded();
-    openAsianFuturismImageIfNeeded();
-    openBirdCameraPopupIfNeeded(hitBird);
-    if (hitBird === birdCameraTargetBird) {
-        scheduleBirdCameraClose(clock.elapsedTime);
-    }
-    openVideoPlaylistAfterTwentyKillsIfNeeded();
+    shootAtPoint(event.clientX, event.clientY);
 });
 
 function completeFrontPageEntrance() {
