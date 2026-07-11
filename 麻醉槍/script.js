@@ -16,6 +16,18 @@ const fallbackSize = { width: 560, height: 360 };
 const measuredSizes = videos.map(() => ({ ...fallbackSize }));
 let unlocked = false;
 
+function fitVideoSizeToScreen(width, height, maxRatio = 0.72) {
+  const { screenWidth, screenHeight } = getScreenBounds();
+  const maxWidth = Math.max(1, Math.floor((screenWidth - popupMargin * 2) * maxRatio));
+  const maxHeight = Math.max(1, Math.floor((screenHeight - popupMargin * 2) * maxRatio));
+  const scale = Math.min(1, maxWidth / width, maxHeight / height);
+
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
 function broadcastUnlock() {
   channel?.postMessage({ type: "unlock" });
   localStorage.setItem(unlockKey, String(Date.now()));
@@ -240,8 +252,10 @@ function syncPopupToVideo(index, video, run) {
 
   const chromeWidth = Math.max(0, window.outerWidth - window.innerWidth);
   const chromeHeight = Math.max(0, window.outerHeight - window.innerHeight);
-  const outerWidth = video.videoWidth + chromeWidth;
-  const outerHeight = video.videoHeight + chromeHeight;
+  const fittedSize = fitVideoSizeToScreen(video.videoWidth, video.videoHeight);
+  measuredSizes[index] = fittedSize;
+  const outerWidth = fittedSize.width + chromeWidth;
+  const outerHeight = fittedSize.height + chromeHeight;
   const { left, top } = getPlacementFromRatio(index, outerWidth, outerHeight, run);
 
   window.resizeTo(outerWidth, outerHeight);
@@ -259,10 +273,7 @@ function preloadVideoSizes() {
     probe.src = item.file;
     probe.addEventListener("loadedmetadata", () => {
       if (probe.videoWidth && probe.videoHeight) {
-        measuredSizes[index] = {
-          width: probe.videoWidth,
-          height: probe.videoHeight,
-        };
+        measuredSizes[index] = fitVideoSizeToScreen(probe.videoWidth, probe.videoHeight);
       }
     }, { once: true });
   });

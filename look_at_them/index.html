@@ -327,7 +327,7 @@
       width: 100vw;
       height: 100vh;
       display: none;
-      object-fit: cover;
+      object-fit: fill;
       background: #000;
     }
 
@@ -354,6 +354,24 @@
     const useOpenerAudio = ${useOpenerAudio ? "true" : "false"};
     let activated = false;
 
+    function fitWindowToVideo() {
+      if (!video.videoWidth || !video.videoHeight) return;
+      const scale = Math.min(
+        1,
+        (window.screen.availWidth * 0.82) / video.videoWidth,
+        (window.screen.availHeight * 0.82) / video.videoHeight
+      );
+      const width = Math.max(1, Math.round(video.videoWidth * scale));
+      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      const left = Math.round(Math.max(0, Math.min(${rect.left}, window.screen.availWidth - width)));
+      const top = Math.round(Math.max(0, Math.min(${rect.top}, window.screen.availHeight - height)));
+
+      try {
+        window.moveTo(left, top);
+        window.resizeTo(width, height);
+      } catch (error) {}
+    }
+
     async function playWithSound() {
       video.muted = useOpenerAudio;
       video.volume = useOpenerAudio ? 0 : 1;
@@ -370,10 +388,7 @@
       if (activated) return;
       activated = true;
 
-      try {
-        window.moveTo(${rect.left}, ${rect.top});
-        window.resizeTo(${rect.width}, ${rect.height});
-      } catch (error) {}
+      fitWindowToVideo();
 
       armed.style.display = "none";
       video.style.display = "block";
@@ -388,6 +403,7 @@
     }
 
     window.activatePopup = activate;
+    video.addEventListener("loadedmetadata", fitWindowToVideo, { once: true });
     window.addEventListener("focus", playWithSound);
     window.addEventListener("pointerdown", playWithSound);
 

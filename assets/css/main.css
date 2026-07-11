@@ -269,7 +269,7 @@
             position: fixed;
             left: var(--safe-left);
             top: calc(var(--safe-top) + 64px);
-            z-index: 13;
+            z-index: 80;
             width: clamp(calc(280px * var(--layout-scale)), 28vw, calc(360px * var(--layout-scale)));
             max-width: calc(100vw - var(--safe-left) - var(--safe-right));
             aspect-ratio: 298.77 / 387.74;
@@ -277,12 +277,13 @@
             overflow: hidden;
             border: 0;
             border-radius: 11px;
-            background: url("../images/元首聊天室.svg") center / 100% 100% no-repeat;
+            background: transparent;
             box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
             color: #efefef;
             opacity: 0;
             transform: translateY(-10px);
             pointer-events: none;
+            isolation: isolate;
             transition: opacity 180ms ease, transform 180ms ease;
         }
 
@@ -290,6 +291,19 @@
             opacity: 1;
             transform: translateY(0);
             pointer-events: auto;
+        }
+
+        .chat-background-image {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
         }
 
         .chat-drag-handle {
@@ -313,7 +327,7 @@
             left: 3%;
             right: 3%;
             top: 14.8%;
-            z-index: 1;
+            z-index: 2;
             height: 7%;
             display: flex;
             align-items: center;
@@ -339,15 +353,17 @@
             position: absolute;
             left: 2.6%;
             right: 1.6%;
-            top: 22%;
+            top: 25.5%;
             bottom: 8.4%;
+            z-index: 1;
             display: flex;
             flex-direction: column;
             gap: calc(14px * var(--layout-scale));
             padding: calc(13px * var(--layout-scale)) calc(12px * var(--layout-scale)) calc(18px * var(--layout-scale));
             overflow-y: auto;
             overscroll-behavior: contain;
-            background: #333333;
+            background: transparent;
+            border-radius: 0 0 calc(12px * var(--layout-scale)) calc(12px * var(--layout-scale));
             scrollbar-color: #666666 transparent;
             scrollbar-width: thin;
         }
@@ -439,7 +455,7 @@
             position: absolute;
             left: calc(58px * var(--layout-scale));
             top: calc(88px * var(--layout-scale));
-            z-index: 2;
+            z-index: 4;
             display: flex;
             gap: calc(4px * var(--layout-scale));
             padding: calc(4px * var(--layout-scale));
@@ -789,4 +805,3 @@
                 height: calc(26px * var(--layout-scale));
             }
         }
-

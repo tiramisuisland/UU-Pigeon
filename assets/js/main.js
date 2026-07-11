@@ -2576,7 +2576,7 @@ function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
   <title>${label}</title>
   <style>
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
-    video { width: 100vw; height: 100vh; display: none; object-fit: cover; background: #000; }
+    video { width: 100vw; height: 100vh; display: none; object-fit: fill; background: #000; }
     .armed {
       position: fixed;
       inset: 0;
@@ -2597,6 +2597,22 @@ function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
     const armed = document.querySelector("#armed");
     const useOpenerAudio = ${useOpenerAudio ? "true" : "false"};
     let activated = false;
+    function fitWindowToVideo() {
+      if (!video.videoWidth || !video.videoHeight) return;
+      const scale = Math.min(
+        1,
+        (window.screen.availWidth * 0.82) / video.videoWidth,
+        (window.screen.availHeight * 0.82) / video.videoHeight
+      );
+      const width = Math.max(1, Math.round(video.videoWidth * scale));
+      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      const left = Math.round(Math.max(0, Math.min(${rect.left}, window.screen.availWidth - width)));
+      const top = Math.round(Math.max(0, Math.min(${rect.top}, window.screen.availHeight - height)));
+      try {
+window.moveTo(left, top);
+window.resizeTo(width, height);
+      } catch (error) {}
+    }
     async function playWithSound() {
       video.muted = useOpenerAudio;
       video.volume = useOpenerAudio ? 0 : 1;
@@ -2612,8 +2628,7 @@ function makeLookAtThemPopupHtml(src, label, delay, rect, shouldLoop) {
       if (activated) return;
       activated = true;
       try {
-window.moveTo(${rect.left}, ${rect.top});
-window.resizeTo(${rect.width}, ${rect.height});
+fitWindowToVideo();
       } catch (error) {}
       armed.style.display = "none";
       video.style.display = "block";
@@ -2627,6 +2642,7 @@ window.opener?.playLookAtThemC1Audio?.();
       playWithSound();
     }
     window.activatePopup = activate;
+    video.addEventListener("loadedmetadata", fitWindowToVideo, { once: true });
     window.addEventListener("focus", playWithSound);
     window.addEventListener("pointerdown", playWithSound);
     window.addEventListener("beforeunload", () => {
