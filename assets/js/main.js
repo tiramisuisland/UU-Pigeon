@@ -437,7 +437,8 @@ const dictatorDeflationKillVideos = new Map([
     [7, "./獨裁者洩氣/7.mp4"],
     [8, "./獨裁者洩氣/8.mp4"],
     [9, "./獨裁者洩氣/9.mp4"],
-    [10, "./獨裁者洩氣/10.mp4"]
+    [10, "./獨裁者洩氣/10.mp4"],
+    [19, "./19.mp4"]
 ]);
 const readManPlacement = {
     displaySize: 0.70,
@@ -2036,24 +2037,21 @@ function openLayDownKnifeTempleIfNeeded() {
         return;
     }
 
-    const width = 600;
-    const height = 800;
-    const left = (window.screen.availLeft ?? 0) + Math.round((window.screen.availWidth - width) / 2);
-    const top = (window.screen.availTop ?? 0) + Math.round((window.screen.availHeight - height) / 2);
-    const templeWindow = window.open(
-        new URL("./lay_down_knife/index.html", window.location.href).href,
-        "lay_down_knife_temple",
-        `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-    );
+    const fortyFourWindow = openButtonModelPopup({
+        videoSrc: "./44.mp4",
+        label: "44",
+        videoLoop: true,
+        forceNew: true,
+        popupPage: "./pages/plain-video-popup.html",
+        windowName: "kill_44_video_popup"
+    });
 
-    if (!templeWindow) {
-        hud.innerHTML = "放下屠刀頁面被瀏覽器擋下<br>請允許彈出式視窗";
+    if (!fortyFourWindow) {
+        hud.innerHTML = "44 影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
         return;
     }
 
     layDownKnifePopupOpened = true;
-    popupWindows.add(templeWindow);
-    templeWindow.focus();
 }
 
 function setTestKillCount(count) {
