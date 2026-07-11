@@ -76,6 +76,10 @@
   <script>
     const entry = document.querySelector("#entry");
     const fallback = document.querySelector("#fallback");
+    let exploPopups = [];
+    let closeMonitor = 0;
+    let secondPopupTimer = 0;
+    let closingPopups = false;
 
     function randomBetween(min, max) {
       return Math.floor(min + Math.random() * Math.max(1, max - min));
@@ -118,8 +122,46 @@
       return `popup=yes,width=${placement.width},height=${placement.height},left=${placement.left},top=${placement.top}`;
     }
 
+    function closeExploPopups() {
+      if (closingPopups) return;
+
+      closingPopups = true;
+      window.clearInterval(closeMonitor);
+      window.clearTimeout(secondPopupTimer);
+      closeMonitor = 0;
+      secondPopupTimer = 0;
+
+      exploPopups.forEach((popup) => {
+        if (popup && !popup.closed) {
+          popup.close();
+        }
+      });
+      exploPopups = [];
+
+      window.setTimeout(() => {
+        closingPopups = false;
+      }, 500);
+    }
+
+    function monitorExploPopups() {
+      window.clearInterval(closeMonitor);
+      closeMonitor = window.setInterval(() => {
+        if (!exploPopups.length) {
+          window.clearInterval(closeMonitor);
+          closeMonitor = 0;
+          return;
+        }
+
+        if (exploPopups.some((popup) => !popup || popup.closed)) {
+          closeExploPopups();
+        }
+      }, 300);
+    }
+
     entry.addEventListener("click", () => {
       localStorage.setItem("exploAudioEnabled", "1");
+      closeExploPopups();
+      closingPopups = false;
 
       const runId = Date.now();
       const firstPlacement = randomPlacement(832, 468);
@@ -132,6 +174,8 @@
       let secondPopup = null;
 
       if (firstPopup) {
+        exploPopups.push(firstPopup);
+        monitorExploPopups();
         firstPopup.moveTo(firstPlacement.left, firstPlacement.top);
         firstPopup.resizeTo(firstPlacement.width, firstPlacement.height);
         firstPopup.focus();
@@ -150,7 +194,12 @@
         fallback.classList.add("is-visible");
       }
 
-      window.setTimeout(() => {
+      secondPopupTimer = window.setTimeout(() => {
+        if (!firstPopup || firstPopup.closed) {
+          closeExploPopups();
+          return;
+        }
+
         secondPopup = window.open(
           "player2.html?delay=0",
           `explo_player_2_${runId}`,
@@ -158,16 +207,20 @@
         );
 
         if (secondPopup) {
+          exploPopups.push(secondPopup);
           secondPopup.moveTo(secondPlacement.left, secondPlacement.top);
           secondPopup.resizeTo(secondPlacement.width, secondPlacement.height);
           secondPopup.focus();
         } else {
+          closeExploPopups();
           fallback.textContent = "開啟第二支";
           fallback.href = "player2.html?delay=0";
           fallback.classList.add("is-visible");
         }
       }, 15000);
     });
+
+    window.addEventListener("beforeunload", closeExploPopups);
   </script>
 </body>
 </html>

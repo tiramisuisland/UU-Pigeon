@@ -169,6 +169,7 @@
     let closeMonitor = null;
     let popupTimers = [];
     let primaryAudio = null;
+    let closingCompanions = false;
     const openedPopups = new Set();
 
     function preloadVideoSize(item) {
@@ -310,11 +311,14 @@
     }
 
     function closeCompanionPopups() {
+      if (closingCompanions) return;
+
+      closingCompanions = true;
       popupTimers.forEach((timer) => window.clearTimeout(timer));
       popupTimers = [];
 
       openedPopups.forEach((win) => {
-        if (win && !win.closed && win !== primaryWindow) {
+        if (win && !win.closed) {
           win.close();
         }
       });
@@ -330,6 +334,10 @@
         primaryAudio.load();
         primaryAudio = null;
       }
+
+      window.setTimeout(() => {
+        closingCompanions = false;
+      }, 500);
     }
 
     window.closeCompanionPopups = closeCompanionPopups;

@@ -362,12 +362,15 @@ let asianFuturismPopupWindow = null;
 let buddhaLightPopupWindow = null;
 let explosionPopupWindow = null;
 const popupWindows = new Set();
+const popupWindowGroups = new Map();
 let videoPlaylistPopupOpened = false;
 let anthemPopupOpened = false;
 let birdCameraPopupOpened = false;
 let asianFuturismPopupOpened = false;
 let anesthesiaGunVideosOpened = false;
 let anesthesiaGunVideosOpening = false;
+let anesthesiaGunPopupClosing = false;
+let anesthesiaGunPopupWindows = [];
 let layDownKnifePopupOpened = false;
 const anesthesiaGunVideoFiles = [
     "Sing F.mp4",
@@ -1735,6 +1738,55 @@ function applyGlobalVolume() {
     broadcastVolumeToPopups();
 }
 
+function closePopupWindowGroup(groupId, { notify = false } = {}) {
+    const group = popupWindowGroups.get(groupId);
+
+    if (!group || group.closing) {
+        return;
+    }
+
+    group.closing = true;
+    window.clearInterval(group.monitor);
+    group.windows.forEach((popupWindow) => {
+        if (popupWindow && !popupWindow.closed) {
+            popupWindow.close();
+        }
+        popupWindows.delete(popupWindow);
+    });
+    popupWindowGroups.delete(groupId);
+
+    if (notify) {
+        group.onClosed?.();
+    }
+}
+
+function registerPopupWindowGroup(groupId, windows, options = {}) {
+    const liveWindows = windows.filter(Boolean);
+
+    closePopupWindowGroup(groupId);
+
+    if (!liveWindows.length) {
+        return;
+    }
+
+    const group = {
+        windows: liveWindows,
+        closing: false,
+        monitor: 0,
+        onClosed: options.onClosed
+    };
+
+    group.monitor = window.setInterval(() => {
+        const hasClosedWindow = group.windows.some((popupWindow) => !popupWindow || popupWindow.closed);
+
+        if (hasClosedWindow) {
+            closePopupWindowGroup(groupId, { notify: true });
+        }
+    }, options.interval || 300);
+
+    popupWindowGroups.set(groupId, group);
+}
+
 function setGlobalVolume(nextVolume) {
     globalVolume = THREE.MathUtils.clamp(Math.round(nextVolume), 0, 100);
     renderVolumeSlot();
@@ -2227,8 +2279,9 @@ function openExploVideos() {
         `explo_player_2_${runId}`,
         `popup=yes,width=480,height=360,left=${screenLeft + Math.max(24, window.screen.availWidth - 504)},top=${screenTop + Math.max(24, window.screen.availHeight - 384)},resizable=yes`
     );
+    const openedWindows = [firstWindow, secondWindow].filter(Boolean);
 
-    [firstWindow, secondWindow].forEach((popupWindow) => {
+    openedWindows.forEach((popupWindow) => {
         if (popupWindow) {
             popupWindows.add(popupWindow);
         }
@@ -2246,8 +2299,16 @@ function openExploVideos() {
     }
 
     if (!firstWindow || !secondWindow) {
+        closePopupWindowGroup("explo-videos");
+        openedWindows.forEach((popupWindow) => {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.close();
+            }
+            popupWindows.delete(popupWindow);
+        });
         hud.innerHTML = "影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
     } else {
+        registerPopupWindowGroup("explo-videos", openedWindows);
         secondWindow.focus();
     }
 }
@@ -2292,12 +2353,39 @@ function fitAnesthesiaGunVideoSize(size, maxRatio = 0.72) {
     };
 }
 
+function closeAnesthesiaGunPopups() {
+    if (anesthesiaGunPopupClosing) {
+        return;
+    }
+
+    anesthesiaGunPopupClosing = true;
+    closePopupWindowGroup("anesthesia-gun-videos");
+    anesthesiaGunPopupWindows = [];
+    anesthesiaGunVideosOpened = false;
+    anesthesiaGunVideosOpening = false;
+
+    window.setTimeout(() => {
+        anesthesiaGunPopupClosing = false;
+    }, 500);
+}
+
+function monitorAnesthesiaGunPopups() {
+    registerPopupWindowGroup("anesthesia-gun-videos", anesthesiaGunPopupWindows, {
+        onClosed: () => {
+            anesthesiaGunPopupWindows = [];
+            anesthesiaGunVideosOpened = false;
+            anesthesiaGunVideosOpening = false;
+        }
+    });
+}
+
 async function openAnesthesiaGunVideos() {
     if (anesthesiaGunVideosOpened || anesthesiaGunVideosOpening) {
         return;
     }
 
     anesthesiaGunVideosOpening = true;
+    anesthesiaGunPopupWindows = [];
     const run = String(Date.now());
     const screenLeft = window.screen.availLeft ?? 0;
     const screenTop = window.screen.availTop ?? 0;
@@ -2353,14 +2441,22 @@ async function openAnesthesiaGunVideos() {
         }
     });
 
-    if (openedWindows.length === 0) {
+    if (openedWindows.length !== videos.length) {
+        openedWindows.forEach((popupWindow) => {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.close();
+            }
+            popupWindows.delete(popupWindow);
+        });
         hud.innerHTML = "麻醉槍影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
         anesthesiaGunVideosOpening = false;
         return;
     }
 
+    anesthesiaGunPopupWindows = openedWindows;
     anesthesiaGunVideosOpened = true;
     anesthesiaGunVideosOpening = false;
+    monitorAnesthesiaGunPopups();
     openedWindows.at(-1)?.focus();
 }
 
@@ -2403,11 +2499,18 @@ function openSaltLampMomVideos() {
         }
     });
 
-    if (openedWindows.length === 0) {
+    if (openedWindows.length !== popupItems.length) {
+        openedWindows.forEach((popupWindow) => {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.close();
+            }
+            popupWindows.delete(popupWindow);
+        });
         hud.innerHTML = "鹽燈媽媽影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
         return;
     }
 
+    registerPopupWindowGroup("salt-lamp-mom-videos", openedWindows);
     openedWindows.at(-1)?.focus();
 }
 
@@ -2422,8 +2525,10 @@ function openTruthVideos() {
         { id: "V1", file: "V1.mp4", width: 300, height: 480, delay: 900, sound: 0, x: 0.08, y: 0.08 },
         { id: "S1", file: "S1.mp4", width: 230, height: 172, delay: 1550, sound: 0, x: 0.82, y: 0.08 },
         { id: "V2", file: "V2.mp4", width: 240, height: 384, delay: 2200, sound: 0, x: 0.08, y: 0.82 },
-        { id: "S2", file: "S2.mp4", width: 720, height: 200, delay: 2850, sound: 0, x: 0.72, y: 0.82 }
+        { id: "S2", file: "S2.mp4", width: 720, height: 200, delay: 450, sound: 0, x: 0.72, y: 0.82 }
     ];
+    const openedWindows = [];
+    const playbackTimers = [];
     let truthM1BackupAudio = null;
 
     window.playTruthM1BackupAudio = function playTruthM1BackupAudio() {
@@ -2451,6 +2556,12 @@ function openTruthVideos() {
         truthM1BackupAudio.load();
         truthM1BackupAudio = null;
     };
+
+    function stopTruthVideoGroup() {
+        playbackTimers.forEach((timer) => window.clearTimeout(timer));
+        playbackTimers.length = 0;
+        window.stopTruthM1BackupAudio();
+    }
 
     function writeImmediateSoundVideoPopup(popupWindow, item, videoSrc) {
         window.playTruthM1BackupAudio();
@@ -2533,6 +2644,10 @@ function openTruthVideos() {
         }
 
         popupWindows.add(popupWindow);
+        openedWindows.push(popupWindow);
+        popupWindow.document.title = item.id;
+        popupWindow.document.body.style.margin = "0";
+        popupWindow.document.body.style.background = "#000";
         popupWindow.document.documentElement.style.background = "#000";
         const popupUrl = new URL("./Truth/popup-video.html", window.location.href);
         popupUrl.searchParams.set("id", item.id);
@@ -2542,11 +2657,13 @@ function openTruthVideos() {
         popupUrl.searchParams.set("h", String(item.height));
         popupUrl.searchParams.set("volume", String(item.sound === 1 ? 1 : getGlobalVolumeRatio()));
 
+        let playbackStarted = false;
         const beginPlayback = () => {
-            if (popupWindow.closed || popupWindow.location.href !== "about:blank") {
+            if (playbackStarted || popupWindow.closed) {
                 return;
             }
 
+            playbackStarted = true;
             if (item.sound === 1) {
                 writeImmediateSoundVideoPopup(
                     popupWindow,
@@ -2561,8 +2678,24 @@ function openTruthVideos() {
         if (item.delay === 0) {
             beginPlayback();
         } else {
-            window.setTimeout(beginPlayback, item.delay);
+            playbackTimers.push(window.setTimeout(beginPlayback, item.delay));
         }
+    });
+
+    if (openedWindows.length !== truthVideos.length) {
+        stopTruthVideoGroup();
+        openedWindows.forEach((popupWindow) => {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.close();
+            }
+            popupWindows.delete(popupWindow);
+        });
+        hud.innerHTML = "Truth 影片小視窗被瀏覽器擋下<br>請允許彈出式視窗";
+        return;
+    }
+
+    registerPopupWindowGroup("truth-videos", openedWindows, {
+        onClosed: stopTruthVideoGroup
     });
 }
 

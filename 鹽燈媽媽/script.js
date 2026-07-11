@@ -7,6 +7,9 @@ const popupItems = [
 const fallbackSize = { width: 560, height: 360 };
 const measuredSizes = popupItems.map(() => ({ ...fallbackSize }));
 const gap = 40;
+let launcherPopupWindows = [];
+let launcherPopupMonitor = 0;
+let launcherPopupClosing = false;
 
 function getScreenBounds() {
   const screenLeft = window.screen.availLeft || 0;
@@ -145,46 +148,91 @@ function openBlankPopup(index) {
   return window.open("about:blank", `sm-sb-popup-${index}`, getPopupFeatures(index));
 }
 
+function closeLauncherPopups() {
+  if (launcherPopupClosing) return;
+
+  launcherPopupClosing = true;
+  window.clearInterval(launcherPopupMonitor);
+  launcherPopupMonitor = 0;
+
+  launcherPopupWindows.forEach((popup) => {
+    if (popup && !popup.closed) {
+      popup.close();
+    }
+  });
+
+  launcherPopupWindows = [];
+  window.setTimeout(() => {
+    launcherPopupClosing = false;
+  }, 500);
+}
+
+function monitorLauncherPopups(onClosed) {
+  window.clearInterval(launcherPopupMonitor);
+  launcherPopupMonitor = window.setInterval(() => {
+    if (!launcherPopupWindows.length) {
+      window.clearInterval(launcherPopupMonitor);
+      launcherPopupMonitor = 0;
+      return;
+    }
+
+    if (launcherPopupWindows.some((popup) => !popup || popup.closed)) {
+      closeLauncherPopups();
+      onClosed?.();
+    }
+  }, 300);
+}
+
 function setupLauncherPage() {
   const button = document.querySelector("#launchButton");
   const status = document.querySelector("#launchStatus");
-  let pendingIndices = popupItems.map((item, index) => index);
 
   preloadVideoSizes();
 
   button.addEventListener("click", () => {
     button.disabled = true;
-    status.textContent = pendingIndices.length === popupItems.length
-      ? "Opening popup windows..."
-      : "Opening remaining popup windows...";
+    status.textContent = "Opening popup windows...";
+    closeLauncherPopups();
+    launcherPopupClosing = false;
 
-    const nextPending = [];
+    const openedPopups = [];
+    const blockedItems = [];
 
-    pendingIndices.forEach((index) => {
+    popupItems.forEach((item, index) => {
       const popup = openBlankPopup(index);
 
       if (popup) {
         popup.location.href = `popup.html?video=${index}`;
+        openedPopups.push(popup);
       } else {
-        nextPending.push(index);
+        blockedItems.push(item);
       }
     });
 
-    pendingIndices = nextPending;
-
-    if (pendingIndices.length) {
-      const names = pendingIndices.map((index) => popupItems[index].title).join(", ");
+    if (blockedItems.length) {
+      openedPopups.forEach((popup) => {
+        if (popup && !popup.closed) {
+          popup.close();
+        }
+      });
+      const names = blockedItems.map((item) => item.title).join(", ");
       status.textContent = `Still missing: ${names}. Allow popups, then click again.`;
-      button.textContent = "Open Missing Popups";
+      button.textContent = "Open Popups";
       button.disabled = false;
       return;
     }
 
+    launcherPopupWindows = openedPopups;
+    monitorLauncherPopups(() => {
+      status.textContent = "One popup was closed, so all popup windows were closed.";
+      button.disabled = false;
+    });
     status.textContent = "All popup windows are open.";
     button.textContent = "Open Popups";
-    pendingIndices = popupItems.map((item, index) => index);
     button.disabled = false;
   });
+
+  window.addEventListener("beforeunload", closeLauncherPopups);
 }
 
 if (document.body.classList.contains("popup-page")) {

@@ -47,7 +47,7 @@
 
     document.title = id;
     video.autoplay = true;
-    video.muted = wantsSound || audibleVolume === 0;
+    video.muted = !wantsSound || audibleVolume === 0;
     video.volume = video.muted ? 0 : audibleVolume;
     video.src = src;
 
@@ -68,7 +68,7 @@
     }
 
     async function startPlayback({ allowMutedFallback = true } = {}) {
-      setMuted(wantsSound || audibleVolume === 0);
+      setMuted(!wantsSound || audibleVolume === 0);
 
       try {
         await video.play();
@@ -86,7 +86,7 @@
     }
 
     async function unlockSoundAndPlay() {
-      if (!wantsSound) {
+      if (audibleVolume > 0) {
         setMuted(false);
       }
 
@@ -95,13 +95,26 @@
       }
     }
 
+    function keepAutoplayRunning() {
+      if (video.paused) {
+        startPlayback({ allowMutedFallback: true });
+      }
+    }
+
     window.addEventListener("pointerdown", unlockSoundAndPlay);
-    window.addEventListener("focus", unlockSoundAndPlay);
-    window.addEventListener("pageshow", unlockSoundAndPlay);
+    window.addEventListener("focus", keepAutoplayRunning);
+    window.addEventListener("pageshow", keepAutoplayRunning);
+    window.addEventListener("beforeunload", () => {
+      try {
+        if (window.opener && typeof window.opener.closeCompanionPopups === "function") {
+          window.opener.closeCompanionPopups();
+        }
+      } catch (error) {}
+    });
 
     video.addEventListener("loadedmetadata", resizeToVideoPixels, { once: true });
-    video.addEventListener("loadeddata", unlockSoundAndPlay, { once: true });
-    video.addEventListener("canplay", unlockSoundAndPlay, { once: true });
+    video.addEventListener("loadeddata", keepAutoplayRunning, { once: true });
+    video.addEventListener("canplay", keepAutoplayRunning, { once: true });
     startPlayback({ allowMutedFallback: true });
   </script>
 </body>

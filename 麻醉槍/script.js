@@ -16,6 +16,9 @@ const fallbackSize = { width: 560, height: 360 };
 const measuredSizes = videos.map(() => ({ ...fallbackSize }));
 let metadataReady = Promise.resolve(measuredSizes);
 let unlocked = false;
+let launcherPopupWindows = [];
+let launcherPopupMonitor = 0;
+let launcherPopupClosing = false;
 
 function fitVideoSizeToScreen(width, height, maxRatio = 0.72) {
   const { screenWidth, screenHeight } = getScreenBounds();
@@ -312,6 +315,41 @@ function openPopup(item, index, run) {
   );
 }
 
+function closeLauncherPopups() {
+  if (launcherPopupClosing) return;
+
+  launcherPopupClosing = true;
+  window.clearInterval(launcherPopupMonitor);
+  launcherPopupMonitor = 0;
+
+  launcherPopupWindows.forEach((popupWindow) => {
+    if (popupWindow && !popupWindow.closed) {
+      popupWindow.close();
+    }
+  });
+  launcherPopupWindows = [];
+
+  window.setTimeout(() => {
+    launcherPopupClosing = false;
+  }, 500);
+}
+
+function monitorLauncherPopups(onClosed) {
+  window.clearInterval(launcherPopupMonitor);
+  launcherPopupMonitor = window.setInterval(() => {
+    if (!launcherPopupWindows.length) {
+      window.clearInterval(launcherPopupMonitor);
+      launcherPopupMonitor = 0;
+      return;
+    }
+
+    if (launcherPopupWindows.some((popupWindow) => !popupWindow || popupWindow.closed)) {
+      closeLauncherPopups();
+      onClosed?.();
+    }
+  }, 300);
+}
+
 function setupLauncherPage() {
   const button = document.querySelector("#launchButton");
   const status = document.querySelector("#launchStatus");
@@ -331,6 +369,10 @@ function setupLauncherPage() {
     status.textContent = "Measuring video sizes...";
     await metadataReady;
 
+    closeLauncherPopups();
+    launcherPopupClosing = false;
+    launcherPopupWindows = [];
+
     const positions = makeRandomPositionSet(measuredSizes);
 
     status.textContent = "Opening popup windows...";
@@ -344,17 +386,25 @@ function setupLauncherPage() {
         status.textContent = "Your browser blocked the popups. Please allow popups for this page, then click again.";
         button.disabled = false;
         window.clearInterval(timer);
+        closeLauncherPopups();
         return;
       }
 
+      launcherPopupWindows.push(popup);
       popupIndex += 1;
 
       if (popupIndex >= videos.length) {
         status.textContent = "All popup windows are open.";
         window.clearInterval(timer);
+        monitorLauncherPopups(() => {
+          status.textContent = "One popup was closed, so all popup windows were closed.";
+          button.disabled = false;
+        });
       }
     }, 420);
   });
+
+  window.addEventListener("beforeunload", closeLauncherPopups);
 }
 
 if (document.body.classList.contains("popup-page")) {
