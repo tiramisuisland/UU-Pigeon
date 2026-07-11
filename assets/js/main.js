@@ -2285,16 +2285,20 @@ function openExploVideos() {
         }
     });
 
-    if (firstWindow) {
-        const beginFirstVideo = window.setInterval(() => {
-            if (firstWindow.closed) {
-                window.clearInterval(beginFirstVideo);
-            } else if (typeof firstWindow.beginExplo === "function") {
-                firstWindow.beginExplo();
-                window.clearInterval(beginFirstVideo);
+    [firstWindow, secondWindow].forEach((popupWindow) => {
+        if (!popupWindow) {
+            return;
+        }
+
+        const beginVideo = window.setInterval(() => {
+            if (popupWindow.closed) {
+                window.clearInterval(beginVideo);
+            } else if (typeof popupWindow.beginExplo === "function") {
+                popupWindow.beginExplo();
+                window.clearInterval(beginVideo);
             }
         }, 200);
-    }
+    });
 
     if (!firstWindow || !secondWindow) {
         closePopupWindowGroup("explo-videos");

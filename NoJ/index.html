@@ -352,6 +352,11 @@
     let audioContext;
     let tickTimer;
     let scrambleTimer;
+    const masterVolume = 4;
+
+    function loudVolume(volume) {
+      return Math.min(1, volume * masterVolume);
+    }
 
     function getAudioContext() {
       if (!audioContext) {
@@ -367,10 +372,11 @@
       const context = getAudioContext();
       const oscillator = context.createOscillator();
       const gain = context.createGain();
+      const outputVolume = loudVolume(volume);
       oscillator.type = type;
       oscillator.frequency.setValueAtTime(frequency, start);
       gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(volume, start + .012);
+      gain.gain.linearRampToValueAtTime(outputVolume, start + .012);
       gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
       oscillator.connect(gain);
       gain.connect(context.destination);
@@ -380,6 +386,7 @@
 
     function playNoise(start, duration, volume = .12) {
       const context = getAudioContext();
+      const outputVolume = loudVolume(volume);
       const buffer = context.createBuffer(1, context.sampleRate * duration, context.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < data.length; i += 1) {
@@ -392,7 +399,7 @@
       filter.type = "bandpass";
       filter.frequency.setValueAtTime(650, start);
       filter.Q.setValueAtTime(1.6, start);
-      gain.gain.setValueAtTime(volume, start);
+      gain.gain.setValueAtTime(outputVolume, start);
       gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
       source.connect(filter);
       filter.connect(gain);
