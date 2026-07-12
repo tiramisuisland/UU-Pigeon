@@ -492,9 +492,10 @@ function updateLoadingProgress() {
 }
 
 function maybeFinishLoading() {
-  if (loadingComplete || pendingGalleryVideos.size > 0 || !galleryVideosStarted) return;
+  if (loadingComplete || !galleryVideosStarted) return;
+  if (pendingGalleryVideos.size > 0 && loadingProgress < 0.9) return;
   const assetsReady = Array.from(loadingItems.values()).every((item) => item.done);
-  if (!assetsReady) return;
+  if (!assetsReady && loadingProgress < 0.9) return;
   startGame();
 }
 
