@@ -88,7 +88,6 @@ let galleryVideoSyncCooldown = 0;
 let loadingProgress = 0;
 let loadingComplete = false;
 const GALLERY_VIDEO_START_TIMEOUT = 8;
-const LOADING_STALL_TIMEOUT = 18000;
 const galleryVideoByNode = new Map(GALLERY_VIDEOS.map((config) => [config.nodeName.toLowerCase(), config]));
 const visitors = [];
 const bullets = [];
@@ -443,23 +442,9 @@ function showManualReload() {
 function startLoadingWatchdog() {
   if (loadingStatus) {
     loadingStatus.textContent = reloadToken
-      ? "Reloading assets..."
-      : "Loading assets...";
+      ? "Loading large assets again..."
+      : "Loading large assets...";
   }
-
-  window.setTimeout(() => {
-    if (loadingComplete) {
-      return;
-    }
-
-    const reloadCount = Number(sessionStorage.getItem("csGalleryReloadCount") || "0");
-    if (reloadCount >= 1) {
-      showManualReload();
-      return;
-    }
-
-    forceGalleryReload("assets");
-  }, LOADING_STALL_TIMEOUT);
 }
 
 function ensureAudio() {
