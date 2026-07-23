@@ -487,18 +487,18 @@ const chatTogglePlacement = {
     yRatio: 0.1
 };
 const pointEndpoints = {
-    agree: "https://macn8n.tiramisu-island.com/webhook/get_agree",
-    disagree: "https://macn8n.tiramisu-island.com/webhook/get_disagree"
+    agree: "https://n8n.tiramisu-island.com/webhook/get_agree",
+    disagree: "https://n8n.tiramisu-island.com/webhook/get_disagree"
 };
-const killPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/kill_pigeon";
-const getKillPigeonEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_kill_pigeon";
-const pageviewEndpoint = "https://macn8n.tiramisu-island.com/webhook/pageviews";
-const getPageviewsEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_pageviews";
-const chatMessagesEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_u_chatting";
-const chatTitleEndpoint = "https://macn8n.tiramisu-island.com/webhook/get_chatting_title";
+const killPigeonEndpoint = "https://n8n.tiramisu-island.com/webhook/kill_pigeon";
+const getKillPigeonEndpoint = "https://n8n.tiramisu-island.com/webhook/get_kill_pigeon";
+const pageviewEndpoint = "https://n8n.tiramisu-island.com/webhook/pageviews";
+const getPageviewsEndpoint = "https://n8n.tiramisu-island.com/webhook/get_pageviews";
+const chatMessagesEndpoint = "https://n8n.tiramisu-island.com/webhook/get_u_chatting";
+const chatTitleEndpoint = "https://n8n.tiramisu-island.com/webhook/get_chatting_title";
 const chatReactionEndpoints = {
-    like: "https://macn8n.tiramisu-island.com/webhook/chatting_like_count",
-    dislike: "https://macn8n.tiramisu-island.com/webhook/chatting_dislike_count"
+    like: "https://n8n.tiramisu-island.com/webhook/chatting_like_count",
+    dislike: "https://n8n.tiramisu-island.com/webhook/chatting_dislike_count"
 };
 const chatAvatarPaths = {
     trump: "./assets/images/chat-avatars/T.png",
