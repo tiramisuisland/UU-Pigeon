@@ -445,6 +445,7 @@
     const openWindows = [];
     const explosionWindows = [];
     const popupStorageKey = "explosionPopupAccessReady";
+    let n8nFormWindowRef = null;
     let endingWindowRef = null;
     let endingIsActive = false;
     let endingFocusTimer = null;
@@ -709,6 +710,7 @@
     });
     document.querySelector("#noButton").addEventListener("click", () => {
       if (window.opener && !window.opener.closed && window.opener.rejectEndingFromPopup) {
+        window.opener.openN8nFormAfterExplosion?.();
         window.opener.rejectEndingFromPopup();
       }
       window.close();
@@ -751,10 +753,45 @@
     function closeAllPopups() {
       window.clearInterval(endingFocusTimer);
       for (const win of openWindows) {
+        if (win === n8nFormWindowRef) {
+          continue;
+        }
         if (win && !win.closed) {
           win.close();
         }
       }
+    }
+
+    function openN8nFormAfterExplosion() {
+      if (n8nFormWindowRef && !n8nFormWindowRef.closed) {
+        n8nFormWindowRef.focus();
+        return n8nFormWindowRef;
+      }
+
+      const width = Math.min(980, Math.max(720, Math.round(screen.availWidth * 0.72)));
+      const height = Math.min(820, Math.max(560, Math.round(screen.availHeight * 0.82)));
+      const left = Math.max(0, Math.round((screen.availWidth - width) / 2));
+      const top = Math.max(0, Math.round((screen.availHeight - height) / 2));
+      const formUrl = new URL("../n8n/index.html", window.location.href).href;
+      n8nFormWindowRef = window.open(
+        formUrl,
+        "uu_pigeon_n8n_form",
+        [
+          "popup=yes",
+          "resizable=yes",
+          "scrollbars=yes",
+          `width=${width}`,
+          `height=${height}`,
+          `left=${left}`,
+          `top=${top}`
+        ].join(",")
+      );
+
+      if (n8nFormWindowRef) {
+        n8nFormWindowRef.focus();
+      }
+
+      return n8nFormWindowRef;
     }
 
     function closeOpenerMainPage() {
@@ -1166,6 +1203,7 @@
     }
 
     window.rejectEndingFromPopup = () => {
+      openN8nFormAfterExplosion();
       closeAllPopups();
       closeOpenerMainPage();
       if (autoStartMode) {
@@ -1180,6 +1218,7 @@
       endingIsActive = false;
       endingWindowRef = null;
       window.clearInterval(endingFocusTimer);
+      openN8nFormAfterExplosion();
       closeAllPopups();
       closeOpenerMainPage();
       if (autoStartMode) {
@@ -1188,6 +1227,8 @@
       }
       document.body.classList.add("has-closed");
     };
+
+    window.openN8nFormAfterExplosion = openN8nFormAfterExplosion;
 
     window.addEventListener("beforeunload", closeAllPopups);
   </script>
