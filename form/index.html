@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Form Test</title>
+</head>
+
+<body>
+
+<h2>問題表單</h2>
+
+<input id="q1" placeholder="問題1">
+<input id="q2" placeholder="問題2">
+<input id="q3" placeholder="問題3">
+<input id="q4" placeholder="問題4">
+<input id="q5" placeholder="問題5">
+
+<button onclick="sendData()">送出</button>
+
+<script>
+async function sendData() {
+
+    const token = "123123";
+
+    const payload = {
+        Q1: document.getElementById("q1").value,
+        Q2: document.getElementById("q2").value,
+        Q3: document.getElementById("q3").value,
+        Q4: document.getElementById("q4").value,
+        Q5: document.getElementById("q5").value
+    };
+
+    try {
+        const response = await fetch(
+            "https://n8n.tiramisu-island.com/webhook-test/form",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "token": token
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+
+        const result = await response.json();
+
+        console.log(result);
+        alert("送出成功");
+
+    } catch(error) {
+        console.error(error);
+        alert("送出失敗");
+    }
+}
+</script>
+
+</body>
+</html>

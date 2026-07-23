@@ -1,59 +1,406 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Form Test</title>
-</head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You Made It?</title>
+    <style>
+        :root {
+            --ink: #050505;
+            --paper: #ffffff;
+        }
 
-<body>
+        * {
+            box-sizing: border-box;
+        }
 
-<h2>問題表單</h2>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: Futura, "Futura PT", "Trebuchet MS", Arial, sans-serif;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
 
-<input id="q1" placeholder="User ID">
-<input id="q2" placeholder="問題1">
-<input id="q3" placeholder="問題2">
-<input id="q4" placeholder="建議">
-<input id="q5" placeholder="更多資訊">
+        .page {
+            width: min(100%, 650px);
+            margin: 0 auto;
+            padding: 50px 38px 46px;
+        }
 
-<button onclick="sendData()">送出</button>
+        .masthead {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 22px;
+            margin-bottom: 18px;
+            text-align: center;
+        }
 
-<script>
-async function sendData() {
+        .face {
+            flex: 0 0 auto;
+            width: 42px;
+            height: 42px;
+            margin-top: 1px;
+            transform: rotate(-12deg);
+            object-fit: contain;
+        }
 
-    const token = "123123";
+        .face.right {
+            transform: rotate(12deg);
+        }
 
-    const payload = {
-        Q1: document.getElementById("q1").value,
-        Q2: document.getElementById("q2").value,
-        Q3: document.getElementById("q3").value,
-        Q4: document.getElementById("q4").value,
-        Q5: document.getElementById("q5").value
-    };
+        h1 {
+            display: inline-block;
+            margin: 0;
+            padding: 2px 12px 5px;
+            border-radius: 5px;
+            background: var(--ink);
+            color: var(--paper);
+            font-family: Arial, Helvetica, sans-serif;
+            font-weight: 700;
+            font-size: clamp(34px, 8vw, 47px);
+            line-height: 0.98;
+            font-style: italic;
+            white-space: nowrap;
+        }
 
-    try {
-        const response = await fetch(
-            "https://n8n.tiramisu-island.com/webhook-test/form",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "token": token
-                },
-                body: JSON.stringify(payload)
+        .subtitle {
+            margin-top: -1px;
+            font-size: 17px;
+            line-height: 1;
+        }
+
+        form {
+            font-size: 17px;
+            line-height: 1.32;
+        }
+
+        .question {
+            margin: 17px 0 0;
+        }
+
+        .question-title {
+            margin: 0 0 10px;
+            white-space: nowrap;
+        }
+
+        .answers {
+            margin-left: 40px;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            width: fit-content;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        input[type="radio"] {
+            appearance: none;
+            flex: 0 0 auto;
+            width: 24px;
+            height: 24px;
+            margin: 0 8px 0 0;
+            border: 2px solid var(--ink);
+            border-radius: 7px;
+            background: var(--paper);
+        }
+
+        input[type="radio"]:checked {
+            background:
+                linear-gradient(45deg, transparent 41%, var(--ink) 42%, var(--ink) 58%, transparent 59%),
+                linear-gradient(-45deg, transparent 41%, var(--ink) 42%, var(--ink) 58%, transparent 59%);
+        }
+
+        textarea,
+        input[type="text"] {
+            display: block;
+            width: 100%;
+            border: 2px solid var(--ink);
+            border-radius: 6px;
+            background: var(--paper);
+            color: var(--ink);
+            font: 700 17px/1.35 Futura, "Futura PT", "Trebuchet MS", Arial, sans-serif;
+            resize: vertical;
+            outline: none;
+        }
+
+        textarea {
+            min-height: 70px;
+            padding: 8px 10px;
+        }
+
+        .short-answer {
+            width: min(100%, 354px);
+            margin-left: 20px;
+        }
+
+        .long-answer {
+            width: min(100%, 354px);
+            min-height: 70px;
+            margin-left: 20px;
+        }
+
+        .nectar-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 18px;
+        }
+
+        .nectar-row .answers {
+            margin-left: 40px;
+        }
+
+        .image-stack {
+            position: relative;
+            width: 78px;
+            height: 78px;
+            margin-top: 0;
+            flex: 0 0 auto;
+        }
+
+        .image-stack::before {
+            content: "";
+            position: absolute;
+            left: -6px;
+            top: -4px;
+            width: 68px;
+            height: 68px;
+            border: 3px solid var(--ink);
+            background: var(--paper);
+        }
+
+        .image-stack img {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 76px;
+            height: 72px;
+            object-fit: cover;
+            object-position: 50% 25%;
+            filter: saturate(0.82) contrast(1.04);
+        }
+
+        .submit-row {
+            margin-top: 25px;
+            text-align: center;
+        }
+
+        button {
+            border: 2px solid var(--ink);
+            border-radius: 7px;
+            background: var(--ink);
+            color: var(--paper);
+            padding: 7px 18px 9px;
+            font: 700 18px/1 Futura, "Futura PT", "Trebuchet MS", Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .status {
+            min-height: 20px;
+            margin: 10px 0 0;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        @media (max-width: 520px) {
+            .page {
+                padding: 34px 18px 38px;
             }
-        );
 
-        const result = await response.json();
+            .masthead {
+                gap: 10px;
+            }
 
-        console.log(result);
-        alert("送出成功");
+            .face {
+                width: 31px;
+                height: 31px;
+                margin-top: 3px;
+            }
 
-    } catch(error) {
-        console.error(error);
-        alert("送出失敗");
-    }
-}
-</script>
+            h1 {
+                padding: 3px 8px 5px;
+                font-size: clamp(28px, 9.3vw, 36px);
+            }
 
+            form {
+                font-size: 16px;
+            }
+
+            .answers,
+            .nectar-row .answers {
+                margin-left: 20px;
+            }
+
+            .short-answer,
+            .long-answer {
+                width: calc(100% - 20px);
+                margin-left: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <header class="masthead" aria-label="You Made It? Peace of Shit Completion Check">
+            <img class="face" src="../smile.svg" alt="" aria-hidden="true">
+            <div>
+                <h1>You Made It?</h1>
+                <div class="subtitle">Peace of Shit Completion Check</div>
+            </div>
+            <img class="face right" src="../smile.svg" alt="" aria-hidden="true">
+        </header>
+
+        <form id="completion-check">
+            <section class="question">
+                <p class="question-title">1. Did you successfully fire the cannon and adjust the volume?</p>
+                <div class="answers">
+                    <label><input type="radio" name="q1" value="Yes" required>Yes</label>
+                    <label><input type="radio" name="q1" value="No">No</label>
+                </div>
+            </section>
+
+            <section class="question">
+                <p class="question-title">2. Did you see <em>Daughter of Nectar</em> in the museum?</p>
+                <div class="nectar-row">
+                    <div class="answers">
+                        <label><input type="radio" name="q2" value="Yes" required>Yes</label>
+                        <label><input type="radio" name="q2" value="No">No</label>
+                    </div>
+                    <figure class="image-stack" aria-label="Daughter of Nectar image">
+                        <img src="../lay_down_knife/guanyin-statue.png" alt="Daughter of Nectar">
+                    </figure>
+                </div>
+            </section>
+
+            <section class="question">
+                <p class="question-title">3. What did you see when the horn sounded?</p>
+                <textarea id="q3" name="q3" class="short-answer" required></textarea>
+            </section>
+
+            <section class="question">
+                <p class="question-title">4. Did you see the divine lightning strike?</p>
+                <div class="answers">
+                    <label><input type="radio" name="q4" value="Yes" required>Yes</label>
+                    <label><input type="radio" name="q4" value="No">No</label>
+                </div>
+            </section>
+
+            <section class="question">
+                <p class="question-title">5. What did the bird shit out?</p>
+                <div class="answers">
+                    <label><input type="radio" name="q5" value="You are so cute" required>You are so cute</label>
+                    <label><input type="radio" name="q5" value="Love & peace">Love &amp; peace</label>
+                    <label><input type="radio" name="q5" value="Unleash Chiang">Unleash Chiang</label>
+                </div>
+            </section>
+
+            <section class="question">
+                <p class="question-title">6. Did you actually lay down your weapon?</p>
+                <div class="answers">
+                    <label><input type="radio" name="q6" value="Yes" required>Yes</label>
+                    <label><input type="radio" name="q6" value="No">No</label>
+                </div>
+            </section>
+
+            <section class="question">
+                <p class="question-title">7. How do you feel about sending old people to war?</p>
+                <div class="answers">
+                    <label><input type="radio" name="q7" value="Great idea." required>Great idea.</label>
+                    <label><input type="radio" name="q7" value="I couldn't bear it.">I couldn&rsquo;t bear it.</label>
+                    <label><input type="radio" name="q7" value="That's going too far.">That&rsquo;s going too far.</label>
+                </div>
+            </section>
+
+            <section class="question">
+                <p class="question-title">8. What happened to the Rusia flag in the end?</p>
+                <input id="q8" name="q8" class="short-answer" type="text" required>
+            </section>
+
+            <section class="question">
+                <p class="question-title">9. Do you want Kim Jong Un to join the chat too?</p>
+                <div class="answers">
+                    <label><input type="radio" name="q9" value="Yes - donate" required>Yes - donate</label>
+                    <label><input type="radio" name="q9" value="No - this group is already loud enough">No - this group is already loud enough</label>
+                </div>
+            </section>
+
+            <section class="question">
+                <p class="question-title">10. Would you like to share your experience?</p>
+                <textarea id="q10" name="q10" class="long-answer" required></textarea>
+            </section>
+
+            <div class="submit-row">
+                <button type="submit">Send</button>
+                <p id="status" class="status" role="status" aria-live="polite"></p>
+            </div>
+        </form>
+    </main>
+
+    <script>
+        const form = document.getElementById("completion-check");
+        const statusText = document.getElementById("status");
+
+        function getRadioValue(formData, name) {
+            return formData.get(name) || "";
+        }
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const token = "token";
+            const formData = new FormData(form);
+            const payload = {
+                Q1: getRadioValue(formData, "q1"),
+                Q2: getRadioValue(formData, "q2"),
+                Q3: formData.get("q3") || "",
+                Q4: getRadioValue(formData, "q4"),
+                Q5: getRadioValue(formData, "q5"),
+                Q6: getRadioValue(formData, "q6"),
+                Q7: getRadioValue(formData, "q7"),
+                Q8: formData.get("q8") || "",
+                Q9: getRadioValue(formData, "q9"),
+                Q10: formData.get("q10") || ""
+            };
+
+            statusText.textContent = "Sending...";
+
+            try {
+                const response = await fetch(
+                    "https://n8n.tiramisu-island.com/webhook-test/form",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "token": token
+                        },
+                        body: JSON.stringify(payload)
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                const passed = result.myField === true || result.myField === "true";
+                const failed = result.myField === false || result.myField === "false" || result.myField === "flase";
+
+                if (!passed && !failed) {
+                    throw new Error("Unexpected response");
+                }
+
+                window.location.href = passed ? "result.html?status=pass" : "result.html?status=fail";
+                form.reset();
+            } catch (error) {
+                console.error(error);
+                statusText.textContent = "Send failed.";
+            }
+        });
+    </script>
 </body>
 </html>
